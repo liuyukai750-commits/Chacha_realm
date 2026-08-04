@@ -1,4 +1,4 @@
-import { DAY_MS, timestampMs } from "./time.ts";
+import { DAY_MS, timestampMs } from "./time";
 
 export type DiscoveryLocality = "same_district" | "same_city" | "remote_city";
 

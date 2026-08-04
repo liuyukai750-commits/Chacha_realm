@@ -1,4 +1,4 @@
-import { chinaDateKey, timestampMs } from "./time.ts";
+import { chinaDateKey, timestampMs } from "./time";
 
 export interface ValidReadRecord {
   melonId: string;

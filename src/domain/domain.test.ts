@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluateCityOpening, hasReachedCityOpeningThresholds } from "./city-opening.ts";
-import { calculateDiscoveryScore, rankDiscoveryCandidates } from "./discovery.ts";
-import { getFieldProgress } from "./field.ts";
-import { getMelonSpreadRadiusKm, resolveMelonLifecycle } from "./lifecycle.ts";
-import { evaluateReadReward, type ValidReadRecord } from "./reads.ts";
+import { evaluateCityOpening, hasReachedCityOpeningThresholds } from "./city-opening";
+import { calculateDiscoveryScore, rankDiscoveryCandidates } from "./discovery";
+import { getFieldProgress } from "./field";
+import { getMelonSpreadRadiusKm, resolveMelonLifecycle } from "./lifecycle";
+import { evaluateReadReward, type ValidReadRecord } from "./reads";
 
 test("瓜在创建两小时后成熟，成熟后 24 小时零有效阅读归档", () => {
   const createdAt = "2026-08-04T00:00:00.000Z";
