@@ -1,4 +1,4 @@
-import type { CityId, Coordinates, DistanceBand, DistrictId, SpotId, VisitorType } from "@/contracts";
+import type { CityId, Coordinates, DistanceBand, DistrictId, SpotId, VisitorType } from "../../contracts";
 
 export type LocationUnavailableReason =
   | "permission_denied"

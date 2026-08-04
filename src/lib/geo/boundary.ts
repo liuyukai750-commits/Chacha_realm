@@ -1,4 +1,4 @@
-import type { Coordinates } from "@/contracts";
+import type { Coordinates } from "../../contracts";
 import type { CityGeography, GeoBoundary, GeoPoint, GeoRing } from "./types";
 import { isValidCoordinates } from "./distance";
 

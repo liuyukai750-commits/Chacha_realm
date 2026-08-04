@@ -1,5 +1,5 @@
-import type { CityId, Coordinates, DistrictId, VisitorType } from "@/contracts";
-import { distanceBandForMeters, haversineDistanceM } from "@/lib/geo";
+import type { CityId, Coordinates, DistrictId, VisitorType } from "../../contracts";
+import { distanceBandForMeters, haversineDistanceM } from "../../lib/geo";
 import type {
   DiscoveryCandidate,
   DiscoveryPoolResult,

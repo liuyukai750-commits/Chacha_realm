@@ -1,4 +1,4 @@
-import type { CityId, Coordinates, DistrictId, SpotId } from "@/contracts";
+import type { CityId, Coordinates, DistrictId, SpotId } from "../../contracts";
 
 export interface GeoPoint extends Coordinates {
   readonly latitude: number;

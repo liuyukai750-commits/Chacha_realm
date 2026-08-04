@@ -1,5 +1,5 @@
-import type { CityId } from "@/contracts";
-import type { CityGeography, DistrictGeography, GeoBoundary, PublicSpotRecord } from "@/lib/geo";
+import type { CityId } from "../contracts";
+import type { CityGeography, DistrictGeography, GeoBoundary, PublicSpotRecord } from "../lib/geo";
 
 const rectangle = (
   south: number,

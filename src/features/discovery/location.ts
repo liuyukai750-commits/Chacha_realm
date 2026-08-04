@@ -1,6 +1,6 @@
-import type { Coordinates } from "@/contracts";
-import { cities } from "@/data/geography";
-import { findCityForCoordinates, isValidCoordinates } from "@/lib/geo";
+import type { Coordinates } from "../../contracts";
+import { cities } from "../../data/geography";
+import { findCityForCoordinates, isValidCoordinates } from "../../lib/geo";
 import type { LocationResult, LocationUnavailableReason } from "./types";
 
 export const MAX_TRUSTED_ACCURACY_M = 100;

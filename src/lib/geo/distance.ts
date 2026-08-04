@@ -1,4 +1,4 @@
-import type { Coordinates, DistanceBand } from "@/contracts";
+import type { Coordinates, DistanceBand } from "../../contracts";
 
 export const EARTH_RADIUS_M = 6_371_008.8;
 

@@ -1,6 +1,6 @@
-import type { Coordinates } from "@/contracts";
-import { getPublicSpot } from "@/data/geography";
-import { haversineDistanceM, isValidCoordinates } from "@/lib/geo";
+import type { Coordinates } from "../../contracts";
+import { getPublicSpot } from "../../data/geography";
+import { haversineDistanceM, isValidCoordinates } from "../../lib/geo";
 import { MAX_TRUSTED_ACCURACY_M } from "./location";
 import type { BurialEligibility, LocationUnavailableReason } from "./types";
 
