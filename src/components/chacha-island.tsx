@@ -279,10 +279,12 @@ function MelonReader({ opened, onClose, onFinished }: { opened: OpenedMelon; onC
   const [reacted, setReacted] = useState<ReactionType[]>([]);
   const [comments, setComments] = useState<MelonComment[]>([]);
   const [comment, setComment] = useState("");
-  const startedAt = useRef(Date.now());
-
   useEffect(() => {
-    const timer = window.setInterval(() => setElapsed(Math.min(5000, Date.now() - startedAt.current)), 100);
+    const start = window.performance.now();
+    const timer = window.setInterval(
+      () => setElapsed(Math.min(5000, window.performance.now() - start)),
+      100,
+    );
     return () => window.clearInterval(timer);
   }, []);
 
