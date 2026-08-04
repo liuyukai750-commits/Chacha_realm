@@ -179,6 +179,19 @@ export async function installV0Api(page, options = {}) {
       return json(route, { id: "melon-new", status: "incubating", maturesAt: "2026-08-04T14:00:00.000Z" }, 201);
     }
 
+    if (method === "GET" && path === "/api/fields/me") {
+      return json(route, {
+        alias: "巡岛小猹 101",
+        animal: "猹",
+        progress: {
+          seedCount: state.seedCount,
+          stage: state.seedCount >= 7 ? "flower" : state.seedCount >= 3 ? "vine" : state.seedCount >= 1 ? "sprout" : "bare",
+          nextStageAt: state.seedCount < 3 ? 3 : state.seedCount < 7 ? 7 : state.seedCount < 12 ? 12 : undefined,
+        },
+        melons: [],
+      });
+    }
+
     if (method === "GET" && path === `/api/fields/${encodeURIComponent(melon.alias)}`) {
       return json(route, otherField);
     }
@@ -208,4 +221,3 @@ export async function openMelon(page) {
   await expect(dialog).toBeVisible();
   return dialog;
 }
-
