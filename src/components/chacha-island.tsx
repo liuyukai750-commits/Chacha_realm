@@ -276,6 +276,7 @@ function MelonReader({ opened, onClose, onFinished }: { opened: OpenedMelon; onC
   const [error, setError] = useState<string | null>(null);
   const [squatted, setSquatted] = useState(opened.melon.squatted);
   const [reactions, setReactions] = useState(opened.melon.reactions);
+  const [reacted, setReacted] = useState<ReactionType[]>([]);
   const [comments, setComments] = useState<MelonComment[]>([]);
   const [comment, setComment] = useState("");
   const startedAt = useRef(Date.now());
@@ -310,7 +311,11 @@ function MelonReader({ opened, onClose, onFinished }: { opened: OpenedMelon; onC
     setSquatted(result.active);
   };
 
-  const react = async (reaction: ReactionType) => setReactions(await adapter.react(opened.melon.id, reaction));
+  const react = async (reaction: ReactionType) => {
+    if (reacted.includes(reaction)) return;
+    setReactions(await adapter.react(opened.melon.id, reaction));
+    setReacted((current) => [...current, reaction]);
+  };
 
   const submitComment = async (event: FormEvent) => {
     event.preventDefault();
@@ -331,11 +336,11 @@ function MelonReader({ opened, onClose, onFinished }: { opened: OpenedMelon; onC
           <div className="melon-peel" aria-hidden="true"><i /><i /><i /><span>{ready ? "瓜瓤见底了" : "慢慢剥开…"}</span></div>
         </div>
         <div className="read-finish">
-          <div className="read-clock" aria-label={ready ? "已经阅读 5 秒" : `还需阅读 ${Math.ceil((5000 - elapsed) / 1000)} 秒`}><span style={{ "--progress": `${elapsed / 50}%` } as CSSProperties}>{ready ? <CheckIcon /> : Math.ceil((5000 - elapsed) / 1000)}</span><p><strong>{ready ? "可以留籽了" : "别急着划走"}</strong><small>{ready ? "完成后今日有效次数会在服务端判定" : "读满 5 秒，才算认真吃完"}</small></p></div>
+          <div className="read-clock" role="status" aria-live="polite" aria-label={ready ? "已经阅读 5 秒" : `还需阅读 ${Math.ceil((5000 - elapsed) / 1000)} 秒`}><span style={{ "--progress": `${elapsed / 50}%` } as CSSProperties}>{ready ? <CheckIcon /> : Math.ceil((5000 - elapsed) / 1000)}</span><p><strong>{ready ? "可以留籽了" : "别急着划走"}</strong><small>{ready ? "完成后今日有效次数会在服务端判定" : "读满 5 秒，才算认真吃完"}</small></p></div>
           <button className={finished ? "finish-button finished" : "finish-button"} onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> 已吃完，瓜籽留下了</> : busy ? "正在留籽…" : "吃完了，留一粒瓜籽"}</button>
           {error && <p className="form-error" role="alert">{error}</p>}
         </div>
-        <div className="reaction-row" aria-label="轻反应">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)}><span aria-hidden="true">{glyph}</span>{label}<small>{reactions[key]}</small></button>)}</div>
+        <div className="reaction-row" aria-label="轻反应">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={reacted.includes(key)} aria-label={`${label}，当前 ${reactions[key]} 次${reacted.includes(key) ? "，已留下" : ""}`}><span aria-hidden="true">{reacted.includes(key) ? "✓" : glyph}</span>{label}<small>{reactions[key]}</small></button>)}</div>
         <section className="comments" aria-labelledby="comments-title"><header><h3 id="comments-title">瓜田回声</h3><span>{comments.length} 条</span></header>{comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.alias}</strong><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没人说话。留一句轻一点的回声。</p>}<form onSubmit={submitComment}><label><span className="sr-only">评论，最多 140 字</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={140} placeholder="匿名留句话，不超过 140 字…" /></label><div><small>{comment.length}/140</small><button disabled={!comment.trim()}>留下回声 <MessageIcon /></button></div></form></section>
       </article>
     </Sheet>
@@ -383,15 +388,25 @@ function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootst
 function Sheet({ title, subtitle, onClose, children, wide = false }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const focusTimer = window.setTimeout(() => closeRef.current?.focus(), 0);
-    const escape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    document.addEventListener("keydown", escape);
+    const handleKeyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") return onClose();
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(sheetRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex='-1'])") ?? []);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", handleKeyboard);
     document.body.classList.add("modal-open");
-    return () => { window.clearTimeout(focusTimer); document.removeEventListener("keydown", escape); document.body.classList.remove("modal-open"); previous?.focus(); };
+    return () => { window.clearTimeout(focusTimer); document.removeEventListener("keydown", handleKeyboard); document.body.classList.remove("modal-open"); previous?.focus(); };
   }, [onClose]);
-  return <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className={wide ? "sheet wide" : "sheet"} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className="sheet-handle" aria-hidden="true"/><header className="sheet-header"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button ref={closeRef} onClick={onClose} aria-label="关闭"><CloseIcon /></button></header>{children}</section></div>;
+  return <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={sheetRef} className={wide ? "sheet wide" : "sheet"} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className="sheet-handle" aria-hidden="true"/><header className="sheet-header"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button ref={closeRef} onClick={onClose} aria-label="关闭"><CloseIcon /></button></header>{children}</section></div>;
 }
 
 function IslandLoading() {
