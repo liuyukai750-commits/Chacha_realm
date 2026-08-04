@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "猹猹岛｜夜色雷达里的附近故事",
-  description: "在夜色雷达中发现附近成熟的匿名生活故事，吃完留下一粒瓜籽。",
+  title: "猹猹岛｜附近有瓜，先吃再说",
+  description: "在城市主岛发现公共瓜点里的匿名生活故事，吃瓜留籽，也把自己的故事埋进土里。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
