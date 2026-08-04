@@ -27,6 +27,9 @@ export const melon = {
   reactions: { juicy: 2, wild: 1, hug: 0, follow_up: 0 },
 };
 
+const melonTopicLabel = "职场瓜";
+const melonDistanceLabel = /1\s*km\s*内/i;
+
 const otherField = {
   alias: melon.alias,
   animal: "仓鼠",
@@ -185,8 +188,30 @@ export async function installV0Api(page, options = {}) {
         animal: "猹",
         progress: {
           seedCount: state.seedCount,
-          stage: state.seedCount >= 7 ? "flower" : state.seedCount >= 3 ? "vine" : state.seedCount >= 1 ? "sprout" : "bare",
-          nextStageAt: state.seedCount < 3 ? 3 : state.seedCount < 7 ? 7 : state.seedCount < 12 ? 12 : undefined,
+          stage:
+            state.seedCount >= 21
+              ? "ripe_melon"
+              : state.seedCount >= 12
+                ? "green_melon"
+                : state.seedCount >= 7
+                  ? "flower"
+                  : state.seedCount >= 3
+                    ? "vine"
+                    : state.seedCount >= 1
+                      ? "sprout"
+                      : "bare",
+          nextStageAt:
+            state.seedCount < 1
+              ? 1
+              : state.seedCount < 3
+                ? 3
+                : state.seedCount < 7
+                  ? 7
+                  : state.seedCount < 12
+                    ? 12
+                    : state.seedCount < 21
+                      ? 21
+                      : undefined,
         },
         melons: [],
       });
@@ -213,11 +238,32 @@ export async function enterIsland(page) {
   await expect(page.getByRole("main")).toBeVisible();
 }
 
+export function melonTrigger(page) {
+  return page
+    .getByRole("button")
+    .filter({ hasText: melonTopicLabel })
+    .filter({ hasText: spot.name })
+    .filter({ hasText: melonDistanceLabel })
+    .first();
+}
+
+export function openedMelonDialog(page) {
+  return page
+    .getByRole("dialog")
+    .filter({ has: page.getByRole("heading", { name: melon.title, exact: true }) })
+    .first();
+}
+
+export function completeReadControl(dialog) {
+  return dialog.getByRole("button", { name: /完成.*吃瓜|吃完|留.*瓜籽/ }).first();
+}
+
 export async function openMelon(page) {
-  const card = page.getByRole("article", { name: melon.title });
-  await expect(card).toBeVisible();
-  await card.getByRole("button", { name: "打开这颗瓜" }).click();
-  const dialog = page.getByRole("dialog", { name: melon.title });
+  const trigger = melonTrigger(page);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const dialog = openedMelonDialog(page);
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: melon.title, exact: true })).toBeVisible();
   return dialog;
 }

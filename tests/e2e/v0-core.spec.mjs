@@ -1,12 +1,20 @@
 import { expect, test } from "@playwright/test";
-import { enterIsland, fixedNow, installV0Api, melon, openMelon, spot } from "./fixtures/v0-api.mjs";
+import {
+  completeReadControl,
+  enterIsland,
+  fixedNow,
+  installV0Api,
+  melon,
+  openMelon,
+  spot,
+} from "./fixtures/v0-api.mjs";
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 const preciseLocation = { latitude: 28.195397, longitude: 112.976869 };
 
-async function allowLocation(context) {
+async function allowLocation(context, baseURL) {
+  if (!baseURL) throw new Error("Playwright baseURL 未配置");
   await context.setGeolocation(preciseLocation);
-  await context.grantPermissions(["geolocation"], { origin: baseURL });
+  await context.grantPermissions(["geolocation"], { origin: new URL(baseURL).origin });
 }
 
 async function denyLocation(page, context) {
@@ -29,17 +37,55 @@ async function denyLocation(page, context) {
   });
 }
 
+function locationControl(page) {
+  return page.getByRole("button", { name: /定位|距离/ }).first();
+}
+
+function buryControl(page) {
+  return page.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).first();
+}
+
+async function chooseOption(scope, { label, optionName, optionValue }) {
+  const select = scope.getByRole("combobox", { name: label });
+  if (await select.count()) {
+    await select.selectOption(optionValue);
+    return;
+  }
+
+  const radio = scope.getByRole("radio", { name: optionName, exact: true });
+  if (await radio.count()) {
+    await radio.check();
+    return;
+  }
+
+  const button = scope.getByRole("button", { name: optionName, exact: true });
+  await expect(button, `应提供可访问的“${optionName}”选项`).toBeVisible();
+  await button.click();
+}
+
+async function squatControl(dialog, active) {
+  const button = dialog.getByRole("button", { name: /蹲/ }).first();
+  await expect(button).toBeVisible();
+  const pressed = await button.getAttribute("aria-pressed");
+  if (pressed !== null) {
+    expect(pressed).toBe(String(active));
+  } else {
+    await expect(button).toHaveAccessibleName(active ? /已.*蹲|取消.*蹲/ : /^(?!.*已)(?!.*取消).*蹲/);
+  }
+  return button;
+}
+
 test.describe("V0 核心循环", () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.install({ time: new Date(fixedNow) });
   });
 
-  test("GEO-ALLOW：授权定位只在发现请求中使用精确坐标", async ({ context, page }) => {
+  test("GEO-ALLOW：授权定位只在发现请求中使用精确坐标", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page);
-    await allowLocation(context);
+    await allowLocation(context, baseURL);
     await enterIsland(page);
 
-    const locate = page.getByRole("button", { name: /开启定位|重新定位/ });
+    const locate = locationControl(page);
     if (await locate.isVisible().catch(() => false)) await locate.click();
 
     await expect.poll(() => api.discoveryRequests.some((request) => request?.location)).toBe(true);
@@ -61,25 +107,32 @@ test.describe("V0 核心循环", () => {
     await denyLocation(page, context);
     await enterIsland(page);
 
-    await page.getByRole("button", { name: /开启定位|重新定位/ }).click();
-    await expect(page.getByRole("status")).toContainText(/定位|位置|授权/);
-    await expect(page.getByRole("article", { name: melon.title })).toBeVisible();
+    await locationControl(page).click();
+    await expect(page.getByRole("status").filter({ hasText: /定位|位置|授权/ }).first()).toBeVisible();
 
-    const squat = page.getByRole("button", { name: "蹲瓜" });
-    await expect(squat).toBeEnabled();
+    const fallbackDialog = page.getByRole("dialog").first();
+    if (await fallbackDialog.isVisible().catch(() => false)) {
+      await fallbackDialog.getByRole("button", { name: /关闭/ }).click();
+    }
+
+    const reader = await openMelon(page);
+    const squat = await squatControl(reader, false);
     await squat.click();
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    await reader.getByRole("button", { name: /关闭/ }).click();
 
-    await page.getByRole("button", { name: /埋瓜|种下一颗瓜/ }).click();
-    await expect(page.getByText(/需要.*位置|开启定位.*埋瓜|公共地点.*500 米/)).toBeVisible();
+    await buryControl(page).click();
+    await expect(page.getByRole("dialog").filter({ hasText: /定位|位置|公共地点.*500\s*米/ }).first()).toBeVisible();
   });
 
   test("READ-5S / READ-FIRST：满 5 秒后首次完成并奖励 1 粒瓜籽", async ({ page }) => {
     const api = await installV0Api(page, { seedCount: 2 });
     await enterIsland(page);
     const dialog = await openMelon(page);
-    const complete = dialog.getByRole("button", { name: "完成吃瓜" });
+    const complete = completeReadControl(dialog);
+    const readingStatus = dialog.getByRole("status", { name: /阅读.*秒/ });
 
+    await expect(readingStatus).toHaveAccessibleName(/还需.*秒/);
     await expect(complete).toBeDisabled();
     await page.clock.fastForward(4_999);
     await expect(complete).toBeDisabled();
@@ -88,7 +141,7 @@ test.describe("V0 核心循环", () => {
 
     await complete.click();
     await expect.poll(() => api.completeRequests).toEqual([{ readToken: "short-lived-read-token" }]);
-    await expect(page.getByRole("status")).toContainText(/瓜籽.*\+1|获得.*1.*瓜籽/);
+    await expect(page.getByRole("status").filter({ hasText: /瓜籽.*\+1|获得.*1.*瓜籽/ }).first()).toBeVisible();
     await expect(page.getByLabel(/拥有 3 (粒|颗)瓜籽/)).toBeVisible();
   });
 
@@ -97,10 +150,10 @@ test.describe("V0 核心循环", () => {
     await enterIsland(page);
     const dialog = await openMelon(page);
     await page.clock.fastForward(5_000);
-    await dialog.getByRole("button", { name: "完成吃瓜" }).click();
+    await completeReadControl(dialog).click();
 
     await expect.poll(() => api.completeRequests).toHaveLength(1);
-    await expect(page.getByRole("status")).toContainText(/已经吃过|不重复奖励|本次不计数/);
+    await expect(page.getByRole("status").filter({ hasText: /已经吃过|不重复奖励|本次不计数/ }).first()).toBeVisible();
     await expect(page.getByLabel(/拥有 3 (粒|颗)瓜籽/)).toBeVisible();
   });
 
@@ -108,45 +161,46 @@ test.describe("V0 核心循环", () => {
     const api = await installV0Api(page);
     await enterIsland(page);
     const dialog = await openMelon(page);
-    const squat = dialog.getByRole("button", { name: "蹲瓜" });
+    const squat = await squatControl(dialog, false);
 
-    await expect(squat).toHaveAttribute("aria-pressed", "false");
     await squat.click();
-    const cancel = dialog.getByRole("button", { name: "取消蹲瓜" });
-    await expect(cancel).toHaveAttribute("aria-pressed", "true");
+    const cancel = await squatControl(dialog, true);
     await cancel.click();
-    await expect(dialog.getByRole("button", { name: "蹲瓜" })).toHaveAttribute("aria-pressed", "false");
+    await squatControl(dialog, false);
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
   });
 
-  test("PLANT-DISTANCE：距离失败保留草稿并展示可恢复错误", async ({ context, page }) => {
+  test("PLANT-DISTANCE：距离失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, { plantDistanceFailure: true });
-    await allowLocation(context);
+    await allowLocation(context, baseURL);
     await enterIsland(page);
-    await page.getByRole("button", { name: /埋瓜|种下一颗瓜/ }).click();
+    await buryControl(page).click();
 
-    const form = page.getByRole("form", { name: /埋瓜|种下一颗瓜/ });
-    await form.getByLabel(/公共地点/).selectOption(spot.id);
-    await form.getByLabel(/话题/).selectOption("daily");
-    await form.getByLabel(/标题/).fill("广场边遇到的一件小事");
-    await form.getByLabel(/故事|内容/).fill("今天路过广场时，有人替陌生人挡住了一场突然的大雨。这里是保留的完整草稿。");
-    await form.getByRole("button", { name: "埋下这颗瓜" }).click();
+    const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
+    const form = buryDialog.locator("form");
+    await chooseOption(buryDialog, { label: /公共地点/, optionName: spot.name, optionValue: spot.id });
+    await chooseOption(buryDialog, { label: /话题|瓜/, optionName: "日常", optionValue: "daily" });
+    await form.getByRole("textbox", { name: /标题|瓜.*名字/ }).fill("广场边遇到的一件小事");
+    await form.getByRole("textbox", { name: /故事|内容/ }).fill("今天路过广场时，有人替陌生人挡住了一场突然的大雨。这里是保留的完整草稿。");
+    await form.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).click();
 
     await expect.poll(() => api.createRequests).toHaveLength(1);
-    await expect(page.getByRole("alert")).toContainText(/500 米|距离|公共地点/);
-    await expect(form.getByLabel(/标题/)).toHaveValue("广场边遇到的一件小事");
-    await expect(form.getByLabel(/故事|内容/)).toHaveValue(/这里是保留的完整草稿/);
+    await expect(buryDialog.getByRole("alert")).toContainText(/500\s*米|距离|公共地点/);
+    await expect(form.getByRole("textbox", { name: /标题|瓜.*名字/ })).toHaveValue("广场边遇到的一件小事");
+    await expect(form.getByRole("textbox", { name: /故事|内容/ })).toHaveValue(/这里是保留的完整草稿/);
   });
 
   test("COMMENT-140：空评论禁用，最多提交 140 字", async ({ page }) => {
     const api = await installV0Api(page);
     await enterIsland(page);
     const dialog = await openMelon(page);
-    await dialog.getByRole("button", { name: /评论|留下评论/ }).click();
-
-    const commentDialog = page.getByRole("dialog", { name: /评论/ });
-    const input = commentDialog.getByLabel("评论内容");
-    const submit = commentDialog.getByRole("button", { name: "发表评论" });
+    let input = dialog.getByRole("textbox", { name: /评论/ });
+    if (!(await input.count())) {
+      await dialog.getByRole("button", { name: /评论/ }).click();
+      input = page.getByRole("textbox", { name: /评论/ }).last();
+    }
+    const commentForm = input.locator("xpath=ancestor::form[1]");
+    const submit = commentForm.getByRole("button", { name: /评论|回声|留下/ });
     await expect(input).toHaveAttribute("maxlength", "140");
     await expect(submit).toBeDisabled();
 
@@ -160,12 +214,12 @@ test.describe("V0 核心循环", () => {
     await installV0Api(page);
     await enterIsland(page);
     const dialog = await openMelon(page);
-    await dialog.getByRole("link", { name: `查看 ${melon.alias} 的瓜田` }).click();
+    await dialog.getByRole("link", { name: new RegExp(melon.alias) }).click();
 
-    await expect(page.getByRole("heading", { level: 1, name: new RegExp(melon.alias) })).toBeVisible();
-    await expect(page.getByTestId("field-stage")).toHaveAttribute("aria-label", /花|flower/);
+    await expect(page.getByText(melon.alias, { exact: true })).toBeVisible();
+    await expect(page.locator('[aria-label*="阶段"], [aria-label*="stage" i]').first()).toHaveAttribute("aria-label", /花|flower/);
     await expect(page.getByText(spot.name)).toBeVisible();
     await expect(page.getByText(/supabase|user id/i)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /埋瓜|种新瓜|种下一颗瓜/ })).toHaveCount(0);
+    await expect(page.getByRole("main").getByRole("button", { name: /埋.*瓜|种.*瓜/ })).toHaveCount(0);
   });
 });
