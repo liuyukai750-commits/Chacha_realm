@@ -14,12 +14,12 @@ const baseProps: IconProps = {
   "aria-hidden": true,
 };
 
-export function HomeIcon(props: IconProps) {
-  return <svg {...baseProps} {...props}><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>;
+export function RadarIcon(props: IconProps) {
+  return <svg {...baseProps} {...props}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 12 18 6M12 2v2M22 12h-2M12 22v-2M2 12h2"/></svg>;
 }
 
 export function FieldIcon(props: IconProps) {
-  return <svg {...baseProps} {...props}><path d="M12 22V9"/><path d="M12 13c-4.5 0-7-2-7-6 4.5 0 7 2 7 6Z"/><path d="M12 17c4.5 0 7-2 7-6-4.5 0-7 2-7 6Z"/><path d="M5 22h14"/></svg>;
+  return <svg {...baseProps} {...props}><path d="M12 22V9M12 13C7.5 13 5 11 5 7c4.5 0 7 2 7 6ZM12 17c4.5 0 7-2 7-6-4.5 0-7 2-7 6ZM5 22h14"/></svg>;
 }
 
 export function PlusIcon(props: IconProps) {
@@ -46,6 +46,14 @@ export function LocationIcon(props: IconProps) {
   return <svg {...baseProps} {...props}><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>;
 }
 
-export function SparkIcon(props: IconProps) {
-  return <svg {...baseProps} {...props}><path d="m12 3 1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7Z"/><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z"/></svg>;
+export function SproutIcon(props: IconProps) {
+  return <svg {...baseProps} {...props}><path d="M12 22V10M12 14C7.5 14 5 12 5 8c4.5 0 7 2 7 6ZM12 17c4.5 0 7-2 7-6-4.5 0-7 2-7 6Z"/></svg>;
+}
+
+export function MoonIcon(props: IconProps) {
+  return <svg {...baseProps} {...props}><path d="M20.5 14.2A8.4 8.4 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z"/></svg>;
+}
+
+export function CheckIcon(props: IconProps) {
+  return <svg {...baseProps} {...props}><path d="m5 12 4 4L19 6"/></svg>;
 }
