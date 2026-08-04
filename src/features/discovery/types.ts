@@ -47,9 +47,10 @@ export interface DiscoveryCandidate {
 }
 
 export interface RankedDiscoveryCandidate<T extends DiscoveryCandidate> {
-  readonly item: T;
+  readonly id: T["id"];
   readonly distanceBand: DistanceBand;
   readonly isRemote: boolean;
+  readonly source: "same_district" | "same_city" | "remote_city";
 }
 
 export interface DiscoveryPoolResult<T> {

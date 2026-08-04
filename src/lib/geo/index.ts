@@ -6,3 +6,10 @@ export type {
   GeoRing,
   PublicSpotRecord,
 } from "./types";
+export { boundaryContainsPoint, findCityForCoordinates } from "./boundary";
+export {
+  distanceBandForMeters,
+  EARTH_RADIUS_M,
+  haversineDistanceM,
+  isValidCoordinates,
+} from "./distance";

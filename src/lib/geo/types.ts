@@ -31,4 +31,5 @@ export interface PublicSpotRecord {
   readonly districtId: DistrictId;
   readonly name: string;
   readonly coordinates: GeoPoint;
+  readonly verification: "verified" | "prelaunch_review";
 }
