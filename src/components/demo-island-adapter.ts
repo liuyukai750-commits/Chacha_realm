@@ -92,7 +92,9 @@ const commentStore: Record<string, MelonComment[]> = {
 };
 
 const delay = async <T>(value: T, ms = 120): Promise<T> => new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
-const copy = <T>(value: T): T => structuredClone(value);
+const copy = <T>(value: T): T => typeof structuredClone === "function"
+  ? structuredClone(value)
+  : JSON.parse(JSON.stringify(value)) as T;
 
 function discoveryFor(cityId: CityId, located: boolean): DiscoveryResponse {
   const localItems = previews.filter((item) => item.cityId === cityId);

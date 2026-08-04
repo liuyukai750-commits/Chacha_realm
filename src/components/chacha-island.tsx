@@ -6,6 +6,7 @@ import {
   type ReactNode,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -62,9 +63,22 @@ const reactionMeta: Array<[ReactionType, string, string]> = [
   ["follow_up", "蹲后续", "…"],
 ];
 
+type LandmarkKind = "pavilion" | "temple" | "pearl" | "canton" | "skyline" | "meadow";
+
+const cityLandmarks: Record<CityId, { name: string; atmosphere: string; kind: LandmarkKind }> = {
+  changsha: { name: "天心阁", atmosphere: "橘洲晴风", kind: "pavilion" },
+  beijing: { name: "天坛", atmosphere: "古树晴空", kind: "temple" },
+  shanghai: { name: "东方明珠", atmosphere: "江风与天际线", kind: "pearl" },
+  guangzhou: { name: "广州塔", atmosphere: "珠江暖风", kind: "canton" },
+  shenzhen: { name: "城市天际线", atmosphere: "海风草坡", kind: "skyline" },
+};
+
+const fallbackLandmark = { name: "树桥草坡", atmosphere: "晴日田埂", kind: "meadow" } satisfies { name: string; atmosphere: string; kind: LandmarkKind };
+
 export function ChachaIsland() {
   const [islandAdapter, setIslandAdapter] = useState<IslandAdapter>(httpIslandAdapter);
   const [mode, setMode] = useState<"live" | "demo">("live");
+  const [dayPhase, setDayPhase] = useState<"day" | "night">("day");
   const [model, setModel] = useState<IslandBootstrap | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -77,6 +91,16 @@ export function ChachaIsland() {
   const [showCities, setShowCities] = useState(false);
   const [showBury, setShowBury] = useState(false);
   const [notice, setNotice] = useState("定位未开启 · 正在浏览公开瓜场");
+
+  useLayoutEffect(() => {
+    const syncDayPhase = () => {
+      const localHour = new Date().getHours();
+      setDayPhase(localHour >= 6 && localHour < 18 ? "day" : "night");
+    };
+    syncDayPhase();
+    const timer = window.setInterval(syncDayPhase, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -173,7 +197,7 @@ export function ChachaIsland() {
   if (!model || !activeCity) return <IslandLoading />;
 
   return (
-    <div className="sunny-shell">
+    <div className="sunny-shell" data-day-phase={dayPhase}>
       {mode === "demo" && <div className="demo-banner" role="note"><strong>本地试玩</strong><span>示例数据只留在当前页面，不会上传或保存。</span></div>}
       <header className="topbar">
         <button className="brand" onClick={() => setTab("radar")} aria-label="回到雷达岛">
@@ -195,6 +219,7 @@ export function ChachaIsland() {
             items={model.discovery.items}
             details={model.melonDetails}
             quickSquats={quickSquats}
+            cityId={activeCity.id}
             cityName={activeCity.name}
             visitorLocated={model.discovery.visitorType !== "location_unknown"}
             opening={activeCity.opening}
@@ -227,10 +252,11 @@ export function ChachaIsland() {
   );
 }
 
-function RadarView({ items, details, quickSquats, cityName, visitorLocated, opening, openingMelon, onLocate, onOpen, onSquat, onRefresh }: {
+function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocated, opening, openingMelon, onLocate, onOpen, onSquat, onRefresh }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
   quickSquats: string[];
+  cityId: CityId;
   cityName: string;
   visitorLocated: boolean;
   opening: CityOpeningState;
@@ -253,16 +279,18 @@ function RadarView({ items, details, quickSquats, cityName, visitorLocated, open
 
       <section className="radar-stage" data-testid="radar-surface" aria-label="成熟瓜距离雷达：同区、同城、远方依次排列" aria-busy={openingMelon}>
         <div className="radar-grid" aria-hidden="true"><i /><i /><i /><span className="radar-sweep" /></div>
+        <CityIsland cityId={cityId} cityName={cityName} radar />
         <div className="radar-origin" aria-hidden="true"><span>猹</span><i /></div>
         {items.slice(0, 5).map((melon, index) => (
           <button
             key={melon.id}
             className={`melon-node node-${index + 1} ${melon.status}`}
-            onClick={() => onOpen(melon)}
-            aria-label={`${melon.status === "mature" ? "成熟" : "孵化中"}${topicName[melon.topic]}瓜，${melon.spot.name}，${distanceName[melon.distanceBand]}`}
+            onClick={() => melon.status === "mature" ? onOpen(melon) : onSquat(melon.id)}
+            aria-label={`${melon.status === "mature" ? "吃瓜" : quickSquats.includes(melon.id) ? "取消旁观" : "旁观"}：${topicName[melon.topic]}瓜，${melon.spot.name}，${distanceName[melon.distanceBand]}`}
+            aria-pressed={melon.status === "incubating" ? quickSquats.includes(melon.id) : undefined}
           >
             <span className="melon-orb" aria-hidden="true"><i /><i /><i /></span>
-            <span className="node-label"><strong>{topicName[melon.topic]}瓜</strong><small>{melon.spot.name} · {distanceName[melon.distanceBand]}</small></span>
+            <span className="node-label"><strong>{melon.status === "mature" ? "吃瓜" : quickSquats.includes(melon.id) ? "已旁观" : "旁观"}</strong><small>{topicName[melon.topic]} · {melon.spot.name}</small></span>
           </button>
         ))}
         <div className="ring-label ring-one">1 km</div><div className="ring-label ring-two">3 km</div><div className="ring-label ring-three">8 km</div>
@@ -273,7 +301,7 @@ function RadarView({ items, details, quickSquats, cityName, visitorLocated, open
         <button onClick={onRefresh}>重新听一圈 <RadarIcon /></button>
       </section>
       <section className="radar-cards" aria-label="雷达发现的成熟瓜">
-        <header><span className="utility-label">FIELD LOG / MATURE</span><h2>今天田里冒出的故事</h2></header>
+        <header><h2>今天田里冒出的故事</h2></header>
         {items.filter((melon) => melon.status === "mature").map((melon) => {
           const detail = details[melon.id];
           if (!detail) return null;
@@ -321,7 +349,7 @@ function MyField({ field, isOwn, onBury }: { field: FieldView; isOwn: boolean; o
         <p>{field.progress.nextStageAt ? `再收 ${field.progress.nextStageAt - field.progress.seedCount} 粒，瓜田会长到下一阶段。` : "瓜田已经结出成熟瓜，风一吹就沙沙作响。"}</p>
       </div>
       <section className="my-melons" aria-labelledby="my-melons-title">
-        <header><div><span className="utility-label">BURIED HERE</span><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />埋新瓜</button>}</header>
+        <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />埋新瓜</button>}</header>
         {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{melon.spot.name}</p><small>{melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这块地还空着</strong><span>去公共地点附近，埋下第一颗瓜</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
       </section>
     </section>
@@ -371,12 +399,13 @@ function MelonReader({ adapter, opened, onClose, onFinished, onComment, onViewFi
   };
 
   return (
-    <Sheet title={opened.melon.title} subtitle={`${opened.melon.spot.name} · ${opened.melon.alias}`} onClose={onClose} wide>
+    <Sheet title={opened.melon.title} subtitle={`${opened.melon.spot.name} · ${opened.melon.alias}`} onClose={onClose} wide stealth>
       <article className="melon-reader">
+        <StealthCue title="扒开草丛" copy="叶影替你挡住路过的视线，正文仍保持清楚可读。" />
         <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span><button onClick={toggleSquat} aria-pressed={squatted}>{squatted ? <CheckIcon /> : <SproutIcon />}{squatted ? "取消蹲瓜" : "蹲瓜"}</button></div>
         <div className="reader-links"><a href={`/fields/${encodeURIComponent(opened.melon.alias)}`} onClick={(event) => { event.preventDefault(); onViewField(opened.melon.alias); }}>查看 {opened.melon.alias} 的瓜田</a><button onClick={onComment}><MessageIcon />评论</button></div>
         <div className="peel-story" style={peelStyle}>
-          <div className="story-paper"><p>{opened.melon.content}</p><footer>—— {opened.melon.alias}</footer></div>
+          <div className="story-paper"><p>{opened.melon.content}</p><footer>来自 {opened.melon.alias}</footer></div>
           <div className="melon-peel" aria-hidden="true"><i /><i /><i /><span>{ready ? "瓜瓤见底了" : "慢慢剥开…"}</span></div>
         </div>
         <div className="read-finish">
@@ -424,7 +453,21 @@ function CommentSheet({ adapter, melon, onClose }: { adapter: IslandAdapter; mel
 }
 
 function CityPicker({ model, onClose, onSelect }: { model: IslandBootstrap; onClose: () => void; onSelect: (city: CityId) => void }) {
-  return <Sheet title="换一座岛逛逛" subtitle="选择城市不需要精确位置" onClose={onClose}><div className="city-list">{model.cities.map((city) => <button key={city.id} onClick={() => onSelect(city.id)} className={city.id === model.discovery.activeCityId ? "selected" : ""}><span className="city-sun" aria-hidden="true"/><span><strong>{city.name}</strong><small>{city.opening.status === "open" ? "已开岛" : `${city.opening.safeMelons}/30 颗安全瓜`}</small></span>{city.id === model.discovery.activeCityId && <i>正在逛</i>}<ChevronIcon /></button>)}</div><p className="privacy-copy"><LocationIcon />定位被拒绝时仍可按城市浏览和蹲瓜；只有埋瓜需要在公共地点附近完成一次距离验证。</p></Sheet>;
+  return <Sheet title="换一座主岛逛逛" subtitle="五城地标是象征景观，不是导航地图" onClose={onClose}><div className="city-list">{model.cities.map((city) => {
+    const landmark = cityLandmarks[city.id] ?? fallbackLandmark;
+    return <button key={city.id} onClick={() => onSelect(city.id)} className={city.id === model.discovery.activeCityId ? "selected" : ""} aria-label={`${city.name}主岛，象征地标${landmark.name}，${city.opening.status === "open" ? "已开岛" : `${city.opening.safeMelons}/30 颗安全瓜`}`}><CityIsland cityId={city.id} cityName={city.name} compact /><span className="city-copy"><strong>{city.name}</strong><small>{landmark.name} · {landmark.atmosphere}</small><small>{city.opening.status === "open" ? "已开岛" : `${city.opening.safeMelons}/30 颗安全瓜`}</small></span>{city.id === model.discovery.activeCityId && <i>正在逛</i>}<ChevronIcon /></button>;
+  })}</div><p className="privacy-copy"><LocationIcon />定位被拒绝时仍可按城市浏览和蹲瓜；只有埋瓜需要在公共地点附近完成一次距离验证。</p></Sheet>;
+}
+
+function CityIsland({ cityId, cityName, radar = false, compact = false }: { cityId: CityId; cityName: string; radar?: boolean; compact?: boolean }) {
+  const landmark = cityLandmarks[cityId] ?? fallbackLandmark;
+  return (
+    <div className={`city-island landmark-${landmark.kind}${radar ? " is-radar" : ""}${compact ? " is-compact" : ""}`} role={radar ? "img" : undefined} aria-label={radar ? `${cityName}主岛象征地标：${landmark.name}，${landmark.atmosphere}。没有坐标，不用于导航。` : undefined} aria-hidden={compact || undefined}>
+      <span className="island-grass" aria-hidden="true" />
+      <span className="landmark-glyph" aria-hidden="true"><i /><i /><i /><b /></span>
+      {radar && <span className="landmark-caption"><strong>{landmark.name}</strong><small>象征景观 · 非导航</small></span>}
+    </div>
+  );
 }
 
 function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootstrap["cities"][number]["spots"]; cityName: string; onClose: () => void; onCreate: (input: Omit<CreateMelonRequest, "location">) => Promise<void> }) {
@@ -451,21 +494,26 @@ function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootst
   };
 
   return (
-    <Sheet title="埋下一颗瓜" subtitle={`会埋在${cityName}的公开地点附近`} onClose={onClose}>
+    <Sheet title="埋下一颗瓜" subtitle={`会埋在${cityName}的公开地点附近`} onClose={onClose} stealth>
       <form className="bury-form" aria-label="埋瓜" onSubmit={submit}>
+        <StealthCue title="把秘密压进土里" copy="只留下模糊距离，精确位置不进瓜田。" bury />
         <label htmlFor={spotInputId}><span>公共地点</span><select id={spotInputId} value={spotId} onChange={(event) => setSpotId(event.target.value)}><option value="">请选择公开地点</option>{spots.map((spot) => <option value={spot.id} key={spot.id}>{spot.name}</option>)}</select></label>
         <label htmlFor={topicInputId}><span>话题</span><select id={topicInputId} value={topic} onChange={(event) => setTopic(event.target.value as SafeTopic)}>{(Object.keys(topicName) as SafeTopic[]).map((key) => <option value={key} key={key}>{topicName[key]}</option>)}</select></label>
         <label htmlFor={titleInputId}><span>标题</span><input id={titleInputId} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={42} placeholder="一句话说清发生了什么"/><small>{title.length}/42</small></label>
         <label htmlFor={contentInputId}><span>故事内容</span><textarea id={contentInputId} value={content} onChange={(event) => setContent(event.target.value)} maxLength={800} placeholder="不写联系方式、精确住址或可识别他人的隐私…"/><small>{content.length}/800</small></label>
         <div className="location-gate"><LocationIcon /><p><strong>发布时才请求一次定位</strong>只用于确认你在所选公共地点 500 米内；不会保存、输出或写进日志。拒绝后仍可继续逛岛。</p></div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="bury-submit" disabled={busy}>{busy ? "正在验证距离…" : "埋下这颗瓜"}</button>
+        <button className="bury-submit" disabled={busy}>{busy ? "正在压土…" : "把秘密压进土里"}</button>
       </form>
     </Sheet>
   );
 }
 
-function Sheet({ title, subtitle, onClose, children, wide = false }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+function StealthCue({ title, copy, bury = false }: { title: string; copy: string; bury?: boolean }) {
+  return <div className={`stealth-cue${bury ? " is-bury" : ""}`}><span aria-hidden="true"><i /><i /><i /></span><p><strong>{title}</strong><small>{copy}</small></p></div>;
+}
+
+function Sheet({ title, subtitle, onClose, children, wide = false, stealth = false }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; wide?: boolean; stealth?: boolean }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLElement>(null);
@@ -486,7 +534,8 @@ function Sheet({ title, subtitle, onClose, children, wide = false }: { title: st
     document.body.classList.add("modal-open");
     return () => { window.clearTimeout(focusTimer); document.removeEventListener("keydown", handleKeyboard); document.body.classList.remove("modal-open"); previous?.focus(); };
   }, [onClose]);
-  return <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={sheetRef} className={wide ? "sheet wide" : "sheet"} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className="sheet-handle" aria-hidden="true"/><header className="sheet-header"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button ref={closeRef} onClick={onClose} aria-label="关闭"><CloseIcon /></button></header>{children}</section></div>;
+  const sheetClass = `sheet${wide ? " wide" : ""}${stealth ? " stealth-sheet" : ""}`;
+  return <div className="sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={sheetRef} className={sheetClass} role="dialog" aria-modal="true" aria-labelledby={titleId}><div className="sheet-handle" aria-hidden="true"/><header className="sheet-header"><div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button ref={closeRef} onClick={onClose} aria-label="关闭"><CloseIcon /></button></header><div className="sheet-body">{children}</div></section></div>;
 }
 
 function IslandLoading() {
