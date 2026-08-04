@@ -164,7 +164,7 @@ test.describe("V0 核心循环", () => {
 
     await expect(page.getByRole("heading", { level: 1, name: new RegExp(melon.alias) })).toBeVisible();
     await expect(page.getByTestId("field-stage")).toHaveAttribute("aria-label", /花|flower/);
-    await expect(page.getByText(melon.title)).toBeVisible();
+    await expect(page.getByText(spot.name)).toBeVisible();
     await expect(page.getByText(/supabase|user id/i)).toHaveCount(0);
     await expect(page.getByRole("button", { name: /埋瓜|种新瓜|种下一颗瓜/ })).toHaveCount(0);
   });
