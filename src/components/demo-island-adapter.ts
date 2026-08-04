@@ -21,6 +21,7 @@ export interface IslandBootstrap {
   cities: CitySummary[];
   discovery: DiscoveryResponse;
   field: FieldView;
+  melonDetails: Record<string, MelonDetail>;
 }
 
 export interface IslandAdapter {
@@ -33,6 +34,7 @@ export interface IslandAdapter {
   comments(id: string): Promise<MelonComment[]>;
   comment(id: string, content: string): Promise<MelonComment>;
   field(): Promise<FieldView>;
+  fieldByAlias(alias: string): Promise<FieldView>;
   createMelon(request: CreateMelonRequest): Promise<CreateMelonResult>;
 }
 
@@ -100,7 +102,7 @@ function discoveryFor(cityId: CityId, located: boolean): DiscoveryResponse {
 
 export const demoIslandAdapter: IslandAdapter = {
   async bootstrap() {
-    return delay(copy({ session, cities, discovery: discoveryFor("changsha", false), field: fieldView }));
+    return delay(copy({ session, cities, discovery: discoveryFor("changsha", false), field: fieldView, melonDetails: details }));
   },
   async discover(request) {
     return delay(copy(discoveryFor(request.selectedCityId ?? "changsha", Boolean(request.location))));
@@ -145,6 +147,10 @@ export const demoIslandAdapter: IslandAdapter = {
   },
   async field() {
     return delay(copy(fieldView));
+  },
+  async fieldByAlias(alias) {
+    const melons = previews.filter((melon) => details[melon.id]?.alias === alias);
+    return delay(copy({ alias, animal: alias.includes("兔") ? "兔" : "小动物", progress: { seedCount: 7, stage: "flower", nextStageAt: 12 }, melons }));
   },
   async createMelon(request) {
     const id = `demo-melon-${Date.now()}`;
