@@ -1,5 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { enterIsland, installV0Api, melon, openMelon } from "./fixtures/v0-api.mjs";
+import {
+  completeReadControl,
+  enterIsland,
+  installV0Api,
+  melon,
+  melonTrigger,
+  openedMelonDialog,
+  openMelon,
+} from "./fixtures/v0-api.mjs";
 
 function expectedWidth(testInfo) {
   return testInfo.project.use.viewport?.width;
@@ -22,8 +30,8 @@ test.describe("V0 响应式与无障碍门槛", () => {
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
 
     await expect(page.getByRole("main")).toBeVisible();
-    await expect(page.getByRole("article", { name: melon.title })).toBeVisible();
-    await expect(page.getByRole("button", { name: /埋瓜|种下一颗瓜/ })).toBeInViewport();
+    await expect(melonTrigger(page)).toBeVisible();
+    await expect(page.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).first()).toBeInViewport();
 
     if (layout.innerWidth <= 430) {
       const criticalTargets = page.getByRole("navigation").getByRole("button");
@@ -73,13 +81,13 @@ test.describe("V0 响应式与无障碍门槛", () => {
 
   test("A11Y-KEYBOARD：瓜详情对话框圈定焦点并把焦点还给触发器", async ({ page }) => {
     await enterIsland(page);
-    const card = page.getByRole("article", { name: melon.title });
-    const trigger = card.getByRole("button", { name: "打开这颗瓜" });
+    const trigger = melonTrigger(page);
     await trigger.focus();
     await page.keyboard.press("Enter");
 
-    const dialog = page.getByRole("dialog", { name: melon.title });
+    const dialog = openedMelonDialog(page);
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: melon.title, exact: true })).toBeVisible();
     await expect(dialog).toContainText(melon.content);
     await expect(dialog).toHaveAttribute("aria-modal", "true");
     await expect.poll(() => dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
@@ -99,7 +107,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await page.clock.install({ time: new Date("2026-08-04T12:00:00.000Z") });
     await enterIsland(page);
     const dialog = await openMelon(page);
-    const complete = dialog.getByRole("button", { name: "完成吃瓜" });
+    const complete = completeReadControl(dialog);
 
     await expect(page.getByRole("status").filter({ hasText: /还需|秒|阅读/ }).first()).toBeVisible();
     await page.clock.fastForward(5_000);
@@ -135,6 +143,6 @@ test.describe("V0 响应式与无障碍门槛", () => {
     });
 
     expect(offenders, "reduce 模式下非必要动画/过渡应不超过 10ms").toEqual([]);
-    await expect(page.getByRole("article", { name: melon.title })).toBeVisible();
+    await expect(melonTrigger(page)).toBeVisible();
   });
 });
