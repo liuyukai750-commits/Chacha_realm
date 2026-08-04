@@ -5,11 +5,21 @@
 | 工作流 | 状态 | 分支 | 当前交付 | 阻塞 |
 |---|---|---|---|---|
 | 总控集成 | 进行中 | `main` | 建立基线、契约和工作任务 | 无 |
-| 游戏循环 | 待启动 | `work/game-domain` | 领域规则与单测 | 无 |
-| 数据安全 | 待启动 | `work/data-security` | Supabase、RLS、API | 等待契约基线 |
-| 趣味界面 | 待启动 | `work/ui-experience` | 雷达岛和瓜田 | 等待契约基线 |
-| 地理发现 | 待启动 | `work/geo-discovery` | 五城地点与排序 | 等待契约基线 |
-| 质量验收 | 待启动 | `work/qa` | 自动化验收 | 等待契约基线 |
+| 游戏循环 | 进行中 | `work/game-domain` | 领域规则与单测 | 无 |
+| 数据安全 | 进行中 | `work/data-security` | Supabase、RLS、API | 无 |
+| 趣味界面 | 进行中 | `work/ui-experience` | 雷达岛和瓜田 | 无 |
+| 地理发现 | 进行中 | `work/geo-discovery` | 五城地点与排序 | 无 |
+| 质量验收 | 进行中 | `work/qa` | 自动化验收 | 无 |
+
+## Codex 任务
+
+| 工作流 | 任务 ID |
+|---|---|
+| 游戏循环 | `019fcd65-e1cf-71e2-acdf-d9bcefc2359f` |
+| 数据安全 | `019fcd65-e1e9-7ae1-bb2d-8373dca26287` |
+| 趣味界面 | `019fcd66-007f-7f10-abb5-2c6376dc909c` |
+| 地理发现 | `019fcd66-3994-73c2-87fa-3204e13ac900` |
+| 质量验收 | `019fcd66-4082-7722-8d99-1db0ecdabe32` |
 
 ## 工作任务回报格式
 
