@@ -35,9 +35,9 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const payload = await response.json().catch(() => null) as T | ApiError | null;
   if (!response.ok) {
     const problem = payload && typeof payload === "object" && "error" in payload ? (payload as ApiError).error : null;
-    throw new IslandHttpError(response.status, problem?.code ?? "http_error", problem?.message ?? "岛上的信号中断了，请稍后重试。" );
+    throw new IslandHttpError(response.status, problem?.code ?? "http_error", problem?.message ?? "王国里的信号中断了，请稍后重试。" );
   }
-  if (payload === null) throw new IslandHttpError(response.status, "invalid_response", "岛上返回了无法辨认的消息。" );
+  if (payload === null) throw new IslandHttpError(response.status, "invalid_response", "王国里传回了无法辨认的消息。" );
   return payload as T;
 }
 

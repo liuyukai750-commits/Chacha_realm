@@ -30,6 +30,10 @@ export const melon = {
 const melonTopicLabel = "职场瓜";
 const melonDistanceLabel = /1\s*km\s*内/i;
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 const otherField = {
   alias: melon.alias,
   animal: "仓鼠",
@@ -82,7 +86,7 @@ export async function installV0Api(page, options = {}) {
     const body = request.postDataJSON?.() ?? null;
 
     if (method === "POST" && path === "/api/session/anonymous") {
-      return json(route, { alias: "巡岛小猹 101", animal: "猹", seedCount: state.seedCount });
+      return json(route, { alias: "巡城小猹 101", animal: "猹", seedCount: state.seedCount });
     }
 
     if (method === "GET" && path === "/api/cities") {
@@ -164,7 +168,7 @@ export async function installV0Api(page, options = {}) {
       return json(route, {
         id: `comment-${state.commentRequests.length}`,
         melonId: melon.id,
-        alias: "巡岛小猹 101",
+        alias: "巡城小猹 101",
         content: body.content,
         createdAt: fixedNow,
       });
@@ -184,7 +188,7 @@ export async function installV0Api(page, options = {}) {
 
     if (method === "GET" && path === "/api/fields/me") {
       return json(route, {
-        alias: "巡岛小猹 101",
+        alias: "巡城小猹 101",
         animal: "猹",
         progress: {
           seedCount: state.seedCount,
@@ -233,18 +237,17 @@ export async function installV0Api(page, options = {}) {
 
 export async function enterIsland(page) {
   await page.goto("/");
-  const enterButton = page.getByRole("button", { name: /匿名登岛|进入猹猹岛/ });
+  const enterButton = page.getByRole("button", { name: /匿名进城|进入猹猹王国/ });
   if (await enterButton.isVisible().catch(() => false)) await enterButton.click();
   await expect(page.getByRole("main")).toBeVisible();
 }
 
 export function melonTrigger(page) {
-  return page
-    .getByRole("button")
-    .filter({ hasText: melonTopicLabel })
-    .filter({ hasText: spot.name })
-    .filter({ hasText: melonDistanceLabel })
-    .first();
+  const accessibleName = new RegExp(
+    `${escapeRegex(melonTopicLabel)}.*${escapeRegex(spot.name)}.*${melonDistanceLabel.source}`,
+    "i",
+  );
+  return page.getByRole("button", { name: accessibleName }).first();
 }
 
 export function openedMelonDialog(page) {

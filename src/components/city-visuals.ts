@@ -11,7 +11,7 @@ export interface CityVisualConfig {
   cityId: CityId;
   landmarkKind: CityLandmarkKind;
   landmarkLabel: string;
-  islandLabel: string;
+  realmLabel: string;
   landmarkSpotIds: readonly string[];
 }
 
@@ -20,35 +20,35 @@ const cityVisuals: Record<CityId, CityVisualConfig> = {
     cityId: "changsha",
     landmarkKind: "tianxin-orange-isle",
     landmarkLabel: "天心阁与橘子洲意象",
-    islandLabel: "湘江边的长沙主岛",
+    realmLabel: "湘江边的长沙瓜域",
     landmarkSpotIds: ["cs-orange-isle", "cs-tianxin-pavilion", "spot-cs-01", "spot-cs-02"],
   },
   beijing: {
     cityId: "beijing",
     landmarkKind: "temple-of-heaven",
     landmarkLabel: "天坛意象",
-    islandLabel: "北京主岛",
+    realmLabel: "北京城市瓜域",
     landmarkSpotIds: ["bj-temple-of-heaven"],
   },
   shanghai: {
     cityId: "shanghai",
     landmarkKind: "oriental-pearl",
     landmarkLabel: "东方明珠意象",
-    islandLabel: "黄浦江边的上海主岛",
+    realmLabel: "黄浦江边的上海瓜域",
     landmarkSpotIds: ["sh-peoples-square"],
   },
   guangzhou: {
     cityId: "guangzhou",
     landmarkKind: "canton-tower",
     landmarkLabel: "广州塔意象",
-    islandLabel: "珠江边的广州主岛",
+    realmLabel: "珠江边的广州瓜域",
     landmarkSpotIds: ["gz-library", "gz-haizhu-lake"],
   },
   shenzhen: {
     cityId: "shenzhen",
     landmarkKind: "shenzhen-skyline",
     landmarkLabel: "深圳城市天际线意象",
-    islandLabel: "深圳主岛",
+    realmLabel: "深圳城市瓜域",
     landmarkSpotIds: ["sz-lianhuashan-park", "sz-talent-park"],
   },
 };

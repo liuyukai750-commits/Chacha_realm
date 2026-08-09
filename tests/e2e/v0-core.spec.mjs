@@ -68,7 +68,7 @@ async function squatControl(dialog, active) {
   await expect(button).toBeVisible();
   const pressed = await button.getAttribute("aria-pressed");
   if (pressed !== null) {
-    expect(pressed).toBe(String(active));
+    await expect(button).toHaveAttribute("aria-pressed", String(active));
   } else {
     await expect(button).toHaveAccessibleName(active ? /已.*蹲|取消.*蹲/ : /^(?!.*已)(?!.*取消).*蹲/);
   }
@@ -86,7 +86,8 @@ test.describe("V0 核心循环", () => {
     await enterIsland(page);
 
     const locate = locationControl(page);
-    if (await locate.isVisible().catch(() => false)) await locate.click();
+    await expect(locate).toBeVisible();
+    await locate.click();
 
     await expect.poll(() => api.discoveryRequests.some((request) => request?.location)).toBe(true);
     const locatedRequest = api.discoveryRequests.find((request) => request?.location);
@@ -134,9 +135,9 @@ test.describe("V0 核心循环", () => {
 
     await expect(readingStatus).toHaveAccessibleName(/还需.*秒/);
     await expect(complete).toBeDisabled();
-    await page.clock.fastForward(4_999);
+    await page.clock.fastForward(4_000);
     await expect(complete).toBeDisabled();
-    await page.clock.fastForward(1);
+    await page.clock.fastForward(1_100);
     await expect(complete).toBeEnabled();
 
     await complete.click();

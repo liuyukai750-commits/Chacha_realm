@@ -200,9 +200,9 @@ export function ChachaIsland() {
     <div className="sunny-shell" data-day-phase={dayPhase}>
       {mode === "demo" && <div className="demo-banner" role="note"><strong>本地试玩</strong><span>示例数据只留在当前页面，不会上传或保存。</span></div>}
       <header className="topbar">
-        <button className="brand" onClick={() => setTab("radar")} aria-label="回到雷达岛">
+        <button className="brand" onClick={() => setTab("radar")} aria-label="回到瓜域雷达">
           <span className="brand-glyph" aria-hidden="true">猹</span>
-          <span><strong>猹猹岛</strong><small>CHACHA / SUNNY FIELD</small></span>
+          <span><strong>猹猹王国</strong><small>CHACHA / SUNNY FIELD</small></span>
         </button>
         <div className="topbar-actions">
           <button className="city-switch" onClick={() => setShowCities(true)} aria-label={`当前城市${activeCity.name}，切换城市`}>
@@ -320,11 +320,11 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
 
 function OpeningCard({ state }: { state: CityOpeningState }) {
   const items = [["安全瓜", state.safeMelons, 30], ["瓜主", state.distinctAuthors, 25], ["地点", state.distinctSpots, 3], ["话题", state.distinctTopics, 3]] as const;
-  if (state.status === "open") return <section className="opening-card is-open"><span className="utility-label">ISLAND OPEN</span><h2>岛上的灯已经亮了</h2><p>今晚的成熟瓜正按距离向外扩散。</p></section>;
+  if (state.status === "open") return <section className="opening-card is-open"><span className="utility-label">CITY GATE OPEN</span><h2>这座城的瓜门已经打开</h2><p>今晚的成熟瓜正按距离向外扩散。</p></section>;
   return (
     <section className="opening-card" aria-labelledby="opening-title">
-      <header><span className="utility-label">CITY / OPENING</span><strong>{state.status === "countdown" ? "正在倒数开岛" : "继续攒热闹"}</strong></header>
-      <div><h2 id="opening-title">这座城正在攒一场热闹</h2><p>四项都满后，次日 20:00 开岛。</p></div>
+      <header><span className="utility-label">CITY / OPENING</span><strong>{state.status === "countdown" ? "正在倒数开城门" : "继续攒热闹"}</strong></header>
+      <div><h2 id="opening-title">这座城正在攒一场热闹</h2><p>四项都满后，次日 20:00 开城门。</p></div>
       <ul>{items.map(([label, value, goal]) => <li key={label}><span>{label}</span><div><i style={{ width: `${Math.min(100, value / goal * 100)}%` }} /></div><strong>{value}<small>/{goal}</small></strong></li>)}</ul>
     </section>
   );
@@ -453,16 +453,16 @@ function CommentSheet({ adapter, melon, onClose }: { adapter: IslandAdapter; mel
 }
 
 function CityPicker({ model, onClose, onSelect }: { model: IslandBootstrap; onClose: () => void; onSelect: (city: CityId) => void }) {
-  return <Sheet title="换一座主岛逛逛" subtitle="五城地标是象征景观，不是导航地图" onClose={onClose}><div className="city-list">{model.cities.map((city) => {
+  return <Sheet title="换一个城市瓜域逛逛" subtitle="五城地标是象征景观，不是导航地图" onClose={onClose}><div className="city-list">{model.cities.map((city) => {
     const landmark = cityLandmarks[city.id] ?? fallbackLandmark;
-    return <button key={city.id} onClick={() => onSelect(city.id)} className={city.id === model.discovery.activeCityId ? "selected" : ""} aria-label={`${city.name}主岛，象征地标${landmark.name}，${city.opening.status === "open" ? "已开岛" : `${city.opening.safeMelons}/30 颗安全瓜`}`}><CityIsland cityId={city.id} cityName={city.name} compact /><span className="city-copy"><strong>{city.name}</strong><small>{landmark.name} · {landmark.atmosphere}</small><small>{city.opening.status === "open" ? "已开岛" : `${city.opening.safeMelons}/30 颗安全瓜`}</small></span>{city.id === model.discovery.activeCityId && <i>正在逛</i>}<ChevronIcon /></button>;
+    return <button key={city.id} onClick={() => onSelect(city.id)} className={city.id === model.discovery.activeCityId ? "selected" : ""} aria-label={`${city.name}城市瓜域，象征地标${landmark.name}，${city.opening.status === "open" ? "城门已开" : `${city.opening.safeMelons}/30 颗安全瓜`}`}><CityIsland cityId={city.id} cityName={city.name} compact /><span className="city-copy"><strong>{city.name}</strong><small>{landmark.name} · {landmark.atmosphere}</small><small>{city.opening.status === "open" ? "城门已开" : `${city.opening.safeMelons}/30 颗安全瓜`}</small></span>{city.id === model.discovery.activeCityId && <i>正在逛</i>}<ChevronIcon /></button>;
   })}</div><p className="privacy-copy"><LocationIcon />定位被拒绝时仍可按城市浏览和蹲瓜；只有埋瓜需要在公共地点附近完成一次距离验证。</p></Sheet>;
 }
 
 function CityIsland({ cityId, cityName, radar = false, compact = false }: { cityId: CityId; cityName: string; radar?: boolean; compact?: boolean }) {
   const landmark = cityLandmarks[cityId] ?? fallbackLandmark;
   return (
-    <div className={`city-island landmark-${landmark.kind}${radar ? " is-radar" : ""}${compact ? " is-compact" : ""}`} role={radar ? "img" : undefined} aria-label={radar ? `${cityName}主岛象征地标：${landmark.name}，${landmark.atmosphere}。没有坐标，不用于导航。` : undefined} aria-hidden={compact || undefined}>
+    <div className={`city-island landmark-${landmark.kind}${radar ? " is-radar" : ""}${compact ? " is-compact" : ""}`} role={radar ? "img" : undefined} aria-label={radar ? `${cityName}城市瓜域象征地标：${landmark.name}，${landmark.atmosphere}。没有坐标，不用于导航。` : undefined} aria-hidden={compact || undefined}>
       <span className="island-grass" aria-hidden="true" />
       <span className="landmark-glyph" aria-hidden="true"><i /><i /><i /><b /></span>
       {radar && <span className="landmark-caption"><strong>{landmark.name}</strong><small>象征景观 · 非导航</small></span>}
@@ -501,9 +501,9 @@ function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootst
         <label htmlFor={topicInputId}><span>话题</span><select id={topicInputId} value={topic} onChange={(event) => setTopic(event.target.value as SafeTopic)}>{(Object.keys(topicName) as SafeTopic[]).map((key) => <option value={key} key={key}>{topicName[key]}</option>)}</select></label>
         <label htmlFor={titleInputId}><span>标题</span><input id={titleInputId} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={42} placeholder="一句话说清发生了什么"/><small>{title.length}/42</small></label>
         <label htmlFor={contentInputId}><span>故事内容</span><textarea id={contentInputId} value={content} onChange={(event) => setContent(event.target.value)} maxLength={800} placeholder="不写联系方式、精确住址或可识别他人的隐私…"/><small>{content.length}/800</small></label>
-        <div className="location-gate"><LocationIcon /><p><strong>发布时才请求一次定位</strong>只用于确认你在所选公共地点 500 米内；不会保存、输出或写进日志。拒绝后仍可继续逛岛。</p></div>
+        <div className="location-gate"><LocationIcon /><p><strong>发布时才请求一次定位</strong>只用于确认你在所选公共地点 500 米内；不会保存、输出或写进日志。拒绝后仍可继续逛瓜域。</p></div>
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="bury-submit" disabled={busy}>{busy ? "正在压土…" : "把秘密压进土里"}</button>
+        <button className="bury-submit" aria-label="埋瓜，把秘密压进土里" disabled={busy}>{busy ? "正在压土…" : "把秘密压进土里"}</button>
       </form>
     </Sheet>
   );
@@ -539,7 +539,7 @@ function Sheet({ title, subtitle, onClose, children, wide = false, stealth = fal
 }
 
 function IslandLoading() {
-  return <main className="island-loading" aria-label="正在听岛上的动静"><div><i/><i/><span>猹</span></div><p>正在听岛上的动静…</p></main>;
+  return <main className="island-loading" aria-label="正在听王国里的动静"><div><i/><i/><span>猹</span></div><p>正在听王国里的动静…</p></main>;
 }
 
 function IslandUnavailable({ error, onRetry, onDemo }: { error: unknown; onRetry: () => void; onDemo?: () => void }) {

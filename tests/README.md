@@ -1,4 +1,4 @@
-# 猹猹岛 V0 质量验收
+# 猹猹王国 V0 质量验收
 
 本目录只验证 `docs/PRODUCT_SPEC.md` 与 `docs/coordination/CONTRACTS.md` 已承诺的用户行为，不重新定义业务契约。功能尚未集成时，E2E 用例可以作为红灯验收门槛，但不得通过放宽断言、扩大 mock 或禁用规则制造“通过”。
 

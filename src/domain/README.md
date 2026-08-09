@@ -5,5 +5,5 @@
 - `lifecycle.ts`：孵化、成熟、归档与扩散范围。
 - `reads.ts`：有效阅读与瓜籽奖励。
 - `field.ts`：瓜田成长阶段。
-- `city-opening.ts`：五城开岛门槛与时间。
+- `city-opening.ts`：五城开城门门槛与时间。
 - `discovery.ts`：发现评分与稳定排序。

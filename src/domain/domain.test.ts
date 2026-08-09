@@ -124,7 +124,7 @@ test("瓜田在 1/3/7/12/21 粒瓜籽的边界成长", () => {
   assert.deepEqual(getFieldProgress(21), { seedCount: 21, stage: "ripe_melon" });
 });
 
-test("五城达到全部阈值后于中国标准时间次日 20:00 开岛", () => {
+test("五城达到全部阈值后于中国标准时间次日 20:00 开城门", () => {
   const metrics = { safeMelons: 30, distinctAuthors: 25, distinctSpots: 3, distinctTopics: 3 };
   assert.equal(hasReachedCityOpeningThresholds(metrics), true);
 
@@ -146,7 +146,7 @@ test("五城达到全部阈值后于中国标准时间次日 20:00 开岛", () =
   assert.equal(open.status, "open");
 });
 
-test("任一开岛指标未达标时保持 gathering", () => {
+test("任一开城门指标未达标时保持 gathering", () => {
   const state = evaluateCityOpening({
     cityId: "beijing",
     metrics: { safeMelons: 29, distinctAuthors: 25, distinctSpots: 3, distinctTopics: 3 },
