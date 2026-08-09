@@ -18,12 +18,16 @@
 | `POST /api/melons/:id/complete` | `CompleteReadRequest` | `CompleteReadResult` |
 | `POST /api/melons/:id/squat` | `{ active: boolean }` | `{ active: boolean }` |
 | `POST /api/melons/:id/reactions` | `{ reaction: ReactionType }` | 反应计数 |
-| `POST /api/melons/:id/comments` | `{ content: string }` | `MelonComment` |
+| `POST /api/melons/:id/comments` | `CreateCommentRequest` | `MelonComment` |
+| `GET /api/melons/:id/comments?cursor=&limit=20` | melon id、可选游标 | `MelonCommentsPage` |
+| `POST /api/presence/verify` | `VerifyZonePresenceRequest` | `ZonePresenceResult` |
 | `GET /api/fields/me` | 无 | `FieldView` |
 | `GET /api/fields/:alias` | alias | `FieldView` |
 | `POST /api/reports` | `CreateReportRequest` | `{ accepted: true }` |
 
 所有时间使用 ISO 8601 字符串。所有错误返回 `{ error: { code, message } }`。动态路由在 Next.js 16 中必须 await `params`。
+
+评论写入必须携带仍有效的瓜区凭证。凭证绑定匿名会话与公共地点，默认 15 分钟过期，不包含原始经纬度。距离公共地点 1 公里内为 `local`，500 米内为 `found`；远程用户可以读取评论、轻反应和蹲瓜，但不能发表文字评论。
 
 ## 隐私不变量
 

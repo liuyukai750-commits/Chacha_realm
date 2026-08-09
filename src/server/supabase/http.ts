@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ApiProblem, unavailable } from "@/server/api";
-import { getSupabaseConfig } from "@/server/supabase/config";
+import { getSupabaseAdminConfig, getSupabaseConfig } from "@/server/supabase/config";
 
 interface SupabaseErrorBody {
   code?: string;
@@ -23,6 +23,9 @@ async function responseBody(response: Response): Promise<unknown> {
 function mapSupabaseError(status: number, body: unknown): ApiProblem {
   const error = (body && typeof body === "object" ? body : {}) as SupabaseErrorBody;
   const signal = `${error.code ?? ""} ${error.error_code ?? ""} ${error.message ?? ""} ${error.msg ?? ""}`;
+  if (/account_banned/i.test(signal)) {
+    return new ApiProblem(403, "account_banned", "该匿名身份已被暂停写入；举报不会自动触发永久封禁。 ");
+  }
   if (status === 401 || status === 403 || /unauthorized|invalid.*jwt|jwt.*expired/i.test(signal)) {
     return new ApiProblem(401, "unauthorized", "匿名会话无效或已过期。 ");
   }
@@ -63,6 +66,30 @@ export async function supabaseFetch<T>(
 
 export function rpc<T>(name: string, input: Record<string, unknown>, accessToken?: string): Promise<T> {
   return supabaseFetch<T>(`/rest/v1/rpc/${name}`, { method: "POST", body: JSON.stringify(input) }, accessToken);
+}
+
+export async function serviceRpc<T>(name: string, input: Record<string, unknown>): Promise<T> {
+  const config = getSupabaseAdminConfig();
+  if (!config) throw unavailable();
+  let response: Response;
+  try {
+    response = await fetch(`${config.url}/rest/v1/rpc/${name}`, {
+      method: "POST",
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+      body: JSON.stringify(input),
+      headers: {
+        apikey: config.serviceRoleKey,
+        Authorization: `Bearer ${config.serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+  } catch {
+    throw unavailable();
+  }
+  const body = await responseBody(response);
+  if (!response.ok) throw mapSupabaseError(response.status, body);
+  return body as T;
 }
 
 export function selectRows<T>(table: string, query: string, accessToken?: string): Promise<T> {

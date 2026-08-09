@@ -2,7 +2,7 @@ import type { CreateMelonRequest } from "@/contracts";
 import { readJson, requireSameOrigin, route } from "@/server/api";
 import { createMelon } from "@/server/repositories/island-repository";
 import { validateLocationProof } from "@/server/security/location";
-import { requireSession } from "@/server/supabase/session";
+import { requireActiveSession } from "@/server/supabase/session";
 import { object, text, topic, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   return route(async () => {
     requireSameOrigin(request);
-    const session = await requireSession();
+    const session = await requireActiveSession();
     const body = object(await readJson(request));
     const input: CreateMelonRequest = {
       spotId: uuid(body.spotId, "spotId"),

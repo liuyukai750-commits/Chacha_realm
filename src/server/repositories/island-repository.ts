@@ -12,14 +12,17 @@ import type {
   FieldStage,
   FieldView,
   MelonComment,
+  MelonCommentsPage,
   MelonDetail,
   MelonPreview,
   ReactionType,
   VisitorType,
 } from "@/contracts";
 import { ApiProblem } from "@/server/api";
+import { decodeCommentCursor, encodeCommentCursor } from "@/server/repositories/comment-cursor";
 import { distanceMeters, toDistanceBand } from "@/server/security/location";
-import { rpc, selectRows } from "@/server/supabase/http";
+import { requireSafeSeek } from "@/server/security/seek";
+import { rpc, selectRows, serviceRpc } from "@/server/supabase/http";
 
 interface PublicSpotRow {
   id: string;
@@ -102,6 +105,8 @@ export async function discover(
         distanceBand,
         ...(candidate.maturesAt ? { maturesAt: candidate.maturesAt } : {}),
         ...(candidate.completedReads !== undefined ? { completedReads: candidate.completedReads } : {}),
+        ...(candidate.title ? { title: candidate.title } : {}),
+        ...(typeof candidate.commentCount === "number" ? { commentCount: candidate.commentCount } : {}),
         isRemote: candidate.cityId !== activeCityId,
       };
       const priority = activeDistrictId && candidate.districtId === activeDistrictId ? 0 : candidate.cityId === activeCityId ? 1 : 2;
@@ -119,11 +124,10 @@ export async function discover(
 }
 
 export async function createMelon(input: CreateMelonRequest, accessToken: string): Promise<CreateMelonResult> {
-  const spots = await publicSpots(accessToken);
-  const spot = spots.find((item) => item.id === input.spotId);
-  if (!spot) throw new ApiProblem(400, "invalid_spot", "公共地点无效或未开放。 ");
-  const distanceM = distanceMeters(input.location, { latitude: spot.latitude, longitude: spot.longitude });
-  if (distanceM > 500) throw new ApiProblem(403, "outside_spot_radius", "只有在公共地点 500 米内才能埋瓜。 ");
+  const evaluated = requireSafeSeek(input.spotId, input.location);
+  if (evaluated.seekState !== "found") {
+    throw new ApiProblem(403, "outside_spot_radius", "只有定位误差范围完整落在公共地点 500 米内才能埋瓜。 ");
+  }
   return rpc<CreateMelonResult>(
     "create_melon",
     { p_spot_id: input.spotId, p_topic: input.topic, p_title: input.title, p_content: input.content },
@@ -149,8 +153,41 @@ export function setReaction(melonId: string, reaction: ReactionType, accessToken
   return rpc("set_melon_reaction", { p_melon_id: melonId, p_reaction: reaction }, accessToken);
 }
 
-export function addComment(melonId: string, content: string, accessToken: string): Promise<MelonComment> {
-  return rpc("add_melon_comment", { p_melon_id: melonId, p_content: content }, accessToken);
+export async function getComments(melonId: string, cursorValue: string | null, limit: number): Promise<MelonCommentsPage> {
+  const cursor = decodeCommentCursor(cursorValue);
+  const rows = await rpc<MelonComment[]>("get_melon_comments", {
+    p_melon_id: melonId,
+    p_cursor_created_at: cursor?.createdAt ?? null,
+    p_cursor_id: cursor?.id ?? null,
+    p_limit: limit + 1,
+  });
+  const items = rows.slice(0, limit);
+  const last = items.at(-1);
+  return {
+    items,
+    ...(rows.length > limit && last ? { nextCursor: encodeCommentCursor(last) } : {}),
+  };
+}
+
+interface AddCommentRpcResult {
+  held: boolean;
+  comment?: MelonComment;
+}
+
+export async function addComment(
+  melonId: string,
+  spotId: string,
+  content: string,
+  actorId: string,
+): Promise<MelonComment> {
+  const result = await serviceRpc<AddCommentRpcResult>(
+    "add_melon_comment",
+    { p_actor_id: actorId, p_melon_id: melonId, p_spot_id: spotId, p_content: content },
+  );
+  if (result.held || !result.comment) {
+    throw new ApiProblem(422, "content_held", "内容需要安全复核，暂未公开。 ");
+  }
+  return result.comment;
 }
 
 export async function getField(alias: string | null, accessToken: string): Promise<FieldView> {

@@ -4,11 +4,11 @@ import { stripTypeScriptTypes } from "node:module";
 import test from "node:test";
 
 const source = readFileSync(new URL("./config.ts", import.meta.url), "utf8").replace('import "server-only";', "");
-const { getSupabaseConfig } = await import(
+const { getSupabaseAdminConfig, getSupabaseConfig } = await import(
   `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(source)).toString("base64")}`
 );
 
-const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"];
+const keys = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"];
 const original = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
 
 test.afterEach(() => {
@@ -30,4 +30,17 @@ test("accepts HTTPS and local development URLs only", () => {
   assert.deepEqual(getSupabaseConfig(), { url: "https://example.supabase.co", anonKey: "anon-key" });
   process.env.SUPABASE_URL = "http://not-local.example";
   assert.equal(getSupabaseConfig(), null);
+});
+
+test("requires a server-only service role key for privileged moderation and comment writes", () => {
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-key";
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  assert.equal(getSupabaseAdminConfig(), null);
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+  assert.deepEqual(getSupabaseAdminConfig(), {
+    url: "https://example.supabase.co",
+    anonKey: "anon-key",
+    serviceRoleKey: "service-role-key",
+  });
 });

@@ -34,14 +34,27 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await expect(page.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).first()).toBeInViewport();
 
     if (layout.innerWidth <= 430) {
-      const criticalTargets = page.getByRole("navigation").getByRole("button");
-      for (const target of await criticalTargets.all()) {
+      const criticalTargets = [
+        ...await page.getByRole("navigation").getByRole("button").all(),
+        page.getByRole("button", { name: /开启定位|重新定位/ }),
+        page.getByRole("button", { name: "开始感应", exact: true }),
+        page.getByRole("button", { name: /瓜篮/ }),
+        ...await page.getByRole("group", { name: "按单一话题筛选" }).getByRole("button").all(),
+      ];
+      for (const target of criticalTargets) {
         const box = await target.boundingBox();
-        expect(box, "可见导航按钮必须有布局盒").not.toBeNull();
-        expect(box.width, "移动端导航按钮宽度至少 44px").toBeGreaterThanOrEqual(44);
-        expect(box.height, "移动端导航按钮高度至少 44px").toBeGreaterThanOrEqual(44);
+        expect(box, "可见主要触控按钮必须有布局盒").not.toBeNull();
+        expect(box.width, "移动端主要触控按钮宽度至少 44px").toBeGreaterThanOrEqual(44);
+        expect(box.height, "移动端主要触控按钮高度至少 44px").toBeGreaterThanOrEqual(44);
       }
     }
+
+    await page.getByRole("button", { name: /瓜篮/ }).click();
+    const expandedLayout = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(expandedLayout.scrollWidth).toBeLessThanOrEqual(expandedLayout.clientWidth + 1);
   });
 
   test("A11Y-NAME：地标、标题、控件和 id 提供稳定语义", async ({ page }) => {
@@ -77,6 +90,67 @@ test.describe("V0 响应式与无障碍门槛", () => {
         .map((field) => field.outerHTML),
     );
     expect(unlabeledFields, "所有可见表单控件必须有可访问名称").toEqual([]);
+  });
+
+  test("PLACE-SCENE：附近场景贯穿发现、吃瓜和埋瓜，但明确不是实景地图", async ({ page }, testInfo) => {
+    await enterIsland(page);
+
+    const discoveryScene = page.getByRole("img", { name: /城市瓜域象征地标.*没有坐标.*不用于导航/ }).first();
+    await expect(discoveryScene).toBeVisible();
+    if (testInfo.project.name === "chromium-375") {
+      await page.screenshot({ path: testInfo.outputPath("place-scene-discovery.png"), fullPage: true });
+    }
+
+    const reader = await openMelon(page);
+    await expect(reader.getByRole("img", { name: /半真实卡通场景.*不是实景地图/ })).toBeVisible();
+    if (testInfo.project.name === "chromium-375") {
+      await page.screenshot({ path: testInfo.outputPath("place-scene-reader.png") });
+    }
+    await reader.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("button", { name: /埋.*瓜/ }).first().click();
+    const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
+    await expect(buryDialog.getByRole("img", { name: /半真实卡通场景.*不是实景地图/ })).toBeVisible();
+  });
+
+  test("PLACE-PRIVACY：公司、医院和酒店类场景不展示具体机构名称", async ({ page }) => {
+    const sensitiveSpot = {
+      id: "spot-sensitive-medical",
+      cityId: "changsha",
+      districtId: "furong",
+      name: "长沙某医院门诊楼",
+    };
+    await page.unrouteAll({ behavior: "wait" });
+    await installV0Api(page, { spot: sensitiveSpot });
+    await enterIsland(page);
+
+    const zone = page.getByRole("region", { name: "瓜区控制台" });
+    await expect(zone.getByRole("heading", { name: "医疗建筑附近", exact: true })).toBeVisible();
+    await expect(page.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
+
+    await page.getByRole("button", { name: /吃瓜：职场瓜，医疗建筑附近，同一瓜区/ }).click();
+    const reader = openedMelonDialog(page);
+    await expect(reader.getByRole("img", { name: /医疗建筑附近.*地点名称已模糊.*不是实景地图/ })).toBeVisible();
+    await expect(page.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
+    await reader.getByRole("button", { name: "关闭" }).click();
+
+    await page.getByRole("button", { name: /埋.*瓜/ }).first().click();
+    const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
+    await expect(buryDialog.getByRole("combobox", { name: /公共地点/ })).toContainText("医疗建筑附近");
+    await expect(buryDialog.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
+  });
+
+  test("PLACE-NIGHT：夜间保留地点轮廓和亮窗，但不改变核心操作", async ({ page }, testInfo) => {
+    await page.clock.install({ time: new Date("2026-08-04T22:00:00+08:00") });
+    await enterIsland(page);
+
+    await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
+    await expect(page.getByRole("img", { name: /城市瓜域象征地标.*没有坐标.*不用于导航/ }).first()).toBeVisible();
+    await expect(melonTrigger(page)).toBeVisible();
+    await expect(page.getByRole("button", { name: /埋.*瓜/ }).first()).toBeInViewport();
+    if (testInfo.project.name === "chromium-375") {
+      await page.screenshot({ path: testInfo.outputPath("place-scene-night.png"), fullPage: true });
+    }
   });
 
   test("A11Y-KEYBOARD：瓜详情对话框圈定焦点并把焦点还给触发器", async ({ page }) => {

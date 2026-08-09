@@ -9,6 +9,9 @@ export type DistanceBand = "within_1km" | "within_3km" | "within_8km" | "within_
 export type SafeTopic = "daily" | "work" | "relationship" | "food" | "neighborhood";
 export type ReactionType = "juicy" | "wild" | "hug" | "follow_up";
 export type FieldStage = "bare" | "sprout" | "vine" | "flower" | "green_melon" | "ripe_melon";
+export type ZonePresence = "unknown" | "remote" | "local";
+export type SeekState = "outside" | "near" | "inside_zone" | "found";
+export type AccountStatus = "active" | "banned";
 
 export interface Coordinates {
   latitude: number;
@@ -24,6 +27,7 @@ export interface AnonymousSession {
   alias: string;
   animal: string;
   seedCount: number;
+  accountStatus?: AccountStatus;
 }
 
 export interface PublicSpotSummary {
@@ -61,6 +65,8 @@ export interface MelonPreview {
   distanceBand: DistanceBand;
   maturesAt?: string;
   completedReads?: number;
+  title?: string;
+  commentCount?: number;
   isRemote: boolean;
 }
 
@@ -145,6 +151,28 @@ export interface MelonComment {
   alias: string;
   content: string;
   createdAt: string;
+}
+
+export interface MelonCommentsPage {
+  items: MelonComment[];
+  nextCursor?: string;
+}
+
+export interface VerifyZonePresenceRequest {
+  spotId: SpotId;
+  location: LocationProof;
+}
+
+export interface ZonePresenceResult {
+  presence: Exclude<ZonePresence, "unknown">;
+  seekState: SeekState;
+  presenceToken?: string;
+  expiresAt?: string;
+}
+
+export interface CreateCommentRequest {
+  content: string;
+  presenceToken: string;
 }
 
 export interface CreateReportRequest {

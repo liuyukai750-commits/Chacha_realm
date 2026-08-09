@@ -4,12 +4,14 @@ import type {
   CitySummary,
   CompleteReadResult,
   CreateMelonResult,
+  CreateReportRequest,
   DiscoveryResponse,
   FieldView,
   MelonComment,
-  MelonDetail,
+  MelonCommentsPage,
   OpenedMelon,
   ReactionType,
+  ZonePresenceResult,
 } from "@/contracts";
 import type { IslandAdapter, IslandBootstrap } from "./demo-island-adapter";
 
@@ -41,15 +43,6 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-async function readDetails(discovery: DiscoveryResponse): Promise<Record<string, MelonDetail>> {
-  const opened = await Promise.all(
-    discovery.items
-      .filter((melon) => melon.status === "mature")
-      .map((melon) => requestJson<OpenedMelon>(`/api/melons/${encodeURIComponent(melon.id)}`)),
-  );
-  return Object.fromEntries(opened.map(({ melon }) => [melon.id, melon]));
-}
-
 function emptyField(session: AnonymousSession): FieldView {
   const stage = session.seedCount >= 21 ? "ripe_melon" : session.seedCount >= 12 ? "green_melon" : session.seedCount >= 7 ? "flower" : session.seedCount >= 3 ? "vine" : session.seedCount >= 1 ? "sprout" : "bare";
   const nextStageAt = [1, 3, 7, 12, 21].find((goal) => goal > session.seedCount);
@@ -64,8 +57,7 @@ export const httpIslandAdapter: IslandAdapter = {
     ]);
     const selectedCityId = cities[0]?.id;
     const discovery = await requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(selectedCityId ? { selectedCityId } : {}) });
-    const melonDetails = await readDetails(discovery);
-    return { session, cities, discovery, field: emptyField(session), melonDetails };
+    return { session, cities, discovery, field: emptyField(session), melonDetails: {} };
   },
   discover(request) {
     return requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(request) });
@@ -82,11 +74,14 @@ export const httpIslandAdapter: IslandAdapter = {
   react(id, reaction) {
     return requestJson<Record<ReactionType, number>>(`/api/melons/${encodeURIComponent(id)}/reactions`, { method: "POST", body: JSON.stringify({ reaction }) });
   },
-  comments() {
-    return Promise.resolve<MelonComment[]>([]);
+  comments(id) {
+    return requestJson<MelonCommentsPage>(`/api/melons/${encodeURIComponent(id)}/comments?limit=20`);
   },
-  comment(id, content) {
-    return requestJson<MelonComment>(`/api/melons/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify({ content }) });
+  verifyZonePresence(input) {
+    return requestJson<ZonePresenceResult>("/api/presence/verify", { method: "POST", body: JSON.stringify(input) });
+  },
+  comment(id, content, presenceToken) {
+    return requestJson<MelonComment>(`/api/melons/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify({ content, presenceToken }) });
   },
   field() {
     return requestJson<FieldView>("/api/fields/me");
@@ -96,5 +91,8 @@ export const httpIslandAdapter: IslandAdapter = {
   },
   createMelon(input) {
     return requestJson<CreateMelonResult>("/api/melons", { method: "POST", body: JSON.stringify(input) });
+  },
+  report(input: CreateReportRequest) {
+    return requestJson<{ accepted: true }>("/api/reports", { method: "POST", body: JSON.stringify(input) });
   },
 };

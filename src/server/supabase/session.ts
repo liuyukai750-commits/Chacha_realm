@@ -25,6 +25,7 @@ interface ProfileDto {
   alias: string;
   animal: string;
   seedCount: number;
+  accountStatus?: "active" | "banned";
 }
 
 export interface ServerSession {
@@ -90,6 +91,21 @@ export async function requireSession(): Promise<ServerSession> {
   return session;
 }
 
+async function profileFor(session: ServerSession): Promise<ProfileDto> {
+  const profile = await rpc<ProfileDto | null>("get_current_profile", {}, session.accessToken);
+  if (!profile) throw unavailable();
+  return profile;
+}
+
+export async function requireActiveSession(): Promise<ServerSession> {
+  const session = await requireSession();
+  const profile = await profileFor(session);
+  if (profile.accountStatus === "banned") {
+    throw new ApiProblem(403, "account_banned", "该匿名身份已被暂停写入；举报不会自动触发永久封禁。 ");
+  }
+  return session;
+}
+
 export async function createOrResumeAnonymousSession(): Promise<AnonymousSession> {
   let session = await currentSession(true);
   if (!session) {
@@ -103,7 +119,11 @@ export async function createOrResumeAnonymousSession(): Promise<AnonymousSession
     await saveSession(created);
     session = { userId: created.user.id, accessToken: created.access_token };
   }
-  const profile = await rpc<ProfileDto | null>("get_current_profile", {}, session.accessToken);
-  if (!profile) throw unavailable();
-  return { alias: profile.alias, animal: profile.animal, seedCount: profile.seedCount };
+  const profile = await profileFor(session);
+  return {
+    alias: profile.alias,
+    animal: profile.animal,
+    seedCount: profile.seedCount,
+    accountStatus: profile.accountStatus ?? "active",
+  };
 }

@@ -1,20 +1,41 @@
-import { readJson, requireSameOrigin, route } from "@/server/api";
-import { addComment } from "@/server/repositories/island-repository";
-import { assessContentSafety } from "@/server/security/content-safety";
-import { requireSession } from "@/server/supabase/session";
+import type { MelonCommentsPage } from "@/contracts";
+import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
+import { addComment, getComments } from "@/server/repositories/island-repository";
+import { requirePresenceCredential } from "@/server/security/presence";
+import { requireActiveSession } from "@/server/supabase/session";
 import { object, text, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
+
+function pageLimit(value: string | null): number {
+  if (value === null) return 20;
+  if (!/^\d+$/.test(value)) throw new ApiProblem(400, "invalid_limit", "limit 必须是 1 到 50 的整数。 ");
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 50) {
+    throw new ApiProblem(400, "invalid_limit", "limit 必须是 1 到 50 的整数。 ");
+  }
+  return parsed;
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  return route<MelonCommentsPage>(async () => {
+    const { id: rawId } = await params;
+    const id = uuid(rawId, "id");
+    const url = new URL(request.url);
+    return getComments(id, url.searchParams.get("cursor"), pageLimit(url.searchParams.get("limit")));
+  });
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return route(async () => {
     requireSameOrigin(request);
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
-    const session = await requireSession();
+    const session = await requireActiveSession();
     const body = object(await readJson(request));
     const content = text(body.content, "content", 140);
-    assessContentSafety(content);
-    return addComment(id, content, session.accessToken);
+    const presenceToken = text(body.presenceToken, "presenceToken", 2_048);
+    const presence = requirePresenceCredential(presenceToken, session.userId);
+    return addComment(id, presence.spotId, content, session.userId);
   });
 }

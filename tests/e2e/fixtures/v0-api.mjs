@@ -28,7 +28,44 @@ export const melon = {
 };
 
 const melonTopicLabel = "职场瓜";
-const melonDistanceLabel = /1\s*km\s*内/i;
+const melonDistanceLabel = /同一瓜区/;
+
+const topicCycle = ["work", "daily", "relationship", "food", "neighborhood"];
+export const discoveryMelons = Array.from({ length: 12 }, (_, index) => {
+  if (index === 0) return melon;
+  const number = index + 1;
+  const isRemote = number === 12;
+  return {
+    ...melon,
+    id: `melon-${String(number).padStart(2, "0")}`,
+    topic: topicCycle[index % topicCycle.length],
+    distanceBand: isRemote ? "remote" : index < 4 ? "within_1km" : index < 8 ? "within_3km" : "within_8km",
+    completedReads: 3 + index,
+    isRemote,
+    alias: `晒太阳的小动物 ${100 + number}`,
+    title: isRemote ? "远方瓜棚传来一阵笑声" : `瓜区里的第 ${number} 件小事`,
+    content: isRemote
+      ? "虽然隔着一座城，公开瓜棚里的故事、评论和轻反应仍然清楚可读。"
+      : `这是五一广场瓜区第 ${number} 颗成熟瓜的完整正文。`,
+  };
+});
+
+export const publicComments = [
+  {
+    id: "comment-public-1",
+    melonId: melon.id,
+    alias: "抱书海獭 204",
+    content: "这是从评论 GET fixture 读取的第一条公开回声。",
+    createdAt: "2026-08-04T11:30:00.000Z",
+  },
+  {
+    id: "comment-public-2",
+    melonId: melon.id,
+    alias: "赶车刺猬 305",
+    content: "远方围观也应该看得到这条评论。",
+    createdAt: "2026-08-04T11:45:00.000Z",
+  },
+];
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -68,14 +105,22 @@ function json(route, body, status = 200) {
 export async function installV0Api(page, options = {}) {
   const state = {
     commentRequests: [],
+    commentGetRequests: [],
     completeRequests: [],
     createRequests: [],
     discoveryRequests: [],
+    presenceRequests: [],
+    reactionRequests: [],
     squatRequests: [],
     seedCount: options.seedCount ?? 2,
     completedReads: melon.completedReads,
     alreadyCompleted: options.alreadyCompleted ?? false,
     plantDistanceFailure: options.plantDistanceFailure ?? false,
+    activeSpot: options.spot ?? spot,
+    presenceSequence: options.presenceSequence ?? ["inside_zone"],
+    presenceAttempt: 0,
+    commentFailure: options.commentFailure ?? null,
+    commentFailureUsed: false,
   };
 
   await page.route("**/api/**", async (route) => {
@@ -95,7 +140,7 @@ export async function installV0Api(page, options = {}) {
           id: "changsha",
           name: "长沙",
           districts: [{ id: "furong", name: "芙蓉区" }],
-          spots: [spot],
+          spots: [state.activeSpot],
           opening: {
             cityId: "changsha",
             status: "open",
@@ -113,27 +158,34 @@ export async function installV0Api(page, options = {}) {
       return json(route, {
         visitorType: body?.location ? "local" : "location_unknown",
         activeCityId: "changsha",
-        items: [
-          {
-            id: melon.id,
-            status: "mature",
-            topic: melon.topic,
-            cityId: melon.cityId,
-            districtId: melon.districtId,
-            spot,
-            distanceBand: melon.distanceBand,
-            completedReads: state.completedReads,
-            isRemote: false,
-          },
-        ],
+        items: discoveryMelons.map((item) => ({
+          id: item.id,
+          status: item.status,
+          topic: item.topic,
+          cityId: state.activeSpot.cityId,
+          districtId: state.activeSpot.districtId,
+          spot: state.activeSpot,
+          distanceBand: item.distanceBand,
+          completedReads: item.id === melon.id ? state.completedReads : item.completedReads,
+          title: item.title,
+          commentCount: publicComments.length,
+          isRemote: item.isRemote,
+        })),
         localEmpty: false,
       });
     }
 
-    if (method === "GET" && path === `/api/melons/${melon.id}`) {
+    const requestedMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}`);
+    if (method === "GET" && requestedMelon) {
       return json(route, {
-        melon: { ...melon, completedReads: state.completedReads },
-        readToken: "short-lived-read-token",
+        melon: {
+          ...requestedMelon,
+          cityId: state.activeSpot.cityId,
+          districtId: state.activeSpot.districtId,
+          spot: state.activeSpot,
+          completedReads: requestedMelon.id === melon.id ? state.completedReads : requestedMelon.completedReads,
+        },
+        readToken: requestedMelon.id === melon.id ? "short-lived-read-token" : `read-token-${requestedMelon.id}`,
         completableAt: "2026-08-04T12:00:05.000Z",
       });
     }
@@ -160,14 +212,62 @@ export async function installV0Api(page, options = {}) {
       return json(route, { active: Boolean(body?.active) });
     }
 
-    if (method === "POST" && path === `/api/melons/${melon.id}/comments`) {
+    const squatMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/squat`);
+    if (method === "POST" && squatMelon) {
+      state.squatRequests.push({ melonId: squatMelon.id, ...body });
+      return json(route, { active: Boolean(body?.active) });
+    }
+
+    const reactionMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/reactions`);
+    if (method === "POST" && reactionMelon) {
+      state.reactionRequests.push({ melonId: reactionMelon.id, ...body });
+      return json(route, {
+        ...reactionMelon.reactions,
+        [body?.reaction]: (reactionMelon.reactions[body?.reaction] ?? 0) + 1,
+      });
+    }
+
+    const commentsMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/comments`);
+    if (method === "GET" && commentsMelon) {
+      state.commentGetRequests.push({ melonId: commentsMelon.id, search: url.search });
+      return json(route, { items: publicComments.map((item) => ({ ...item, melonId: commentsMelon.id })) });
+    }
+
+    if (method === "POST" && path === "/api/presence/verify") {
+      state.presenceRequests.push(body);
+      if (options.rejectLowAccuracy && body?.location?.accuracyM > 1_000) {
+        return json(route, { error: { code: "LOCATION_LOW_ACCURACY", message: "定位精度不足，仍可继续远方围观" } }, 422);
+      }
+      const seekState = state.presenceSequence[Math.min(state.presenceAttempt, state.presenceSequence.length - 1)];
+      state.presenceAttempt += 1;
+      const local = seekState === "inside_zone" || seekState === "found";
+      return json(route, {
+        presence: local ? "local" : "remote",
+        seekState,
+        ...(local ? { presenceToken: `presence-token-${seekState}`, expiresAt: "2026-08-04T12:15:00.000Z" } : {}),
+      });
+    }
+
+    if (method === "POST" && commentsMelon) {
       state.commentRequests.push(body);
+      if (state.commentFailure && (!state.commentFailure.once || !state.commentFailureUsed)) {
+        state.commentFailureUsed = true;
+        return json(route, {
+          error: {
+            code: state.commentFailure.code,
+            message: state.commentFailure.message,
+          },
+        }, state.commentFailure.status);
+      }
       if (typeof body?.content !== "string" || body.content.length > 140) {
         return json(route, { error: { code: "INVALID_COMMENT", message: "评论不能超过 140 字" } }, 422);
       }
+      if (!body?.presenceToken) {
+        return json(route, { error: { code: "PRESENCE_REQUIRED", message: "需要有效的现场凭证" } }, 403);
+      }
       return json(route, {
         id: `comment-${state.commentRequests.length}`,
-        melonId: melon.id,
+        melonId: commentsMelon.id,
         alias: "巡城小猹 101",
         content: body.content,
         createdAt: fixedNow,

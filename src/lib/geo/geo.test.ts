@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { boundaryContainsPoint } from "./boundary";
 import { distanceBandForMeters, haversineDistanceM } from "./distance";
+import { isSeekTargetAllowed } from "./seek-safety";
 
 test("Haversine returns zero for the same point and a known meridian distance", () => {
   assert.equal(haversineDistanceM({ latitude: 28, longitude: 113 }, { latitude: 28, longitude: 113 }), 0);
@@ -46,4 +47,22 @@ test("polygon edges count as inside while holes do not", () => {
   assert.equal(boundaryContainsPoint(boundary, { latitude: 2, longitude: 2 }), true);
   assert.equal(boundaryContainsPoint(boundary, { latitude: 5, longitude: 5 }), false);
   assert.equal(boundaryContainsPoint(boundary, { latitude: 12, longitude: 5 }), false);
+});
+
+test("sensitive and private place categories can never become seek targets", () => {
+  for (const category of ["hospital", "hotel", "company", "private_property"] as const) {
+    assert.equal(
+      isSeekTargetAllowed({ category, publicAccess: "open_public_space", status: "allowed" }),
+      false,
+      category,
+    );
+  }
+  assert.equal(
+    isSeekTargetAllowed({ category: "public_park", publicAccess: "restricted_or_private", status: "allowed" }),
+    false,
+  );
+  assert.equal(
+    isSeekTargetAllowed({ category: "public_square", publicAccess: "open_public_space", status: "allowed" }),
+    true,
+  );
 });

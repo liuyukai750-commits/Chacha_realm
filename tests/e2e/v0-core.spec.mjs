@@ -191,15 +191,15 @@ test.describe("V0 核心循环", () => {
     await expect(form.getByRole("textbox", { name: /故事|内容/ })).toHaveValue(/这里是保留的完整草稿/);
   });
 
-  test("COMMENT-140：空评论禁用，最多提交 140 字", async ({ page }) => {
+  test("COMMENT-140：现场凭证点亮后空评论禁用，最多提交 140 字", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page);
+    await allowLocation(context, baseURL);
     await enterIsland(page);
     const dialog = await openMelon(page);
-    let input = dialog.getByRole("textbox", { name: /评论/ });
-    if (!(await input.count())) {
-      await dialog.getByRole("button", { name: /评论/ }).click();
-      input = page.getByRole("textbox", { name: /评论/ }).last();
-    }
+    await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "去现场找" }).click();
+    const input = dialog.getByRole("textbox", { name: /评论/ });
+    await expect(input).toBeVisible();
     const commentForm = input.locator("xpath=ancestor::form[1]");
     const submit = commentForm.getByRole("button", { name: /评论|回声|留下/ });
     await expect(input).toHaveAttribute("maxlength", "140");
@@ -208,7 +208,10 @@ test.describe("V0 核心循环", () => {
     await input.pressSequentially("瓜".repeat(141));
     await expect(input).toHaveValue("瓜".repeat(140));
     await submit.click();
-    await expect.poll(() => api.commentRequests).toEqual([{ content: "瓜".repeat(140) }]);
+    await expect.poll(() => api.commentRequests).toEqual([{
+      content: "瓜".repeat(140),
+      presenceToken: "presence-token-inside_zone",
+    }]);
   });
 
   test("FIELD-OTHER：他人瓜田只展示公开资料和成长状态", async ({ page }) => {

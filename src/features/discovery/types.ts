@@ -1,4 +1,4 @@
-import type { CityId, Coordinates, DistanceBand, DistrictId, SpotId, VisitorType } from "../../contracts";
+import type { CityId, Coordinates, DistanceBand, DistrictId, SeekState, SpotId, VisitorType } from "../../contracts";
 
 export type LocationUnavailableReason =
   | "permission_denied"
@@ -36,6 +36,29 @@ export type BurialEligibility =
       readonly eligible: false;
       readonly reason: "unknown_spot" | "low_accuracy" | "outside_500m" | LocationUnavailableReason;
       readonly distanceM?: number;
+      readonly accuracyM?: number;
+    };
+
+export type SeekFailureReason =
+  | LocationUnavailableReason
+  | "invalid_location"
+  | "low_accuracy"
+  | "stale_location"
+  | "future_location"
+  | "unknown_spot"
+  | "seek_target_review_required"
+  | "seek_not_allowed"
+  | "boundary_uncertain";
+
+export type SeekEvaluation =
+  | {
+      readonly ok: true;
+      readonly spotId: SpotId;
+      readonly seekState: SeekState;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: SeekFailureReason;
       readonly accuracyM?: number;
     };
 
