@@ -45,7 +45,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .demo-banner strong { padding: 3px 7px; border-radius: 999px; background: var(--ink); color: white; font-size: 9px; }
 .topbar { min-height: 76px; position: relative; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(12px, env(safe-area-inset-top)) 16px 10px; border-bottom: 2px solid rgba(23,59,55,.12); background: rgba(255,254,248,.86); backdrop-filter: blur(16px); }
 .brand { min-height: 48px; padding: 0; border: 0; background: transparent; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; }
-.brand-glyph { width: 42px; height: 42px; display: grid; place-items: center; border: 2px solid var(--ink); border-radius: 15px; background: var(--grass); box-shadow: 3px 3px 0 var(--ink); color: var(--ink); font: 900 19px var(--display); transform: rotate(-3deg); }
+.brand-avatar { width: 48px; height: 48px; flex: 0 0 auto; object-fit: cover; border: 2px solid var(--ink); border-radius: 15px; background: var(--grass); box-shadow: 3px 3px 0 var(--ink); transform: rotate(-2deg); }
 .brand strong, .brand small { display: block; }
 .brand strong { font: 900 18px/1.1 var(--display); letter-spacing: .02em; }
 .brand small { margin-top: 4px; color: var(--ink-soft); font: 700 8px/1 var(--data); letter-spacing: .08em; }
@@ -156,3 +156,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @media (max-width:431px){.zone-console{margin-top:14px;padding:13px}.zone-heading h2{font-size:20px}.leaf-seek{grid-template-columns:48px minmax(0,1fr)}.leaf-sensor{width:44px;height:44px}.leaf-seek>button{grid-column:1/-1;width:100%}.seek-scale{gap:2px}.melon-basket{margin-top:14px}.basket-content{max-height:62dvh}.sheet{height:auto;max-height:calc(100dvh - env(safe-area-inset-top));}.sheet-body{scroll-padding-bottom:180px}.inline-comments textarea{font-size:16px}}
 @media (min-width:760px){.zone-console{width:42%;max-width:440px}.radar-stage{margin:-300px 0 0 auto}.melon-basket{clear:both;margin-top:28px}.basket-content{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}.basket-row:nth-last-child(-n+2){border-bottom:0}.basket-actions{align-self:end}}
 @supports not (height:100dvh){.sunny-shell,.island-loading,.island-unavailable{min-height:100vh}.sheet{max-height:93vh}}
+
+@media(max-width:430px){.brand-avatar{width:44px;height:44px}.brand small{display:block;font-size:7px;letter-spacing:.04em}}
+@media(max-width:375px){.brand-avatar{width:42px;height:42px}.brand small{font-size:6px}}

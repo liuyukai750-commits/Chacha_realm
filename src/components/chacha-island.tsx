@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Image from "next/image";
 import type {
   CityId,
   CityOpeningState,
@@ -226,8 +227,8 @@ export function ChachaIsland() {
       {mode === "demo" && <div className="demo-banner" role="note"><strong>本地试玩</strong><span>示例数据只留在当前页面，不会上传或保存。</span></div>}
       <header className="topbar">
         <button className="brand" onClick={() => setTab("radar")} aria-label="回到瓜域雷达">
-          <span className="brand-glyph" aria-hidden="true">猹</span>
-          <span><strong>猹猹王国</strong><small>CHACHA / SUNNY FIELD</small></span>
+          <Image className="brand-avatar" src="/brand/chacha-king-avatar.webp" width={96} height={96} loading="eager" alt="" />
+          <span><strong>猹猹王国</strong><small>CHACHA realm</small></span>
         </button>
         <div className="topbar-actions">
           <button className="city-switch" onClick={() => setShowCities(true)} aria-label={`当前城市${activeCity.name}，切换城市`}>
