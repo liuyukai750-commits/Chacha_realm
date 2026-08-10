@@ -1,4 +1,4 @@
-import type { CityId, CreateReportRequest, FieldPlotIndex, MelonRevealMode, ReactionType, SafeTopic } from "@/contracts";
+import type { BurialKind, CityId, CreateReportRequest, FieldPlotIndex, MelonRevealMode, ReactionType, SafeTopic } from "@/contracts";
 
 import { ApiProblem } from "@/server/api";
 
@@ -6,6 +6,7 @@ const cityIds = new Set<CityId>(["changsha", "beijing", "shanghai", "guangzhou",
 const topics = new Set<SafeTopic>(["daily", "work", "relationship", "food", "neighborhood"]);
 const reactions = new Set<ReactionType>(["juicy", "wild", "hug", "follow_up"]);
 const revealModes = new Set<MelonRevealMode>(["open", "seek_locked"]);
+const burialKinds = new Set<BurialKind>(["nearby_area", "public_spot"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function object(value: unknown): Record<string, unknown> {
@@ -56,6 +57,13 @@ export function revealMode(value: unknown): MelonRevealMode {
     throw new ApiProblem(400, "invalid_reveal_mode", "瓜的开启方式无效。 ");
   }
   return value as MelonRevealMode;
+}
+
+export function burialKind(value: unknown): BurialKind {
+  if (typeof value !== "string" || !burialKinds.has(value as BurialKind)) {
+    throw new ApiProblem(400, "invalid_burial_kind", "埋瓜方式无效。");
+  }
+  return value as BurialKind;
 }
 
 export function fieldPlotIndex(value: unknown): FieldPlotIndex {

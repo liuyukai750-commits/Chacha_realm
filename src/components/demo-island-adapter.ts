@@ -9,6 +9,7 @@ import type {
   CreateMelonResult,
   DiscoveryRequest,
   DiscoveryResponse,
+  DiscoverySceneContext,
   FieldPlant,
   FieldView,
   HarvestFieldResult,
@@ -25,6 +26,7 @@ import type {
   VerifyZonePresenceRequest,
   ZonePresenceResult,
 } from "@/contracts";
+import { publicSpots, toPublicSpotSummary } from "@/data/geography";
 
 export interface IslandBootstrap {
   session: AnonymousSession;
@@ -58,6 +60,8 @@ const changshaSpots = [
   { id: "spot-cs-03", cityId: "changsha" as const, districtId: "yuelu", name: "岳麓书院" },
 ];
 
+const configuredDemoSpots = publicSpots.map(toPublicSpotSummary);
+
 const otherCities: Array<[CityId, string]> = [
   ["beijing", "北京"],
   ["shanghai", "上海"],
@@ -70,14 +74,14 @@ const cities: CitySummary[] = [
     id: "changsha",
     name: "长沙",
     districts: [{ id: "furong", name: "芙蓉区" }, { id: "tianxin", name: "天心区" }, { id: "yuelu", name: "岳麓区" }],
-    spots: changshaSpots,
+    spots: configuredDemoSpots.filter((spot) => spot.cityId === "changsha"),
     opening: { cityId: "changsha", status: "gathering", safeMelons: 22, distinctAuthors: 19, distinctSpots: 3, distinctTopics: 3 },
   },
   ...otherCities.map(([id, name], index): CitySummary => ({
     id,
     name,
     districts: [],
-    spots: [],
+    spots: configuredDemoSpots.filter((spot) => spot.cityId === id),
     opening: { cityId: id, status: index < 2 ? "open" : "gathering", safeMelons: 16 + index * 3, distinctAuthors: 13 + index * 2, distinctSpots: 2, distinctTopics: 3 },
   })),
 ];
@@ -101,10 +105,9 @@ const previewSeeds: Array<Omit<MelonPreview, "revealMode">> = [
   { id: "m-016", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 8, isRemote: false },
 ];
 
-const seekLockedIds = new Set(["m-001", "m-008", "m-012"]);
 const previews: MelonPreview[] = previewSeeds.map((melon) => ({
   ...melon,
-  revealMode: seekLockedIds.has(melon.id) ? "seek_locked" : "open",
+  revealMode: "open",
 }));
 
 const details: Record<string, MelonDetail> = {
@@ -158,6 +161,7 @@ const commentStore: Record<string, MelonComment[]> = {
 const presenceTokens = new Map<string, { expiresAt: number; spotId: string; seekState: SeekState }>();
 const seekAttempts = new Map<string, number>();
 const plantOperations = new Map<string, PlantFieldResult>();
+let lastDemoScene: DiscoverySceneContext | null = null;
 
 const delay = async <T>(value: T, ms = 120): Promise<T> => new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
 const copy = <T>(value: T): T => typeof structuredClone === "function"
@@ -195,10 +199,11 @@ function refreshDailyRewards() {
 function discoveryFor(cityId: CityId, located: boolean): DiscoveryResponse {
   const localItems = previews.filter((item) => item.cityId === cityId);
   const items = localItems.length ? [...localItems, ...previews.filter((item) => item.isRemote).slice(0, 1)] : previews.filter((item) => item.status === "mature").map((item) => ({ ...item, distanceBand: "remote" as const, isRemote: true }));
+  const rememberedScene = located && lastDemoScene && (lastDemoScene.kind !== "public_spot" || lastDemoScene.spot.cityId === cityId) ? lastDemoScene : null;
   return {
     visitorType: located ? "local" : "location_unknown",
     activeCityId: cityId,
-    sceneContext: located ? { kind: "nearby_area" } : { kind: "city_overview" },
+    sceneContext: located ? rememberedScene ?? { kind: "nearby_area" } : { kind: "city_overview" },
     items,
     localEmpty: localItems.length === 0,
   };
@@ -212,15 +217,9 @@ export const demoIslandAdapter: IslandAdapter = {
   async discover(request) {
     return delay(copy(discoveryFor(request.selectedCityId ?? "changsha", Boolean(request.location))));
   },
-  async openMelon(id, presenceToken) {
+  async openMelon(id) {
     const melon = details[id];
     if (!melon) throw new Error("这颗瓜还没有成熟。稍后再来听听。" );
-    if (melon.revealMode === "seek_locked") {
-      const presence = presenceToken ? presenceTokens.get(presenceToken) : undefined;
-      if (!presence || presence.expiresAt <= Date.now() || presence.spotId !== melon.spot.id || presence.seekState !== "found") {
-        throw new Error("这颗密藏大瓜必须到现场顺藤摸瓜后才能揭开。" );
-      }
-    }
     const readToken = `demo-read-${id}-${Date.now()}`;
     const completableAt = Date.now() + 5000;
     readTokens.set(readToken, { melonId: id, completableAt });
@@ -264,14 +263,7 @@ export const demoIslandAdapter: IslandAdapter = {
     melon.reactions = { ...melon.reactions, [reaction]: melon.reactions[reaction] + 1 };
     return delay(copy(melon.reactions));
   },
-  async comments(id, presenceToken) {
-    const melon = details[id];
-    if (melon?.revealMode === "seek_locked") {
-      const presence = presenceToken ? presenceTokens.get(presenceToken) : undefined;
-      if (!presence || presence.expiresAt <= Date.now() || presence.spotId !== melon.spot.id || presence.seekState !== "found") {
-        throw new Error("先顺藤摸瓜找到现场，才能听见这颗大瓜的评论。" );
-      }
-    }
+  async comments(id) {
     return delay(copy({ items: commentStore[id] ?? [] }));
   },
   async verifyZonePresence(request) {
@@ -333,13 +325,20 @@ export const demoIslandAdapter: IslandAdapter = {
   async createMelon(request) {
     refreshDailyRewards();
     const id = `demo-melon-${Date.now()}`;
-    const spot = cities.flatMap((city) => city.spots).find((item) => item.id === request.spotId);
+    const burialKind = request.burialKind ?? "public_spot";
+    const cityId = request.cityId ?? "changsha";
+    const city = cities.find((item) => item.id === cityId);
+    const spot = burialKind === "nearby_area"
+      ? { id: `demo-nearby-${cityId}`, cityId, districtId: city?.districts[0]?.id ?? `${cityId}-nearby`, name: "附近生活圈" }
+      : cities.flatMap((item) => item.spots).find((item) => item.id === request.spotId);
     if (!spot) throw new Error("这个公共地点暂时不能埋瓜。" );
-    const preview: MelonPreview = { id, status: "incubating", topic: request.topic, cityId: spot.cityId, districtId: spot.districtId, spot, distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), isRemote: false, revealMode: request.revealMode };
+    lastDemoScene = burialKind === "nearby_area" ? { kind: "nearby_area" } : { kind: "public_spot", spot };
+    const preview: MelonPreview = { id, status: "incubating", burialKind, topic: request.topic, cityId: spot.cityId, districtId: spot.districtId, spot, distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), isRemote: false, revealMode: request.revealMode };
     const trueSeedAwarded = !dailyShareRewarded;
     dailyShareRewarded = true;
     const wallet = trueSeedAwarded ? { ...session.wallet, trueSeedCount: session.wallet.trueSeedCount + 1 } : session.wallet;
     session = { ...session, wallet };
+    previews.unshift(preview);
     fieldView = { ...fieldView, wallet, melons: [preview, ...fieldView.melons] };
     return delay<CreateMelonResult>({ id, status: "incubating", maturesAt: preview.maturesAt, trueSeedAwarded, wallet });
   },

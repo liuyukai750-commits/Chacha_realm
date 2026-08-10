@@ -53,7 +53,6 @@ test.describe("V0 响应式与无障碍门槛", () => {
         ...await page.getByRole("navigation").getByRole("button").all(),
         ...await quickActions.getByRole("button").all(),
         page.getByRole("button", { name: /开启附近1公里|刷新附近1公里/ }),
-        page.getByRole("button", { name: "开始找瓜", exact: true }),
         page.getByRole("button", { name: /瓜篮/ }),
         ...await page.getByRole("group", { name: "按单一话题筛选" }).getByRole("button").all(),
       ];
@@ -158,7 +157,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
 
     await page.getByRole("button", { name: /埋.*瓜/ }).first().click();
     const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
-    await expect(buryDialog.getByRole("combobox", { name: /公共地点/ })).toContainText("医疗建筑附近");
+    await expect(buryDialog.getByRole("button", { name: "医疗建筑附近", exact: true })).toBeVisible();
     await expect(buryDialog.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
   });
 

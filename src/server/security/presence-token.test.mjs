@@ -30,7 +30,7 @@ test("rejects tampering, expiry and binding mismatches", () => {
   assert.throws(() => verifyPresenceToken(token, { userId: "user-1" }, secret, now + 15 * 60 * 1000), /expired/);
 });
 
-test("requires a found-level credential for seek-locked melon access", () => {
+test("can require a found-level credential for callers that need stricter presence", () => {
   const { token } = issuePresenceToken({ userId: "user-1", spotId: "spot-1", level: "zone" }, secret, now, "nonce-zone");
   assert.throws(() => verifyPresenceToken(token, { userId: "user-1", spotId: "spot-1", requireFound: true }, secret, now), /binding_mismatch/);
 });

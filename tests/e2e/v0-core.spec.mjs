@@ -203,7 +203,7 @@ test.describe("V0 核心循环", () => {
     await enterIsland(page);
     const dialog = await openMelon(page);
     await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
-    await dialog.getByRole("button", { name: "顺藤摸瓜" }).click();
+    await dialog.getByRole("button", { name: "验证现场评论资格" }).click();
     const input = dialog.getByRole("textbox", { name: /评论/ });
     await expect(input).toBeVisible();
     const commentForm = input.locator("xpath=ancestor::form[1]");

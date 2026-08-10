@@ -168,7 +168,7 @@ begin
   maturity := case when new_status = 'incubating' then now() + interval '2 hours' else null end;
 
   insert into public.melons (author_id, spot_id, topic, title, content, status, safety_flags, matures_at, reveal_mode)
-  values (actor, p_spot_id, p_topic, btrim(p_title), btrim(p_content), new_status, flags, maturity, p_reveal_mode)
+  values (actor, p_spot_id, p_topic, btrim(p_title), btrim(p_content), new_status, flags, maturity, 'open')
   returning id into new_id;
 
   result := jsonb_build_object('id', new_id, 'status', new_status, 'maturesAt', maturity);

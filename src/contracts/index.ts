@@ -15,6 +15,7 @@ export type FieldSlotIndex = 0 | 1 | 2;
 export type ZonePresence = "unknown" | "remote" | "local";
 export type SeekState = "outside" | "near" | "inside_zone" | "found";
 export type AccountStatus = "active" | "banned";
+export type BurialKind = "nearby_area" | "public_spot";
 
 export interface Coordinates {
   latitude: number;
@@ -24,6 +25,8 @@ export interface Coordinates {
 
 export interface LocationProof extends Coordinates {
   capturedAt: string;
+  simulated?: boolean;
+  simulationLabel?: string;
 }
 
 export interface AnonymousSession {
@@ -78,6 +81,7 @@ export interface CitySummary {
 export interface MelonPreview {
   id: string;
   status: "incubating" | "mature";
+  burialKind?: BurialKind;
   topic: SafeTopic;
   cityId: CityId;
   districtId: DistrictId;
@@ -115,7 +119,9 @@ export interface DiscoveryResponse {
 }
 
 export interface CreateMelonRequest {
-  spotId: SpotId;
+  burialKind?: BurialKind;
+  cityId?: CityId;
+  spotId?: SpotId;
   topic: SafeTopic;
   title: string;
   content: string;

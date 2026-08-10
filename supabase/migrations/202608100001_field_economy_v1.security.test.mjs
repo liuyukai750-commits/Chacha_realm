@@ -22,6 +22,8 @@ test("定位与五秒阅读边界只能经 Next 服务端进入 privileged RPC",
   assert.match(functionBody("create_melon"), /p_actor_id uuid[\s\S]*service_role_required[\s\S]*account_status = 'active'/i);
   assert.match(functionBody("complete_melon_read"), /p_actor_id uuid[\s\S]*service_role_required[\s\S]*account_status = 'active'/i);
   assert.match(repository, /serviceRpc<CreateMelonResult>\(\s*"create_melon"[\s\S]*p_actor_id: actorId/i);
+  assert.match(repository, /p_reveal_mode: "open"/i);
+  assert.match(functionBody("create_melon"), /reveal_mode\)[\s\S]*values \([\s\S]*'open'\)/i);
   assert.match(repository, /serviceRpc<CompleteReadResult>\(\s*"complete_melon_read"[\s\S]*p_actor_id: actorId/i);
   assert.match(repository, /requireSafeSeek\(input\.spotId, input\.location\)[\s\S]*serviceRpc<CreateMelonResult>/i);
   assert.match(melonRoute, /validateLocationProof\(body\.location\)[\s\S]*createMelon\(input, session\.userId\)/i);

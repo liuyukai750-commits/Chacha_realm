@@ -1,4 +1,5 @@
--- Split mature melons into open small melons and on-site seek-locked melons.
+-- Add a legacy-compatible reveal_mode column. V1 reads all mature melons as open;
+-- seek_locked is retained only so older rows or clients do not break migration.
 -- Exact location and presence credentials remain outside PostgreSQL.
 
 alter table public.melons
@@ -27,7 +28,7 @@ begin
 
   result := public.create_melon(p_spot_id, p_topic, p_title, p_content);
   update public.melons
-  set reveal_mode = p_reveal_mode
+  set reveal_mode = 'open'
   where id = (result ->> 'id')::uuid;
   return result;
 end;
@@ -163,4 +164,4 @@ grant execute on function public.create_melon(uuid, public.safe_topic, text, tex
 grant execute on function public.get_melon_detail_for_actor(uuid, uuid) to service_role;
 
 comment on column public.melons.reveal_mode is
-  'open melons can be read anywhere; seek_locked melons require a server-verified found-level public-spot presence token.';
+  'legacy display mode; V1 application reads mature melons as open and only uses presence tokens for text comments.';

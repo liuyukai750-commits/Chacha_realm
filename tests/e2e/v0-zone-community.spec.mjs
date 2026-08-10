@@ -200,10 +200,10 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(localRow.getByRole("button", { name: "直接吃", exact: true })).toBeVisible();
     await expect(localRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toHaveCount(0);
 
-    const locked = discoveryMelons.find((item) => item.revealMode === "seek_locked");
-    const lockedRow = page.getByRole("article", { name: locked.title, exact: true });
-    await expect(lockedRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toBeVisible();
-    await expect(lockedRow.getByRole("button", { name: "直接吃", exact: true })).toHaveCount(0);
+    const secondLocal = discoveryMelons.find((item) => !item.isRemote && item.id !== melon.id && item.status === "mature");
+    const secondLocalRow = page.getByRole("article", { name: secondLocal.title, exact: true });
+    await expect(secondLocalRow.getByRole("button", { name: "直接吃", exact: true })).toBeVisible();
+    await expect(secondLocalRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toHaveCount(0);
 
     const remote = discoveryMelons.find((item) => item.isRemote);
     const remoteRow = page.getByRole("article", { name: remote.title, exact: true });
@@ -248,23 +248,22 @@ test.describe("瓜区承载、筛选与远程围观", () => {
   });
 });
 
-test.describe("四段寻瓜与现场评论凭证", () => {
-  test("SEEK-STATES：outside / near / inside_zone / found 逐段可见", async ({ baseURL, context, page }) => {
-    const api = await installV0Api(page, { presenceSequence: ["outside", "near", "inside_zone", "found"] });
+test.describe("现场评论凭证", () => {
+  test("PRESENCE-COMMENT：位置验证只在评论前触发，正文和公开评论可直接读取", async ({ baseURL, context, page }) => {
+    const api = await installV0Api(page, { presenceSequence: ["inside_zone"] });
     await allowLocation(context, baseURL);
     await enterIsland(page);
+    const dialog = await openLocalMelon(page);
 
-    const expectedLabels = ["还没摸到藤", "摸到藤了", "已进入瓜区", "摸到这颗瓜"];
-    for (const label of expectedLabels) {
-      await page.getByRole("button", { name: /开始找瓜|继续摸瓜/ }).click();
-      await expect(page.getByRole("status").filter({ hasText: label }).first()).toBeVisible();
-    }
-    await expect.poll(() => api.presenceRequests).toHaveLength(4);
-    for (const request of api.presenceRequests) {
-      expect(request.spotId).toBe(spot.id);
-      expect(request.location.latitude).toBeCloseTo(preciseLocation.latitude, 5);
-      expect(request.location.longitude).toBeCloseTo(preciseLocation.longitude, 5);
-    }
+    await expect(dialog).toContainText(melon.content);
+    await expect(dialog.getByText(publicComments[0].content, { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("textbox", { name: /评论/ })).toBeVisible();
+    await expect.poll(() => api.presenceRequests).toHaveLength(1);
+    expect(api.presenceRequests[0].spotId).toBe(spot.id);
+    expect(api.presenceRequests[0].location.latitude).toBeCloseTo(preciseLocation.latitude, 5);
+    expect(api.presenceRequests[0].location.longitude).toBeCloseTo(preciseLocation.longitude, 5);
   });
 
   test("GEO-UNSUPPORTED：定位能力缺失时给出说明并保留远程围观", async ({ page }) => {
@@ -272,10 +271,10 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await installV0Api(page);
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/不支持定位.*远方围观/);
-    await expandBasket(page);
-    await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
+    const dialog = await openLocalMelon(page);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/不支持定位/);
+    await expect(dialog).toContainText(melon.content);
   });
 
   test("GEO-DENIED：定位拒绝时保留远程围观", async ({ context, page }) => {
@@ -283,10 +282,10 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await installV0Api(page);
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/拒绝|授权.*远方围观/);
-    await expandBasket(page);
-    await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
+    const dialog = await openLocalMelon(page);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/定位已拒绝|授权/);
+    await expect(dialog).toContainText(melon.content);
   });
 
   test("GEO-LOW-ACCURACY：低精度验证失败时说明限制并保留远程围观", async ({ baseURL, context, page }) => {
@@ -294,10 +293,10 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await installV0Api(page, { rejectLowAccuracy: true });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/精度不足.*远方围观/);
-    await expandBasket(page);
-    await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
+    const dialog = await openLocalMelon(page);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/精度不足|位置/);
+    await expect(dialog).toContainText(melon.content);
   });
 
   for (const failure of [
@@ -312,7 +311,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
       const dialog = await openLocalMelon(page);
 
       await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
-      await dialog.getByRole("button", { name: "顺藤摸瓜", exact: true }).click();
+      await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
       const input = dialog.getByRole("textbox", { name: /评论/ });
       const draft = `这条${failure.label}草稿必须留下`;
       await input.fill(draft);
@@ -325,7 +324,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
       await expect(dialog.getByRole("alert")).toContainText(new RegExp(`${failure.message}.*草稿已保留`));
       await expect.poll(() => page.evaluate((key) => sessionStorage.getItem(key), `chacha-comment-draft:${melon.id}`)).toBe(draft);
 
-      await dialog.getByRole("button", { name: "顺藤摸瓜", exact: true }).click();
+      await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
       await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveValue(draft);
       await expect(dialog).toContainText("不支持回复、@、私信或好友关系");
     });
@@ -345,8 +344,9 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 375, height: 520 });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/远方围观/);
+    const dialog = await openLocalMelon(page);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/定位已拒绝|授权/);
     await page.setViewportSize({ width: 375, height: 760 });
     await expandBasket(page);
     await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
@@ -366,11 +366,12 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 430, height: 560 });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "摸到这颗瓜" }).first()).toBeVisible();
+    const dialog = await openLocalMelon(page);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("status").filter({ hasText: "现场评论可用" }).first()).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__vibrationCalls)).toEqual([18]);
     await page.setViewportSize({ width: 430, height: 820 });
-    await expect(page.getByText("摸到这颗瓜", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("现场评论可用", { exact: true }).first()).toBeVisible();
   });
 
   test("SIM-HARMONY：定位与振动均缺失、动态视口变化时仍无横向溢出", async ({ page }, testInfo) => {
@@ -380,8 +381,9 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 430, height: 500 });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/不支持定位.*远方围观/);
+    const dialog = await openLocalMelon(page);
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/不支持定位/);
     for (const height of [500, 780]) {
       await page.setViewportSize({ width: 430, height });
       const widths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
@@ -396,7 +398,7 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 375, height: 720 });
     await enterIsland(page);
     const dialog = await openLocalMelon(page);
-    await dialog.getByRole("button", { name: "顺藤摸瓜", exact: true }).click();
+    await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
 
     const input = dialog.getByRole("textbox", { name: /评论/ });
     await input.focus();

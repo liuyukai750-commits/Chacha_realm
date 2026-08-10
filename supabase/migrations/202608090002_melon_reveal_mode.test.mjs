@@ -4,9 +4,10 @@ import test from "node:test";
 
 const sql = readFileSync(new URL("./202608090002_melon_reveal_mode.sql", import.meta.url), "utf8");
 
-test("adds the two explicit reveal modes and returns them in public previews", () => {
+test("adds a legacy-compatible reveal mode and returns it in public previews", () => {
   assert.match(sql, /reveal_mode in \('open', 'seek_locked'\)/i);
   assert.match(sql, /'revealMode', m\.reveal_mode/i);
+  assert.match(sql, /set reveal_mode = 'open'/i);
 });
 
 test("removes direct client detail access and exposes only the actor-bound service RPC", () => {
@@ -15,7 +16,7 @@ test("removes direct client detail access and exposes only the actor-bound servi
   assert.match(sql, /grant execute on function public\.get_melon_detail_for_actor\(uuid, uuid\) to service_role/i);
 });
 
-test("requires callers to choose a reveal mode when creating a melon", () => {
+test("keeps the create parameter compatible while normalizing new melons to open", () => {
   assert.match(sql, /p_reveal_mode text/i);
   assert.match(sql, /invalid_reveal_mode/i);
   assert.match(sql, /revoke all on function public\.create_melon\(uuid, public\.safe_topic, text, text\) from public, anon, authenticated/i);

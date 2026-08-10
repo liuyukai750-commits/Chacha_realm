@@ -3,7 +3,7 @@ import { readJson, requireSameOrigin, route } from "@/server/api";
 import { createMelon } from "@/server/repositories/island-repository";
 import { validateLocationProof } from "@/server/security/location";
 import { requireActiveSession } from "@/server/supabase/session";
-import { object, revealMode, text, topic, uuid } from "@/server/validation";
+import { burialKind, cityId, object, revealMode, text, topic, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -12,14 +12,17 @@ export async function POST(request: Request) {
     requireSameOrigin(request);
     const session = await requireActiveSession();
     const body = object(await readJson(request));
-    const input: CreateMelonRequest = {
-      spotId: uuid(body.spotId, "spotId"),
+    const kind = burialKind(body.burialKind ?? "public_spot");
+    const base = {
       topic: topic(body.topic),
       title: text(body.title, "title", 60),
       content: text(body.content, "content", 1000),
       revealMode: revealMode(body.revealMode),
       location: validateLocationProof(body.location),
     };
+    const input: CreateMelonRequest = kind === "nearby_area"
+      ? { ...base, burialKind: "nearby_area", cityId: cityId(body.cityId) ?? "changsha" }
+      : { ...base, burialKind: "public_spot", spotId: uuid(body.spotId, "spotId") };
     return createMelon(input, session.userId);
   });
 }

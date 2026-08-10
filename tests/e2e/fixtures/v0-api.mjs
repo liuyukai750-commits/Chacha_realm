@@ -43,7 +43,7 @@ export const discoveryMelons = Array.from({ length: 12 }, (_, index) => {
     distanceBand: isRemote ? "remote" : index < 4 ? "within_1km" : index < 8 ? "within_3km" : "within_8km",
     completedReads: 3 + index,
     isRemote,
-    revealMode: !isRemote && number === 2 ? "seek_locked" : "open",
+    revealMode: "open",
     alias: `晒太阳的小动物 ${100 + number}`,
     title: isRemote ? "远方瓜棚传来一阵笑声" : `瓜区里的第 ${number} 件小事`,
     content: isRemote

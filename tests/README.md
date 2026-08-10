@@ -9,7 +9,7 @@
 - `e2e/fixtures/`：只模拟共享 HTTP 契约，不模拟组件内部状态。
 - `e2e/v0-core.spec.mjs`：定位、吃瓜、蹲瓜、埋瓜、评论和瓜田主流程。
 - `e2e/v0-accessibility.spec.mjs`：视口、地点场景、隐私模糊、昼夜、键盘、焦点、动态反馈与 reduced motion。
-- `e2e/v0-zone-community.spec.mjs`：12 颗瓜承载、话题筛选、四段寻瓜、远程围观、现场评论凭证与移动能力降级。
+- `e2e/v0-zone-community.spec.mjs`：12 颗瓜承载、话题筛选、远程围观、现场评论凭证与移动能力降级。
 - `e2e/v1-field-loop.spec.mjs`：三片土地、九个位置、播种确认、12 小时成长、收获与隐私。
 - `v1-domain.test.mjs`：北京时间日界、5 籽合成、三片地容量和成熟边界。
 - `v1-migration-contract.test.mjs`：数据库事务、幂等、RLS 和公开/私有瓜田契约。

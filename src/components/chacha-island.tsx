@@ -44,6 +44,7 @@ import type {
 } from "@/contracts";
 import { demoIslandAdapter, type IslandAdapter, type IslandBootstrap } from "./demo-island-adapter";
 import { httpIslandAdapter } from "./http-island-adapter";
+import { BurySheetV1 } from "./bury-sheet-v1";
 import { getCityVisual, getSpotScene } from "./city-visuals";
 import {
   CheckIcon,
@@ -252,11 +253,17 @@ export function ChachaIsland() {
   };
 
   const createMelon = async (input: Omit<CreateMelonRequest, "location">) => {
-    const location = await requestLocationProof();
+    const location = mode === "demo"
+      ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString(), simulated: true, simulationLabel: input.burialKind === "public_spot" ? "demo_public_spot_arrival" : "demo_nearby_life_circle" }
+      : await requestLocationProof();
     const result = await islandAdapter.createMelon({ ...input, location });
-    if (model) setModel({ ...model, session: { ...model.session, wallet: result.wallet } });
+    if (model) {
+      const discovery = await islandAdapter.discover({ location, selectedCityId: input.cityId ?? model.discovery.activeCityId });
+      setModel({ ...model, session: { ...model.session, wallet: result.wallet }, discovery });
+      setDiscoveryScope("nearby");
+    }
     setShowBury(false);
-    setTab("field");
+    setTab("radar");
     setNotice(result.status === "held" ? "这颗瓜需要人工复核，暂时不会成熟" : result.trueSeedAwarded ? "瓜埋好了 · 今日首颗原创奖励真瓜籽 +1" : "瓜埋好了 · 约 2 小时后成熟");
     try {
       const field = await islandAdapter.field();
@@ -389,7 +396,7 @@ export function ChachaIsland() {
 
       {opened && <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.spot.id]} />}
       {showCities && <CityPicker model={model} onClose={() => setShowCities(false)} onSelect={selectCity} />}
-      {showBury && !writesBlocked && <BurySheet spots={activeCity.spots} cityName={activeCity.name} onClose={() => setShowBury(false)} onCreate={createMelon} />}
+      {showBury && !writesBlocked && <BurySheetV1 key={activeCity.id} cityId={activeCity.id} spots={activeCity.spots} cityName={activeCity.name} demoMode={mode === "demo"} onClose={() => setShowBury(false)} onCreate={createMelon} />}
     </div>
   );
 }
@@ -420,7 +427,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const [basketOpen, setBasketOpen] = useState(false);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [seekTargetId, setSeekTargetId] = useState<string | null>(null);
-  const [seekResult, setSeekResult] = useState<ZonePresenceResult | null>(null);
+  const [seekResult, setSeekResult] = useState<ZonePresenceResult>({ presence: "remote", seekState: "outside" });
   const [seekBusy, setSeekBusy] = useState(false);
   const [seekError, setSeekError] = useState<string | null>(null);
   const cityItems = items.filter((melon) => melon.cityId === cityId);
@@ -463,7 +470,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
 
   const selectZone = (spotId: string) => {
     setSelectedSpotId(spotId);
-    setSeekResult(null);
+    setSeekResult({ presence: "remote", seekState: "outside" });
     setSeekTargetId(null);
     setTopic("all");
   };
@@ -511,7 +518,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
         </div>
         {scope === "nearby" && scopedItems.length === 0 ? <div className="nearby-empty" role="status">
           <RadarIcon /><strong>1 公里内暂时没有瓜</strong><span>这里不会偷偷扩大距离。可以回城市瓜区看看，或者去公共地点附近埋下第一颗。</span><button onClick={onCityBrowse}>看看城市瓜区</button>
-        </div> : <>
+        </div> : false && <>
         {spotGroups.length > 1 && <div className="zone-switcher" role="group" aria-label="切换公共地点瓜区">{spotGroups.map((group) => {
           const spot = group[0].spot;
           return <button key={spot.id} className={spot.id === activeSpotId ? "active" : ""} onClick={() => selectZone(spot.id)} aria-pressed={spot.id === activeSpotId}>{getSpotScene(spot).displayName}<small>{group.length}</small></button>;
@@ -614,9 +621,12 @@ function nearbyItemsForScene(
   items: readonly MelonPreview[],
   sceneContext: DiscoverySceneContext,
 ): MelonPreview[] {
+  if (sceneContext.kind === "nearby_area") {
+    return items.filter((melon) => melon.distanceBand === "within_1km" && melon.burialKind === "nearby_area");
+  }
   if (sceneContext.kind !== "public_spot") return [];
   return items.filter(
-    (melon) => melon.distanceBand === "within_1km" && melon.spot.id === sceneContext.spot.id,
+    (melon) => melon.distanceBand === "within_1km" && melon.burialKind !== "nearby_area" && melon.spot.id === sceneContext.spot.id,
   );
 }
 
@@ -909,7 +919,7 @@ function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: {
     {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
     <div className={`comment-gate ${canComment ? "is-local" : ""}`}>
       <div className="comment-gate-copy"><LocationIcon /><p><strong>{readOnly ? "当前为只读状态" : canComment ? "现场凭证已点亮" : "远方围观模式"}</strong><small>{readOnly ? "仍可阅读全部公开评论。申诉入口即将开放。" : canComment ? "可以留下 140 字以内的平铺评论。" : "可读全部评论、轻反应和蹲瓜，不显示评论输入框。"}</small></p></div>
-      {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "正在校准" : presence ? "继续摸瓜" : "顺藤摸瓜"}</button>}
+      {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "正在验证" : presence ? "重新验证位置" : "验证现场评论资格"}</button>}
       {presence && <p className="presence-result" role="status"><strong>{seekCopy[presence.seekState].label}</strong>{seekCopy[presence.seekState].hint}</p>}
     </div>
     {!readOnly && canComment && <form onSubmit={submit}>
@@ -976,6 +986,7 @@ function CityIsland({ cityId, cityName, radar = false, compact = false }: { city
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootstrap["cities"][number]["spots"]; cityName: string; onClose: () => void; onCreate: (input: Omit<CreateMelonRequest, "location">) => Promise<void> }) {
   const spotInputId = useId();
   const topicInputId = useId();
