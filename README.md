@@ -18,9 +18,11 @@ npm run dev
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`，仅服务端使用，绝不能提交或暴露给浏览器
 - `CHACHA_READ_TOKEN_SECRET`，至少 32 个随机字符，仅服务端使用
+- `CHACHA_PRESENCE_TOKEN_SECRET`，至少 32 个随机字符，必须不同于 `CHACHA_READ_TOKEN_SECRET`
 
-不要提交 `.env.local`、service role key 或真实用户数据。未配置 Supabase 时，界面会明确说明服务未连接，并允许用户主动进入本地试玩；不会把试玩数据伪装成真实附近内容。
+不要提交 `.env.local`、service role key、HMAC secrets、浏览器数据或真实用户数据。未配置 Supabase 时，界面会明确说明服务未连接，并允许用户主动进入本地试玩；不会把试玩数据伪装成真实附近内容。
 
 ## 数据库初始化
 
@@ -33,6 +35,8 @@ npm run dev
 5. `supabase/seed.sql`
 
 Schema 默认启用 RLS。用户精确坐标只参与单次服务端距离判断，不持久化，也不返回其他用户坐标。
+
+发布前 Supabase 接入、回滚点和真实数据库验收见 `docs/coordination/SUPABASE_PRELAUNCH.md`。
 
 ## 验证
 
