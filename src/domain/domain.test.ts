@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { evaluateCityOpening, hasReachedCityOpeningThresholds } from "./city-opening";
-import { calculateDiscoveryScore, rankDiscoveryCandidates } from "./discovery";
-import { getFieldProgress } from "./field";
-import { getMelonSpreadRadiusKm, resolveMelonLifecycle } from "./lifecycle";
-import { evaluateReadReward, type ValidReadRecord } from "./reads";
+import { evaluateCityOpening, hasReachedCityOpeningThresholds } from "./city-opening.ts";
+import { calculateDiscoveryScore, rankDiscoveryCandidates } from "./discovery.ts";
+import {
+  FIELD_GROWTH_MS,
+  canHarvestField,
+  getFieldPlantStage,
+  getNextSlotIndex,
+} from "./field.ts";
+import { getMelonSpreadRadiusKm, resolveMelonLifecycle } from "./lifecycle.ts";
+import { evaluateReadReward, type ValidReadRecord } from "./reads.ts";
 
 test("瓜在创建两小时后成熟，成熟后 24 小时零有效阅读归档", () => {
   const createdAt = "2026-08-04T00:00:00.000Z";
@@ -43,7 +48,7 @@ test("瓜按成熟时长或有效阅读量中先达到的条件扩散至 1/3/8/2
   assert.equal(getMelonSpreadRadiusKm({ maturedAt, validReadCount: 0, now: "2026-08-04T16:00:00.000Z" }), 20);
 });
 
-test("每天前三次有效阅读奖励读者，且每位唯一读者奖励瓜主", () => {
+test("每天前五次有效阅读奖励小瓜籽，第五次自动换真籽", () => {
   const previousReads: ValidReadRecord[] = [
     read("melon-a", "reader", "2026-08-04T01:00:00.000Z"),
     read("melon-b", "reader", "2026-08-04T02:00:00.000Z"),
@@ -59,8 +64,9 @@ test("每天前三次有效阅读奖励读者，且每位唯一读者奖励瓜�
   assert.deepEqual(third, {
     counted: true,
     reason: null,
-    readerSeedAwarded: true,
-    authorSeedAwarded: true,
+    smallSeedAwarded: true,
+    autoConverted: false,
+    authorExperienceAwarded: 1,
     readerDailyValidReadCount: 3,
   });
 
@@ -72,8 +78,9 @@ test("每天前三次有效阅读奖励读者，且每位唯一读者奖励瓜�
     previousReads: [...previousReads, read("melon-c", "reader", "2026-08-04T03:00:00.000Z")],
   });
   assert.equal(fourth.counted, true);
-  assert.equal(fourth.readerSeedAwarded, false);
-  assert.equal(fourth.authorSeedAwarded, true);
+  assert.equal(fourth.smallSeedAwarded, true);
+  assert.equal(fourth.autoConverted, false);
+  assert.equal(fourth.authorExperienceAwarded, 1);
 });
 
 test("自读和同一读者重复阅读同一瓜不计数也不奖励", () => {
@@ -95,7 +102,7 @@ test("自读和同一读者重复阅读同一瓜不计数也不奖励", () => {
     previousReads: [read("melon-a", "reader", "2026-08-04T01:00:00.000Z")],
   });
   assert.equal(duplicate.reason, "duplicate_read");
-  assert.equal(duplicate.authorSeedAwarded, false);
+  assert.equal(duplicate.authorExperienceAwarded, 0);
 });
 
 test("每日奖励以中国标准时间零点重置", () => {
@@ -112,16 +119,21 @@ test("每日奖励以中国标准时间零点重置", () => {
     previousReads,
   });
   assert.equal(nextDay.readerDailyValidReadCount, 1);
-  assert.equal(nextDay.readerSeedAwarded, true);
+  assert.equal(nextDay.smallSeedAwarded, true);
 });
 
-test("瓜田在 1/3/7/12/21 粒瓜籽的边界成长", () => {
-  assert.deepEqual(getFieldProgress(0), { seedCount: 0, stage: "bare", nextStageAt: 1 });
-  assert.deepEqual(getFieldProgress(1), { seedCount: 1, stage: "sprout", nextStageAt: 3 });
-  assert.deepEqual(getFieldProgress(3), { seedCount: 3, stage: "vine", nextStageAt: 7 });
-  assert.deepEqual(getFieldProgress(7), { seedCount: 7, stage: "flower", nextStageAt: 12 });
-  assert.deepEqual(getFieldProgress(12), { seedCount: 12, stage: "green_melon", nextStageAt: 21 });
-  assert.deepEqual(getFieldProgress(21), { seedCount: 21, stage: "ripe_melon" });
+test("瓜田按服务端时间在 12 小时边界成熟，且每片地只有三个位置", () => {
+  const plantedAt = "2026-08-04T00:00:00.000Z";
+  const maturesAt = new Date(Date.parse(plantedAt) + FIELD_GROWTH_MS).toISOString();
+  assert.equal(getFieldPlantStage(maturesAt, "2026-08-04T11:59:59.999Z"), "growing");
+  assert.equal(getFieldPlantStage(maturesAt, "2026-08-04T12:00:00.000Z"), "mature");
+  assert.equal(getNextSlotIndex([], 0), 0);
+  assert.equal(getNextSlotIndex([
+    { plotIndex: 0, slotIndex: 0 },
+    { plotIndex: 0, slotIndex: 1 },
+    { plotIndex: 0, slotIndex: 2 },
+  ], 0), null);
+  assert.equal(canHarvestField([], "2026-08-04T12:00:00.000Z"), false);
 });
 
 test("五城达到全部阈值后于中国标准时间次日 20:00 开城门", () => {

@@ -1,8 +1,9 @@
 import type { MelonCommentsPage } from "@/contracts";
 import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
-import { addComment, getComments } from "@/server/repositories/island-repository";
+import { addComment, getComments, openMelon } from "@/server/repositories/island-repository";
+import { requireMelonRevealAccess } from "@/server/security/melon-reveal";
 import { requirePresenceCredential } from "@/server/security/presence";
-import { requireActiveSession } from "@/server/supabase/session";
+import { requireActiveSession, requireSession } from "@/server/supabase/session";
 import { object, text, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   return route<MelonCommentsPage>(async () => {
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
+    const session = await requireSession();
+    const melon = await openMelon(id, session.userId);
+    requireMelonRevealAccess(melon, session.userId, request.headers.get("x-chacha-presence-token"));
     const url = new URL(request.url);
     return getComments(id, url.searchParams.get("cursor"), pageLimit(url.searchParams.get("limit")));
   });

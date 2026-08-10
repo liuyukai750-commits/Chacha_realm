@@ -19,6 +19,7 @@ export const melon = {
   distanceBand: "within_1km",
   completedReads: 8,
   isRemote: false,
+  revealMode: "open",
   alias: "加班仓鼠 237",
   title: "老板凌晨发来一个小改动",
   content: "我回了一个刚准备睡，他秒回说那正好，现在我和广场的路灯一样精神。",
@@ -42,6 +43,7 @@ export const discoveryMelons = Array.from({ length: 12 }, (_, index) => {
     distanceBand: isRemote ? "remote" : index < 4 ? "within_1km" : index < 8 ? "within_3km" : "within_8km",
     completedReads: 3 + index,
     isRemote,
+    revealMode: !isRemote && number === 2 ? "seek_locked" : "open",
     alias: `晒太阳的小动物 ${100 + number}`,
     title: isRemote ? "远方瓜棚传来一阵笑声" : `瓜区里的第 ${number} 件小事`,
     content: isRemote
@@ -71,10 +73,14 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const emptyPlots = () => ([0, 1, 2].map((plotIndex) => ({ plotIndex, capacity: 3, plants: [] })));
+
 const otherField = {
   alias: melon.alias,
   animal: "仓鼠",
-  progress: { seedCount: 7, stage: "flower", nextStageAt: 12 },
+  plots: emptyPlots(),
+  plantedCount: 0,
+  matureCount: 0,
   melons: [
     {
       id: melon.id,
@@ -86,6 +92,7 @@ const otherField = {
       distanceBand: melon.distanceBand,
       completedReads: melon.completedReads,
       isRemote: false,
+      revealMode: melon.revealMode,
     },
   ],
 };
@@ -103,6 +110,11 @@ function json(route, body, status = 200) {
  * mutable observation logs for assertions; the UI remains the system under test.
  */
 export async function installV0Api(page, options = {}) {
+  const initialWallet = options.wallet ?? {
+    smallSeedCount: options.seedCount ?? 2,
+    trueSeedCount: options.trueSeedCount ?? 0,
+  };
+  const initialExperience = options.experience ?? { total: 0, fromReads: 0, fromHarvests: 0 };
   const state = {
     commentRequests: [],
     commentGetRequests: [],
@@ -112,7 +124,18 @@ export async function installV0Api(page, options = {}) {
     presenceRequests: [],
     reactionRequests: [],
     squatRequests: [],
-    seedCount: options.seedCount ?? 2,
+    wallet: { ...initialWallet },
+    experience: { ...initialExperience },
+    plants: structuredClone(options.plants ?? []),
+    plantRequests: [],
+    plantOperations: new Map(),
+    plantFailure: options.plantFailure ?? null,
+    plantFailureUsed: false,
+    harvestRequests: [],
+    harvestFailure: options.harvestFailure ?? null,
+    harvestFailureUsed: false,
+    validReadsToday: options.validReadsToday ?? initialWallet.smallSeedCount,
+    originalRewardClaimed: options.originalRewardClaimed ?? false,
     completedReads: melon.completedReads,
     alreadyCompleted: options.alreadyCompleted ?? false,
     plantDistanceFailure: options.plantDistanceFailure ?? false,
@@ -131,7 +154,12 @@ export async function installV0Api(page, options = {}) {
     const body = request.postDataJSON?.() ?? null;
 
     if (method === "POST" && path === "/api/session/anonymous") {
-      return json(route, { alias: "巡城小猹 101", animal: "猹", seedCount: state.seedCount });
+      return json(route, {
+        alias: "巡城小猹 101",
+        animal: "猹",
+        wallet: { ...state.wallet },
+        experience: { ...state.experience },
+      });
     }
 
     if (method === "GET" && path === "/api/cities") {
@@ -158,6 +186,9 @@ export async function installV0Api(page, options = {}) {
       return json(route, {
         visitorType: body?.location ? "local" : "location_unknown",
         activeCityId: "changsha",
+        sceneContext: body?.location
+          ? options.nearLandmark === false ? { kind: "nearby_area" } : { kind: "public_spot", spot: state.activeSpot }
+          : { kind: "city_overview" },
         items: discoveryMelons.map((item) => ({
           id: item.id,
           status: item.status,
@@ -165,11 +196,12 @@ export async function installV0Api(page, options = {}) {
           cityId: state.activeSpot.cityId,
           districtId: state.activeSpot.districtId,
           spot: state.activeSpot,
-          distanceBand: item.distanceBand,
+          distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
           completedReads: item.id === melon.id ? state.completedReads : item.completedReads,
           title: item.title,
           commentCount: publicComments.length,
           isRemote: item.isRemote,
+          revealMode: item.revealMode,
         })),
         localEmpty: false,
       });
@@ -190,19 +222,32 @@ export async function installV0Api(page, options = {}) {
       });
     }
 
-    if (method === "POST" && path === `/api/melons/${melon.id}/complete`) {
+    const completedMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/complete`);
+    if (method === "POST" && completedMelon) {
       state.completeRequests.push(body);
-      const counted = !state.alreadyCompleted;
+      const counted = !state.alreadyCompleted || completedMelon.id !== melon.id;
+      let smallSeedAwarded = false;
+      let autoConverted = false;
       if (counted) {
-        state.alreadyCompleted = true;
-        state.seedCount += 1;
+        if (completedMelon.id === melon.id) state.alreadyCompleted = true;
+        state.validReadsToday += 1;
+        smallSeedAwarded = state.validReadsToday <= 5;
+        if (smallSeedAwarded) {
+          state.wallet.smallSeedCount += 1;
+          if (state.wallet.smallSeedCount === 5) {
+            state.wallet.smallSeedCount = 0;
+            state.wallet.trueSeedCount += 1;
+            autoConverted = true;
+          }
+        }
         state.completedReads += 1;
       }
       return json(route, {
         counted,
-        readerSeedAwarded: counted,
-        authorSeedAwarded: counted,
-        readerSeedCount: state.seedCount,
+        smallSeedAwarded,
+        autoConverted,
+        wallet: { ...state.wallet },
+        authorExperienceAwarded: counted ? 1 : 0,
         completedReads: state.completedReads,
       });
     }
@@ -283,41 +328,86 @@ export async function installV0Api(page, options = {}) {
           403,
         );
       }
-      return json(route, { id: "melon-new", status: "incubating", maturesAt: "2026-08-04T14:00:00.000Z" }, 201);
+      const trueSeedAwarded = !state.originalRewardClaimed;
+      if (trueSeedAwarded) {
+        state.originalRewardClaimed = true;
+        state.wallet.trueSeedCount += 1;
+      }
+      return json(route, {
+        id: "melon-new",
+        status: "incubating",
+        maturesAt: "2026-08-04T14:00:00.000Z",
+        trueSeedAwarded,
+        wallet: { ...state.wallet },
+      }, 201);
     }
 
     if (method === "GET" && path === "/api/fields/me") {
+      return json(route, ownField(state));
+    }
+
+    if (method === "POST" && path === "/api/fields/me/plant") {
+      state.plantRequests.push(body);
+      if (state.plantFailure && (!state.plantFailure.once || !state.plantFailureUsed)) {
+        state.plantFailureUsed = true;
+        return json(route, {
+          error: {
+            code: state.plantFailure.code ?? "PLANT_FAILED",
+            message: state.plantFailure.message ?? "播种暂时失败，真瓜籽没有扣除。",
+          },
+        }, state.plantFailure.status ?? 503);
+      }
+      if (typeof body?.operationId !== "string") {
+        return json(route, { error: { code: "INVALID_OPERATION_ID", message: "缺少播种操作编号" } }, 400);
+      }
+      const previousPlantResult = state.plantOperations.get(body.operationId);
+      if (previousPlantResult) return json(route, structuredClone(previousPlantResult));
+      if (state.wallet.trueSeedCount < 1) {
+        return json(route, { error: { code: "TRUE_SEED_REQUIRED", message: "还没有真瓜籽" } }, 409);
+      }
+      const plotPlants = state.plants.filter((plant) => plant.plotIndex === body?.plotIndex);
+      if (plotPlants.length >= 3 || state.plants.length >= 9) {
+        return json(route, { error: { code: "FIELD_PLOT_FULL", message: "这片土地已经种满了" } }, 409);
+      }
+      const slotIndex = [0, 1, 2].find((slot) => !plotPlants.some((plant) => plant.slotIndex === slot));
+      const plant = {
+        id: `plant-${state.plants.length + 1}`,
+        plotIndex: body.plotIndex,
+        slotIndex,
+        plantedAt: fixedNow,
+        maturesAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        stage: "seedling",
+      };
+      state.wallet.trueSeedCount -= 1;
+      state.plants.push(plant);
+      const result = { plant, wallet: { ...state.wallet }, field: ownField(state) };
+      state.plantOperations.set(body.operationId, structuredClone(result));
+      return json(route, result);
+    }
+
+    if (method === "POST" && path === "/api/fields/me/harvest") {
+      state.harvestRequests.push(body);
+      if (state.harvestFailure && (!state.harvestFailure.once || !state.harvestFailureUsed)) {
+        state.harvestFailureUsed = true;
+        return json(route, {
+          error: {
+            code: state.harvestFailure.code ?? "HARVEST_FAILED",
+            message: state.harvestFailure.message ?? "收瓜暂时失败，瓜田保持原样。",
+          },
+        }, state.harvestFailure.status ?? 503);
+      }
+      const allMature = state.plants.length === 9 && state.plants.every((plant) => plant.stage === "mature");
+      if (!allMature) {
+        return json(route, { error: { code: "FIELD_NOT_READY", message: "九个瓜还没有全部成熟" } }, 409);
+      }
+      state.plants = [];
+      state.experience.total += 9;
+      state.experience.fromHarvests += 9;
       return json(route, {
-        alias: "巡城小猹 101",
-        animal: "猹",
-        progress: {
-          seedCount: state.seedCount,
-          stage:
-            state.seedCount >= 21
-              ? "ripe_melon"
-              : state.seedCount >= 12
-                ? "green_melon"
-                : state.seedCount >= 7
-                  ? "flower"
-                  : state.seedCount >= 3
-                    ? "vine"
-                    : state.seedCount >= 1
-                      ? "sprout"
-                      : "bare",
-          nextStageAt:
-            state.seedCount < 1
-              ? 1
-              : state.seedCount < 3
-                ? 3
-                : state.seedCount < 7
-                  ? 7
-                  : state.seedCount < 12
-                    ? 12
-                    : state.seedCount < 21
-                      ? 21
-                      : undefined,
-        },
-        melons: [],
+        harvestedCount: 9,
+        experienceAwarded: 9,
+        experience: { ...state.experience },
+        field: ownField(state),
       });
     }
 
@@ -336,8 +426,8 @@ export async function installV0Api(page, options = {}) {
 }
 
 export async function enterIsland(page) {
-  await page.goto("/");
-  const enterButton = page.getByRole("button", { name: /匿名进城|进入猹猹王国/ });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const enterButton = page.getByRole("button", { name: /匿名进街|匿名进城|进入猹猹街|进入猹猹王国/ });
   if (await enterButton.isVisible().catch(() => false)) await enterButton.click();
   await expect(page.getByRole("main")).toBeVisible();
 }
@@ -348,6 +438,27 @@ export function melonTrigger(page) {
     "i",
   );
   return page.getByRole("button", { name: accessibleName }).first();
+}
+
+function ownField(state) {
+  const plots = [0, 1, 2].map((plotIndex) => ({
+    plotIndex,
+    capacity: 3,
+    plants: state.plants.filter((plant) => plant.plotIndex === plotIndex).sort((a, b) => a.slotIndex - b.slotIndex),
+  }));
+  const matureCount = state.plants.filter((plant) => plant.stage === "mature").length;
+  return {
+    alias: "巡城小猹 101",
+    animal: "猹",
+    plots,
+    plantedCount: state.plants.length,
+    matureCount,
+    nextMaturesAt: state.plants.find((plant) => plant.stage !== "mature")?.maturesAt,
+    melons: [],
+    wallet: { ...state.wallet },
+    experience: { ...state.experience },
+    canHarvest: state.plants.length === 9 && matureCount === 9,
+  };
 }
 
 export function openedMelonDialog(page) {

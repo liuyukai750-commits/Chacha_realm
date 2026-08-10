@@ -1,14 +1,18 @@
-# 猹猹王国 V0 质量验收
+# 猹猹街 V1 质量验收
 
 本目录只验证 `docs/PRODUCT_SPEC.md` 与 `docs/coordination/CONTRACTS.md` 已承诺的用户行为，不重新定义业务契约。功能尚未集成时，E2E 用例可以作为红灯验收门槛，但不得通过放宽断言、扩大 mock 或禁用规则制造“通过”。
 
 ## 目录
 
-- `acceptance/V0_ACCEPTANCE.md`：可追踪的验收清单与风险说明。
+- `acceptance/V0_ACCEPTANCE.md`：原有社区能力的回归清单。
+- `acceptance/V1_FIELD_LOOP_ACCEPTANCE.md`：吃瓜—瓜籽—播种—收瓜闭环的可追踪清单。
 - `e2e/fixtures/`：只模拟共享 HTTP 契约，不模拟组件内部状态。
 - `e2e/v0-core.spec.mjs`：定位、吃瓜、蹲瓜、埋瓜、评论和瓜田主流程。
 - `e2e/v0-accessibility.spec.mjs`：视口、地点场景、隐私模糊、昼夜、键盘、焦点、动态反馈与 reduced motion。
 - `e2e/v0-zone-community.spec.mjs`：12 颗瓜承载、话题筛选、四段寻瓜、远程围观、现场评论凭证与移动能力降级。
+- `e2e/v1-field-loop.spec.mjs`：三片土地、九个位置、播种确认、12 小时成长、收获与隐私。
+- `v1-domain.test.mjs`：北京时间日界、5 籽合成、三片地容量和成熟边界。
+- `v1-migration-contract.test.mjs`：数据库事务、幂等、RLS 和公开/私有瓜田契约。
 
 标注为 `capability-simulation` 的 iOS Safari、Android Chrome、鸿蒙与软键盘场景，只在 Chromium 中模拟 `geolocation`、`vibrate` 和动态视口组合，用于验证应用降级逻辑；它们不等于真实浏览器引擎或真机验收。
 

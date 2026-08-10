@@ -3,6 +3,7 @@ import "server-only";
 import { ApiProblem, unavailable } from "@/server/api";
 import {
   issuePresenceToken,
+  type PresenceTokenLevel,
   PresenceTokenError,
   verifyPresenceToken,
 } from "@/server/security/presence-token";
@@ -13,13 +14,17 @@ function secret(): string {
   return value;
 }
 
-export function createPresenceCredential(userId: string, spotId: string): { token: string; expiresAt: string } {
-  return issuePresenceToken({ userId, spotId }, secret());
+export function createPresenceCredential(userId: string, spotId: string, level: PresenceTokenLevel): { token: string; expiresAt: string } {
+  return issuePresenceToken({ userId, spotId, level }, secret());
 }
 
-export function requirePresenceCredential(token: string, userId: string): { spotId: string; expiresAt: string } {
+export function requirePresenceCredential(
+  token: string,
+  userId: string,
+  options: { spotId?: string; requireFound?: boolean } = {},
+): { spotId: string; level: PresenceTokenLevel; expiresAt: string } {
   try {
-    return verifyPresenceToken(token, { userId }, secret());
+    return verifyPresenceToken(token, { userId, ...options }, secret());
   } catch (error) {
     if (error instanceof PresenceTokenError) {
       const code = error.reason === "expired" ? "presence_expired" : "invalid_presence_token";

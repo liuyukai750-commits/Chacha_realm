@@ -9,13 +9,19 @@ import type {
   CreateMelonResult,
   DiscoveryRequest,
   DiscoveryResponse,
+  FieldPlant,
   FieldView,
+  HarvestFieldResult,
   MelonComment,
   MelonCommentsPage,
   MelonDetail,
   MelonPreview,
   OpenedMelon,
+  OwnFieldView,
+  PlantFieldRequest,
+  PlantFieldResult,
   ReactionType,
+  SeekState,
   VerifyZonePresenceRequest,
   ZonePresenceResult,
 } from "@/contracts";
@@ -31,15 +37,17 @@ export interface IslandBootstrap {
 export interface IslandAdapter {
   bootstrap(): Promise<IslandBootstrap>;
   discover(request: DiscoveryRequest): Promise<DiscoveryResponse>;
-  openMelon(id: string): Promise<OpenedMelon>;
+  openMelon(id: string, presenceToken?: string): Promise<OpenedMelon>;
   completeRead(id: string, request: CompleteReadRequest): Promise<CompleteReadResult>;
   setSquat(id: string, active: boolean): Promise<{ active: boolean }>;
   react(id: string, reaction: ReactionType): Promise<Record<ReactionType, number>>;
-  comments(id: string): Promise<MelonCommentsPage>;
+  comments(id: string, presenceToken?: string): Promise<MelonCommentsPage>;
   verifyZonePresence(request: VerifyZonePresenceRequest): Promise<ZonePresenceResult>;
   comment(id: string, content: string, presenceToken: string): Promise<MelonComment>;
   field(): Promise<FieldView>;
   fieldByAlias(alias: string): Promise<FieldView>;
+  plant(request: PlantFieldRequest): Promise<PlantFieldResult>;
+  harvest(): Promise<HarvestFieldResult>;
   createMelon(request: CreateMelonRequest): Promise<CreateMelonResult>;
   report(request: CreateReportRequest): Promise<{ accepted: true }>;
 }
@@ -74,7 +82,7 @@ const cities: CitySummary[] = [
   })),
 ];
 
-const previews: MelonPreview[] = [
+const previewSeeds: Array<Omit<MelonPreview, "revealMode">> = [
   { id: "m-001", status: "mature", topic: "work", cityId: "changsha", districtId: "tianxin", spot: changshaSpots[1], distanceBand: "within_1km", completedReads: 18, isRemote: false },
   { id: "m-002", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_3km", completedReads: 11, isRemote: false },
   { id: "m-004", status: "incubating", topic: "food", cityId: "changsha", districtId: "yuelu", spot: changshaSpots[2], distanceBand: "within_3km", maturesAt: new Date(Date.now() + 78 * 60 * 1000).toISOString(), isRemote: false },
@@ -93,6 +101,12 @@ const previews: MelonPreview[] = [
   { id: "m-016", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 8, isRemote: false },
 ];
 
+const seekLockedIds = new Set(["m-001", "m-008", "m-012"]);
+const previews: MelonPreview[] = previewSeeds.map((melon) => ({
+  ...melon,
+  revealMode: seekLockedIds.has(melon.id) ? "seek_locked" : "open",
+}));
+
 const details: Record<string, MelonDetail> = {
   "m-001": { ...previews[0], status: "mature", alias: "戴耳机的水獭", title: "辞职前一晚，我在湘江边坐到了末班车", content: "工牌已经放回抽屉，离职邮件却在草稿箱躺了三个小时。江风把便利店塑料袋吹得哗啦响，我忽然发现，真正舍不得的不是这份工作，而是每天一起吃午饭的人。末班车来时，我终于按下了发送。", createdAt: new Date(Date.now() - 38 * 60 * 1000).toISOString(), squatted: false, reactions: { juicy: 12, wild: 4, hug: 9, follow_up: 6 } },
   "m-002": { ...previews[1], status: "mature", alias: "晚睡小浣熊", title: "便利店阿姨偷偷多塞给我一颗茶叶蛋", content: "今天加班到店里只剩最后一份便当。阿姨认出我，问是不是又没吃晚饭。结账时袋子比平时沉，我走到路口才发现多了一颗热乎的茶叶蛋，纸条上写着：年轻人也要好好吃饭。", createdAt: new Date(Date.now() - 74 * 60 * 1000).toISOString(), squatted: true, reactions: { juicy: 8, wild: 1, hug: 15, follow_up: 3 } },
@@ -107,8 +121,27 @@ const details: Record<string, MelonDetail> = {
   "m-016": { ...previews[15], status: "mature", alias: "追晚霞的獾", title: "陌生人替摔倒的骑手守了十分钟的车", content: "骑手去附近处理擦伤，路边的人就轮流看着电动车和餐箱。十分钟后他跑回来，连声道谢。大家只说快去吧，餐还热着。", createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), squatted: false, reactions: { juicy: 10, wild: 2, hug: 15, follow_up: 4 } },
 };
 
-let session: AnonymousSession = { alias: "戴耳机的水獭", animal: "水獭", seedCount: 7 };
-let fieldView: FieldView = { alias: session.alias, animal: session.animal, progress: { seedCount: 7, stage: "flower", nextStageAt: 12 }, melons: [] };
+let session: AnonymousSession = {
+  alias: "戴耳机的水獭",
+  animal: "水獭",
+  wallet: { smallSeedCount: 0, trueSeedCount: 0 },
+  experience: { total: 0, fromReads: 0, fromHarvests: 0 },
+};
+const emptyPlots = (): OwnFieldView["plots"] => ([0, 1, 2] as const).map((plotIndex) => ({ plotIndex, capacity: 3 as const, plants: [] }));
+let fieldView: OwnFieldView = {
+  alias: session.alias,
+  animal: session.animal,
+  plots: emptyPlots(),
+  plantedCount: 0,
+  matureCount: 0,
+  melons: [],
+  wallet: session.wallet,
+  experience: session.experience,
+  canHarvest: false,
+};
+let dailyReadRewards = 0;
+let dailyShareRewarded = false;
+let rewardDate = chinaDateKey();
 const readTokens = new Map<string, { melonId: string; completableAt: number }>();
 const completed = new Set<string>();
 const commentStore: Record<string, MelonComment[]> = {
@@ -122,46 +155,104 @@ const commentStore: Record<string, MelonComment[]> = {
     { id: "c-006-2", melonId: "m-006", alias: "撑黄伞的河狸", content: "这种小事会让一整晚都亮一点。", createdAt: new Date(Date.now() - 18 * 60 * 1000).toISOString() },
   ],
 };
-const presenceTokens = new Map<string, number>();
+const presenceTokens = new Map<string, { expiresAt: number; spotId: string; seekState: SeekState }>();
 const seekAttempts = new Map<string, number>();
+const plantOperations = new Map<string, PlantFieldResult>();
 
 const delay = async <T>(value: T, ms = 120): Promise<T> => new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
 const copy = <T>(value: T): T => typeof structuredClone === "function"
   ? structuredClone(value)
   : JSON.parse(JSON.stringify(value)) as T;
 
+function refreshDemoField() {
+  const now = Date.now();
+  const plots = fieldView.plots.map((plot) => ({
+    ...plot,
+    plants: plot.plants.map((plant) => {
+      const age = now - new Date(plant.plantedAt).getTime();
+      const stage: FieldPlant["stage"] = now >= new Date(plant.maturesAt).getTime() ? "mature" : age >= 4 * 60 * 60 * 1000 ? "growing" : "seedling";
+      return { ...plant, stage };
+    }),
+  }));
+  const plants = plots.flatMap((plot) => plot.plants);
+  const matureCount = plants.filter((plant) => plant.stage === "mature").length;
+  const nextMaturesAt = plants.filter((plant) => plant.stage !== "mature").map((plant) => plant.maturesAt).sort()[0];
+  fieldView = { ...fieldView, plots, plantedCount: plants.length, matureCount, ...(nextMaturesAt ? { nextMaturesAt } : { nextMaturesAt: undefined }), canHarvest: plants.length === 9 && matureCount === 9 };
+}
+
+function chinaDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+function refreshDailyRewards() {
+  const today = chinaDateKey();
+  if (today === rewardDate) return;
+  rewardDate = today;
+  dailyReadRewards = 0;
+  dailyShareRewarded = false;
+}
+
 function discoveryFor(cityId: CityId, located: boolean): DiscoveryResponse {
   const localItems = previews.filter((item) => item.cityId === cityId);
   const items = localItems.length ? [...localItems, ...previews.filter((item) => item.isRemote).slice(0, 1)] : previews.filter((item) => item.status === "mature").map((item) => ({ ...item, distanceBand: "remote" as const, isRemote: true }));
-  return { visitorType: located ? "local" : "location_unknown", activeCityId: cityId, items, localEmpty: localItems.length === 0 };
+  return {
+    visitorType: located ? "local" : "location_unknown",
+    activeCityId: cityId,
+    sceneContext: located ? { kind: "nearby_area" } : { kind: "city_overview" },
+    items,
+    localEmpty: localItems.length === 0,
+  };
 }
 
 export const demoIslandAdapter: IslandAdapter = {
   async bootstrap() {
+    refreshDemoField();
     return delay(copy({ session, cities, discovery: discoveryFor("changsha", false), field: fieldView, melonDetails: details }));
   },
   async discover(request) {
     return delay(copy(discoveryFor(request.selectedCityId ?? "changsha", Boolean(request.location))));
   },
-  async openMelon(id) {
+  async openMelon(id, presenceToken) {
     const melon = details[id];
     if (!melon) throw new Error("这颗瓜还没有成熟。稍后再来听听。" );
+    if (melon.revealMode === "seek_locked") {
+      const presence = presenceToken ? presenceTokens.get(presenceToken) : undefined;
+      if (!presence || presence.expiresAt <= Date.now() || presence.spotId !== melon.spot.id || presence.seekState !== "found") {
+        throw new Error("这颗密藏大瓜必须到现场顺藤摸瓜后才能揭开。" );
+      }
+    }
     const readToken = `demo-read-${id}-${Date.now()}`;
     const completableAt = Date.now() + 5000;
     readTokens.set(readToken, { melonId: id, completableAt });
     return delay(copy({ melon, readToken, completableAt: new Date(completableAt).toISOString() }));
   },
   async completeRead(id, request) {
+    refreshDailyRewards();
     const token = readTokens.get(request.readToken);
     if (!token || token.melonId !== id) throw new Error("阅读凭证已失效，请重新打开这颗瓜。" );
     if (Date.now() < token.completableAt) throw new Error("再读一会儿，瓜籽会在 5 秒后留下。" );
+    if (details[id]?.alias === session.alias) throw new Error("自己的瓜可以回看，但不能靠自读领取瓜籽。" );
     const counted = !completed.has(id);
+    let smallSeedAwarded = false;
+    let autoConverted = false;
     if (counted) {
       completed.add(id);
-      session = { ...session, seedCount: session.seedCount + 1 };
-      fieldView = { ...fieldView, progress: { ...fieldView.progress, seedCount: session.seedCount } };
+      const authorExperienceAwarded = 1;
+      if (dailyReadRewards < 5) {
+        dailyReadRewards += 1;
+        smallSeedAwarded = true;
+        const nextSmall = session.wallet.smallSeedCount + 1;
+        autoConverted = nextSmall === 5;
+        session = {
+          ...session,
+          wallet: autoConverted
+            ? { smallSeedCount: 0, trueSeedCount: session.wallet.trueSeedCount + 1 }
+            : { ...session.wallet, smallSeedCount: nextSmall },
+        };
+      }
+      return delay({ counted, smallSeedAwarded, autoConverted, wallet: session.wallet, authorExperienceAwarded, completedReads: (details[id]?.completedReads ?? 0) + 1 });
     }
-    return delay({ counted, readerSeedAwarded: counted, authorSeedAwarded: counted, readerSeedCount: session.seedCount, completedReads: (details[id]?.completedReads ?? 0) + (counted ? 1 : 0) });
+    return delay({ counted, smallSeedAwarded, autoConverted, wallet: session.wallet, authorExperienceAwarded: 0, completedReads: details[id]?.completedReads ?? 0 });
   },
   async setSquat(id, active) {
     if (details[id]) details[id] = { ...details[id], squatted: active };
@@ -173,7 +264,14 @@ export const demoIslandAdapter: IslandAdapter = {
     melon.reactions = { ...melon.reactions, [reaction]: melon.reactions[reaction] + 1 };
     return delay(copy(melon.reactions));
   },
-  async comments(id) {
+  async comments(id, presenceToken) {
+    const melon = details[id];
+    if (melon?.revealMode === "seek_locked") {
+      const presence = presenceToken ? presenceTokens.get(presenceToken) : undefined;
+      if (!presence || presence.expiresAt <= Date.now() || presence.spotId !== melon.spot.id || presence.seekState !== "found") {
+        throw new Error("先顺藤摸瓜找到现场，才能听见这颗大瓜的评论。" );
+      }
+    }
     return delay(copy({ items: commentStore[id] ?? [] }));
   },
   async verifyZonePresence(request) {
@@ -183,7 +281,7 @@ export const demoIslandAdapter: IslandAdapter = {
     const seekState = states[Math.min(attempt - 1, states.length - 1)];
     const local = seekState === "inside_zone" || seekState === "found";
     const token = local ? `demo-presence-${request.spotId}-${Date.now()}` : undefined;
-    if (token) presenceTokens.set(token, Date.now() + 15 * 60 * 1000);
+    if (token) presenceTokens.set(token, { expiresAt: Date.now() + 15 * 60 * 1000, spotId: request.spotId, seekState });
     return delay(copy({
       presence: local ? "local" : "remote",
       seekState,
@@ -191,26 +289,59 @@ export const demoIslandAdapter: IslandAdapter = {
     }));
   },
   async comment(id, content, presenceToken) {
-    const expiresAt = presenceTokens.get(presenceToken);
-    if (!expiresAt || expiresAt <= Date.now()) throw new Error("现场凭证已过期。草稿还在，重新感应后可以继续发送。");
+    const presence = presenceTokens.get(presenceToken);
+    if (!presence || presence.expiresAt <= Date.now()) throw new Error("现场凭证已过期。草稿还在，重新感应后可以继续发送。");
     const comment: MelonComment = { id: `demo-comment-${Date.now()}`, melonId: id, alias: session.alias, content, createdAt: new Date().toISOString() };
     commentStore[id] = [...(commentStore[id] ?? []), comment];
     return delay(copy(comment));
   },
   async field() {
+    refreshDemoField();
     return delay(copy(fieldView));
   },
   async fieldByAlias(alias) {
     const melons = previews.filter((melon) => details[melon.id]?.alias === alias);
-    return delay(copy({ alias, animal: alias.includes("兔") ? "兔" : "小动物", progress: { seedCount: 7, stage: "flower", nextStageAt: 12 }, melons }));
+    return delay(copy({ alias, animal: alias.includes("兔") ? "兔" : "小动物", plots: emptyPlots(), plantedCount: 0, matureCount: 0, melons }));
+  },
+  async plant(request) {
+    const previous = plantOperations.get(request.operationId);
+    if (previous) return delay(copy(previous));
+    const { plotIndex } = request;
+    if (session.wallet.trueSeedCount < 1) throw new Error("还没有真瓜籽。认真吃完 5 颗瓜，或分享今天第一颗原创瓜，就能得到。" );
+    const plot = fieldView.plots.find((item) => item.plotIndex === plotIndex);
+    if (!plot || plot.plants.length >= 3) throw new Error("这片地已经种满 3 个瓜了，换一片地试试。" );
+    const slotIndex = ([0, 1, 2] as const).find((slot) => !plot.plants.some((plant) => plant.slotIndex === slot));
+    if (slotIndex === undefined) throw new Error("这片地已经种满了。" );
+    const now = Date.now();
+    const plant = { id: `demo-plant-${now}`, plotIndex, slotIndex, plantedAt: new Date(now).toISOString(), maturesAt: new Date(now + 12 * 60 * 60 * 1000).toISOString(), stage: "seedling" as const };
+    const wallet = { ...session.wallet, trueSeedCount: session.wallet.trueSeedCount - 1 };
+    session = { ...session, wallet };
+    const plots = fieldView.plots.map((item) => item.plotIndex === plotIndex ? { ...item, plants: [...item.plants, plant] } : item);
+    fieldView = { ...fieldView, plots, plantedCount: fieldView.plantedCount + 1, nextMaturesAt: plant.maturesAt, wallet };
+    const result = { plant, wallet, field: fieldView };
+    plantOperations.set(request.operationId, copy(result));
+    return delay(copy(result));
+  },
+  async harvest() {
+    const matureCount = fieldView.plots.flatMap((plot) => plot.plants).filter((plant) => new Date(plant.maturesAt).getTime() <= Date.now()).length;
+    if (fieldView.plantedCount !== 9 || matureCount !== 9) throw new Error("九个瓜全部成熟后才能一键收瓜。" );
+    const experience = { ...session.experience, total: session.experience.total + 9, fromHarvests: session.experience.fromHarvests + 9 };
+    session = { ...session, experience };
+    fieldView = { ...fieldView, plots: emptyPlots(), plantedCount: 0, matureCount: 0, nextMaturesAt: undefined, experience, canHarvest: false };
+    return delay(copy({ harvestedCount: 9 as const, experienceAwarded: 9 as const, experience, field: fieldView }));
   },
   async createMelon(request) {
+    refreshDailyRewards();
     const id = `demo-melon-${Date.now()}`;
     const spot = cities.flatMap((city) => city.spots).find((item) => item.id === request.spotId);
     if (!spot) throw new Error("这个公共地点暂时不能埋瓜。" );
-    const preview: MelonPreview = { id, status: "incubating", topic: request.topic, cityId: spot.cityId, districtId: spot.districtId, spot, distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), isRemote: false };
-    fieldView = { ...fieldView, melons: [preview, ...fieldView.melons] };
-    return delay<CreateMelonResult>({ id, status: "incubating", maturesAt: preview.maturesAt });
+    const preview: MelonPreview = { id, status: "incubating", topic: request.topic, cityId: spot.cityId, districtId: spot.districtId, spot, distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), isRemote: false, revealMode: request.revealMode };
+    const trueSeedAwarded = !dailyShareRewarded;
+    dailyShareRewarded = true;
+    const wallet = trueSeedAwarded ? { ...session.wallet, trueSeedCount: session.wallet.trueSeedCount + 1 } : session.wallet;
+    session = { ...session, wallet };
+    fieldView = { ...fieldView, wallet, melons: [preview, ...fieldView.melons] };
+    return delay<CreateMelonResult>({ id, status: "incubating", maturesAt: preview.maturesAt, trueSeedAwarded, wallet });
   },
   async report() {
     return delay({ accepted: true as const });

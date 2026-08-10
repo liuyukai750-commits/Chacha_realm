@@ -81,6 +81,106 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("瓜区承载、筛选与远程围观", () => {
+  test("NEARBY-DEMO：本地试玩无需定位权限也能模拟附近 1 公里", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__demoGeolocationCalls = 0;
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: {
+          clearWatch() {},
+          getCurrentPosition() { window.__demoGeolocationCalls += 1; },
+          watchPosition() { window.__demoGeolocationCalls += 1; return 1; },
+        },
+      });
+    });
+    await page.route("**/api/**", async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "service_unavailable", message: "测试环境未连接数据服务" } }),
+      });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "进入本地试玩", exact: true }).click();
+    const scope = page.getByRole("group", { name: "吃瓜范围" });
+    const nearbyButton = scope.getByRole("button", { name: /模拟附近 1km/ });
+    await expect(nearbyButton).toContainText("不读取真实位置");
+
+    await nearbyButton.click();
+    await expect(nearbyButton).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("status").filter({ hasText: "已模拟附近 1 公里" })).toContainText("未读取电脑位置");
+    await expect(page.getByRole("heading", { name: "1公里内， 正在冒瓜。" })).toBeVisible();
+    await expect(page.getByTestId("radar-surface")).toHaveAttribute("data-scene-context", "nearby_area");
+    await expect(page.getByTestId("radar-surface").locator("img")).toHaveAttribute("src", /nearby-neighborhood-(day|night)-v1/);
+    await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("0 颗瓜");
+    await expect(page.getByRole("status").filter({ hasText: "1 公里内暂时没有瓜" })).toBeVisible();
+    await expect(page.getByTestId("radar-surface").getByText("五一广场", { exact: true })).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__demoGeolocationCalls)).toBe(0);
+  });
+
+  test("NEARBY-1KM：定位后只展示 1 公里内的瓜，并可返回城市瓜区", async ({ baseURL, context, page }) => {
+    const api = await installV0Api(page);
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+
+    const scope = page.getByRole("group", { name: "吃瓜范围" });
+    const nearbyButton = scope.getByRole("button", { name: /附近 1km/ });
+    const cityButton = scope.getByRole("button", { name: /城市瓜区/ });
+    await expect(cityButton).toHaveAttribute("aria-pressed", "true");
+
+    await nearbyButton.click();
+    await expect(nearbyButton).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("heading", { name: "1公里内， 正在冒瓜。" })).toBeVisible();
+    await expect(page.getByTestId("radar-surface")).toHaveAttribute("data-scene-context", "public_spot");
+    await expect(page.getByTestId("radar-surface").locator("img")).toHaveAttribute("src", /changsha-wuyi-(day|night)/);
+    await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("4 颗瓜");
+    await expandBasket(page);
+    await expect(page.getByRole("article")).toHaveCount(4);
+    await expect.poll(() => api.discoveryRequests.at(-1)).toMatchObject({
+      location: {
+        latitude: preciseLocation.latitude,
+        longitude: preciseLocation.longitude,
+      },
+    });
+    expect(api.discoveryRequests.at(-1)?.selectedCityId).toBe("changsha");
+
+    await cityButton.click();
+    await expect(cityButton).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("radar-surface")).toHaveAttribute("data-scene-context", "city_overview");
+    await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("12 颗瓜");
+  });
+
+  test("NEARBY-SCENE：未进入公共地标范围时切换为普通生活街区", async ({ baseURL, context, page }) => {
+    await installV0Api(page, { nearLandmark: false });
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+
+    const stage = page.getByTestId("radar-surface");
+    await expect(stage).toHaveAttribute("data-scene-context", "city_overview");
+    await page.getByRole("group", { name: "吃瓜范围" }).getByRole("button", { name: /附近 1km/ }).click();
+    await expect(stage).toHaveAttribute("data-scene-context", "nearby_area");
+    await expect(stage).toHaveAccessibleName(/普通生活街区瓜域场景.*尚未进入公共地标范围.*没有坐标/);
+    await expect(stage.locator("img")).toHaveAttribute("src", /nearby-neighborhood-(day|night)-v1/);
+    await expect(stage.getByText("普通附近", { exact: true })).toBeVisible();
+    await expect(stage.getByText("1km 生活圈", { exact: true })).toBeVisible();
+    await expect(stage.getByText("五一广场", { exact: true })).toHaveCount(0);
+    await expect(stage.locator(".melon-node")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("0 颗瓜");
+  });
+
+  test("NEARBY-EMPTY：1 公里没有瓜时明确为空且不自动扩到 3 公里", async ({ baseURL, context, page }) => {
+    await installV0Api(page, { noNearby: true });
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+
+    await page.getByRole("group", { name: "吃瓜范围" }).getByRole("button", { name: /附近 1km/ }).click();
+    await expect(page.getByRole("status").filter({ hasText: "1 公里内暂时没有瓜" })).toContainText("不会偷偷扩大距离");
+    await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("0 颗瓜");
+    await page.getByRole("button", { name: "看看城市瓜区", exact: true }).click();
+    await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("12 颗瓜");
+  });
+
   test("ZONE-12：瓜篮承载 12 颗示例瓜，话题筛选与两类动作语义明确", async ({ page }) => {
     await installV0Api(page);
     await enterIsland(page);
@@ -98,12 +198,17 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await topicFilter.getByRole("button", { name: "全部", exact: true }).click();
     const localRow = page.getByRole("article", { name: melon.title, exact: true });
     await expect(localRow.getByRole("button", { name: "直接吃", exact: true })).toBeVisible();
-    await expect(localRow.getByRole("button", { name: "去现场找", exact: true })).toBeVisible();
+    await expect(localRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toHaveCount(0);
+
+    const locked = discoveryMelons.find((item) => item.revealMode === "seek_locked");
+    const lockedRow = page.getByRole("article", { name: locked.title, exact: true });
+    await expect(lockedRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toBeVisible();
+    await expect(lockedRow.getByRole("button", { name: "直接吃", exact: true })).toHaveCount(0);
 
     const remote = discoveryMelons.find((item) => item.isRemote);
     const remoteRow = page.getByRole("article", { name: remote.title, exact: true });
     await expect(remoteRow.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
-    await expect(remoteRow.getByRole("button", { name: "去现场找", exact: true })).toBeVisible();
+    await expect(remoteRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toHaveCount(0);
   });
 
   test("REMOTE-READ：远程可读正文、公开评论、轻反应和蹲瓜，但没有评论输入", async ({ page }) => {
@@ -149,9 +254,9 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await allowLocation(context, baseURL);
     await enterIsland(page);
 
-    const expectedLabels = ["叶语很轻", "叶脉有回应", "已进入瓜区", "找到瓜棚了"];
+    const expectedLabels = ["还没摸到藤", "摸到藤了", "已进入瓜区", "摸到这颗瓜"];
     for (const label of expectedLabels) {
-      await page.getByRole("button", { name: /开始感应|再感应/ }).click();
+      await page.getByRole("button", { name: /开始找瓜|继续摸瓜/ }).click();
       await expect(page.getByRole("status").filter({ hasText: label }).first()).toBeVisible();
     }
     await expect.poll(() => api.presenceRequests).toHaveLength(4);
@@ -167,7 +272,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await installV0Api(page);
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始感应", exact: true }).click();
+    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/不支持定位.*远方围观/);
     await expandBasket(page);
     await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
@@ -178,7 +283,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await installV0Api(page);
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始感应", exact: true }).click();
+    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/拒绝|授权.*远方围观/);
     await expandBasket(page);
     await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
@@ -189,7 +294,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
     await installV0Api(page, { rejectLowAccuracy: true });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始感应", exact: true }).click();
+    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/精度不足.*远方围观/);
     await expandBasket(page);
     await expect(page.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
@@ -207,7 +312,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
       const dialog = await openLocalMelon(page);
 
       await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
-      await dialog.getByRole("button", { name: "去现场找", exact: true }).click();
+      await dialog.getByRole("button", { name: "顺藤摸瓜", exact: true }).click();
       const input = dialog.getByRole("textbox", { name: /评论/ });
       const draft = `这条${failure.label}草稿必须留下`;
       await input.fill(draft);
@@ -220,7 +325,7 @@ test.describe("四段寻瓜与现场评论凭证", () => {
       await expect(dialog.getByRole("alert")).toContainText(new RegExp(`${failure.message}.*草稿已保留`));
       await expect.poll(() => page.evaluate((key) => sessionStorage.getItem(key), `chacha-comment-draft:${melon.id}`)).toBe(draft);
 
-      await dialog.getByRole("button", { name: "去现场找", exact: true }).click();
+      await dialog.getByRole("button", { name: "顺藤摸瓜", exact: true }).click();
       await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveValue(draft);
       await expect(dialog).toContainText("不支持回复、@、私信或好友关系");
     });
@@ -240,7 +345,7 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 375, height: 520 });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始感应", exact: true }).click();
+    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/远方围观/);
     await page.setViewportSize({ width: 375, height: 760 });
     await expandBasket(page);
@@ -261,11 +366,11 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 430, height: 560 });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始感应", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "找到瓜棚了" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "摸到这颗瓜" }).first()).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__vibrationCalls)).toEqual([18]);
     await page.setViewportSize({ width: 430, height: 820 });
-    await expect(page.getByText("找到瓜棚了", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("摸到这颗瓜", { exact: true }).first()).toBeVisible();
   });
 
   test("SIM-HARMONY：定位与振动均缺失、动态视口变化时仍无横向溢出", async ({ page }, testInfo) => {
@@ -275,7 +380,7 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 430, height: 500 });
     await enterIsland(page);
 
-    await page.getByRole("button", { name: "开始感应", exact: true }).click();
+    await page.getByRole("button", { name: "开始找瓜", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: /远方围观/ }).first()).toContainText(/不支持定位.*远方围观/);
     for (const height of [500, 780]) {
       await page.setViewportSize({ width: 430, height });
@@ -291,7 +396,7 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
     await page.setViewportSize({ width: 375, height: 720 });
     await enterIsland(page);
     const dialog = await openLocalMelon(page);
-    await dialog.getByRole("button", { name: "去现场找", exact: true }).click();
+    await dialog.getByRole("button", { name: "顺藤摸瓜", exact: true }).click();
 
     const input = dialog.getByRole("textbox", { name: /评论/ });
     await input.focus();

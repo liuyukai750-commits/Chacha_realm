@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "猹猹王国｜晴日瓜田里的附近故事",
-  description: "在晴日瓜田雷达中发现附近成熟的匿名生活故事，吃完留下一粒瓜籽。",
+  title: "猹猹街｜附近城市的匿名故事",
+  description: "在城市瓜区发现附近的匿名生活故事，直接吃日常小瓜，或顺藤摸瓜找到现场大瓜。",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
       <body>{children}</body>

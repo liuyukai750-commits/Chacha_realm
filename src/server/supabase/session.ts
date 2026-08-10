@@ -24,7 +24,8 @@ interface AuthSessionResponse {
 interface ProfileDto {
   alias: string;
   animal: string;
-  seedCount: number;
+  wallet: AnonymousSession["wallet"];
+  experience: AnonymousSession["experience"];
   accountStatus?: "active" | "banned";
 }
 
@@ -123,7 +124,8 @@ export async function createOrResumeAnonymousSession(): Promise<AnonymousSession
   return {
     alias: profile.alias,
     animal: profile.animal,
-    seedCount: profile.seedCount,
+    wallet: profile.wallet,
+    experience: profile.experience,
     accountStatus: profile.accountStatus ?? "active",
   };
 }

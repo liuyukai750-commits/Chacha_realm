@@ -1,6 +1,6 @@
-import type { MelonStatus } from "../contracts/index";
+import type { MelonStatus } from "../contracts/index.ts";
 
-import { DAY_MS, HOUR_MS, addMilliseconds, timestampMs } from "./time";
+import { DAY_MS, HOUR_MS, addMilliseconds, timestampMs } from "./time.ts";
 
 export const INCUBATION_MS = 2 * HOUR_MS;
 export const UNREAD_ARCHIVE_MS = 24 * HOUR_MS;

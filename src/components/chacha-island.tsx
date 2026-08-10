@@ -1,5 +1,13 @@
 "use client";
 
+/*
+THESIS: 城市匿名故事是一层可被走近的信号，不是儿童农场换皮。
+OWN-WORLD: 半真实城市场景、石墨与雾白界面、酸橙定位信号、暖橙成熟信号、细边界与低饱和材质。
+STORY: 用户先看到附近瓜区，直接吃日常小瓜；值得寻找的大瓜必须顺藤摸瓜，到达后才揭示并参与评论。
+FIRST VIEWPORT: 城市日夜场景占据主舞台，瓜区状态叠在下缘，吃瓜、顺藤摸瓜和埋瓜保持单手可达。
+FORM: 移动城市观察站；以场景层、信号层和情报列表取代圆形农田与卡通水果。
+*/
+
 import {
   type CSSProperties,
   type FormEvent,
@@ -17,12 +25,17 @@ import type {
   CompleteReadResult,
   CreateMelonRequest,
   CreateReportRequest,
+  DiscoverySceneContext,
   DistanceBand,
+  FieldPlant,
+  FieldPlotIndex,
   FieldView,
+  HarvestFieldResult,
   LocationProof,
   MelonComment,
   MelonPreview,
   OpenedMelon,
+  OwnFieldView,
   PublicSpotSummary,
   ReactionType,
   SafeTopic,
@@ -30,8 +43,8 @@ import type {
   ZonePresenceResult,
 } from "@/contracts";
 import { demoIslandAdapter, type IslandAdapter, type IslandBootstrap } from "./demo-island-adapter";
-import { httpIslandAdapter, isExplicitServiceUnavailable } from "./http-island-adapter";
-import { getSpotScene } from "./city-visuals";
+import { httpIslandAdapter } from "./http-island-adapter";
+import { getCityVisual, getSpotScene } from "./city-visuals";
 import {
   CheckIcon,
   ChevronIcon,
@@ -70,20 +83,27 @@ const reactionMeta: Array<[ReactionType, string, string]> = [
 ];
 
 const seekCopy: Record<SeekState, { label: string; hint: string; notice: string }> = {
-  outside: { label: "叶语很轻", hint: "还在瓜区外，可以继续远方围观。", notice: "叶语感应完成：目前在瓜区外，仍可远方围观" },
-  near: { label: "叶脉有回应", hint: "正在靠近公共地点，没有路线和精确距离。", notice: "叶语感应完成：正在靠近公共地点" },
+  outside: { label: "还没摸到藤", hint: "还在瓜区外，可以继续远方围观。", notice: "顺藤摸瓜：目前在瓜区外，仍可远方围观" },
+  near: { label: "摸到藤了", hint: "正在靠近公共地点，没有路线和精确距离。", notice: "顺藤摸瓜：正在靠近公共地点" },
   inside_zone: { label: "已进入瓜区", hint: "现场评论凭证已点亮，有效期很短。", notice: "叶语感应完成：已进入瓜区" },
-  found: { label: "找到瓜棚了", hint: "这里只确认公共地点，不显示任何人的位置。", notice: "叶语感应完成：已找到瓜棚" },
+  found: { label: "摸到这颗瓜", hint: "这里只确认公共地点，不显示任何人的位置。", notice: "顺藤摸瓜：已经找到这颗瓜" },
 };
 
 type LandmarkKind = "pavilion" | "temple" | "pearl" | "canton" | "skyline" | "meadow";
+type DiscoveryScope = "nearby" | "city";
+
+const demoNearbyCoordinates = {
+  latitude: 28.195397,
+  longitude: 112.976869,
+  accuracyM: 18,
+} as const;
 
 const cityLandmarks: Record<CityId, { name: string; atmosphere: string; kind: LandmarkKind }> = {
   changsha: { name: "天心阁", atmosphere: "橘洲晴风", kind: "pavilion" },
   beijing: { name: "天坛", atmosphere: "古树晴空", kind: "temple" },
   shanghai: { name: "东方明珠", atmosphere: "江风与天际线", kind: "pearl" },
   guangzhou: { name: "广州塔", atmosphere: "珠江暖风", kind: "canton" },
-  shenzhen: { name: "城市天际线", atmosphere: "海风草坡", kind: "skyline" },
+  shenzhen: { name: "深圳湾", atmosphere: "海风步道", kind: "skyline" },
 };
 
 const fallbackLandmark = { name: "树桥草坡", atmosphere: "晴日田埂", kind: "meadow" } satisfies { name: string; atmosphere: string; kind: LandmarkKind };
@@ -92,6 +112,11 @@ export function ChachaIsland() {
   const [islandAdapter, setIslandAdapter] = useState<IslandAdapter>(httpIslandAdapter);
   const [mode, setMode] = useState<"live" | "demo">("live");
   const [dayPhase, setDayPhase] = useState<"day" | "night">("day");
+  const [phasePreference, setPhasePreference] = useState<"auto" | "day" | "night">(() => {
+    if (typeof window === "undefined") return "auto";
+    const saved = window.localStorage.getItem("chacha-phase-preference");
+    return saved === "day" || saved === "night" ? saved : "auto";
+  });
   const [model, setModel] = useState<IslandBootstrap | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -101,49 +126,93 @@ export function ChachaIsland() {
   const [quickSquats, setQuickSquats] = useState<string[]>([]);
   const [zonePresence, setZonePresence] = useState<Record<string, ZonePresenceResult>>({});
   const [openingMelon, setOpeningMelon] = useState(false);
+  const [locatingNearby, setLocatingNearby] = useState(false);
+  const [discoveryScope, setDiscoveryScope] = useState<DiscoveryScope>("city");
   const [showCities, setShowCities] = useState(false);
   const [showBury, setShowBury] = useState(false);
   const [notice, setNotice] = useState("定位未开启 · 正在浏览公开瓜场");
 
   useLayoutEffect(() => {
     const syncDayPhase = () => {
+      if (phasePreference !== "auto") return setDayPhase(phasePreference);
       const localHour = new Date().getHours();
       setDayPhase(localHour >= 6 && localHour < 18 ? "day" : "night");
     };
     syncDayPhase();
+    if (phasePreference !== "auto") return;
     const timer = window.setInterval(syncDayPhase, 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [phasePreference]);
+
+  const toggleDayPhase = () => {
+    const next = dayPhase === "day" ? "night" : "day";
+    window.localStorage.setItem("chacha-phase-preference", next);
+    setPhasePreference(next);
+  };
 
   useEffect(() => {
     let active = true;
+    let settled = false;
+    const timeout = window.setTimeout(() => {
+      if (!active || settled) return;
+      settled = true;
+      setLoadError(new Error("实时瓜场连接超时，可以重试或先进入本地试玩。"));
+    }, 10_000);
     islandAdapter.bootstrap().then(
-      (value) => { if (active) setModel(value); },
-      (error) => { if (active) setLoadError(error); },
+      (value) => {
+        if (!active || settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        setLoadError(null);
+        setModel(value);
+      },
+      (error) => {
+        if (!active || settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        setLoadError(error);
+      },
     );
-    return () => { active = false; };
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
   }, [islandAdapter, retryKey]);
 
   const activeCity = model?.cities.find((city) => city.id === model.discovery.activeCityId);
   const writesBlocked = model?.session.accountStatus === "banned";
+  const citySelectionRequestRef = useRef(0);
 
   const selectCity = async (cityId: CityId) => {
     if (!model) return;
+    const requestId = ++citySelectionRequestRef.current;
     const discovery = await islandAdapter.discover({ selectedCityId: cityId });
+    if (requestId !== citySelectionRequestRef.current) return;
     setModel({ ...model, discovery });
+    setDiscoveryScope("city");
     setShowCities(false);
     setNotice(`已切到${model.cities.find((city) => city.id === cityId)?.name ?? "这座城"}公开瓜场 · 未使用精确位置`);
   };
 
   const locate = async () => {
     if (!model) return;
+    setLocatingNearby(true);
     try {
-      const location = await requestLocationProof();
+      const location = mode === "demo"
+        ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString() }
+        : await requestLocationProof();
       const discovery = await islandAdapter.discover({ location, selectedCityId: model.discovery.activeCityId });
+      const nearbyCount = nearbyItemsForScene(discovery.items, discovery.sceneContext).length;
       setModel({ ...model, discovery });
-      setNotice("本次距离校准完成 · 精确位置未保存");
+      setDiscoveryScope("nearby");
+      setNotice(mode === "demo"
+        ? `已模拟附近 1 公里 · ${nearbyCount} 颗示例瓜 · 未读取电脑位置`
+        : nearbyCount > 0 ? `附近 1 公里已打开 · 找到 ${nearbyCount} 颗瓜` : "附近 1 公里暂时没瓜 · 不会自动扩大范围");
     } catch (error) {
+      setDiscoveryScope("city");
       setNotice(messageFrom(error));
+    } finally {
+      setLocatingNearby(false);
     }
   };
 
@@ -156,14 +225,14 @@ export function ChachaIsland() {
     return result;
   };
 
-  const openMelon = async (preview: MelonPreview) => {
+  const openMelon = async (preview: MelonPreview, presenceToken?: string) => {
     if (preview.status === "incubating") {
       setNotice(`这颗瓜还在长，约 ${formatCountdown(preview.maturesAt)} 后成熟`);
       return;
     }
     setOpeningMelon(true);
     try {
-      setOpened(await islandAdapter.openMelon(preview.id));
+      setOpened(await islandAdapter.openMelon(preview.id, presenceToken));
     } catch (error) {
       setNotice(messageFrom(error));
     } finally {
@@ -173,18 +242,28 @@ export function ChachaIsland() {
 
   const finishRead = async (result: CompleteReadResult) => {
     if (!model) return;
-    setModel({ ...model, session: { ...model.session, seedCount: result.readerSeedCount }, field: { ...model.field, progress: { ...model.field.progress, seedCount: result.readerSeedCount } } });
-    setNotice(result.readerSeedAwarded ? "这颗瓜吃完了 · 瓜籽 +1" : "这颗瓜已经吃过 · 本次不重复奖励");
+    const field = "wallet" in model.field ? { ...model.field, wallet: result.wallet } : model.field;
+    setModel({ ...model, session: { ...model.session, wallet: result.wallet }, field });
+    setNotice(!result.counted
+      ? "这颗瓜已经吃过 · 本次不重复奖励"
+      : result.autoConverted
+      ? "五粒小瓜籽聚在一起 · 真瓜籽 +1"
+      : result.smallSeedAwarded ? "这颗瓜吃完了 · 小瓜籽 +1" : "阅读已记下 · 今天不再发小瓜籽");
   };
 
   const createMelon = async (input: Omit<CreateMelonRequest, "location">) => {
     const location = await requestLocationProof();
     const result = await islandAdapter.createMelon({ ...input, location });
-    const field = await islandAdapter.field();
-    if (model) setModel({ ...model, field });
+    if (model) setModel({ ...model, session: { ...model.session, wallet: result.wallet } });
     setShowBury(false);
     setTab("field");
-    setNotice(result.status === "held" ? "这颗瓜需要人工复核，暂时不会成熟" : "瓜埋好了 · 约 2 小时后成熟");
+    setNotice(result.status === "held" ? "这颗瓜需要人工复核，暂时不会成熟" : result.trueSeedAwarded ? "瓜埋好了 · 今日首颗原创奖励真瓜籽 +1" : "瓜埋好了 · 约 2 小时后成熟");
+    try {
+      const field = await islandAdapter.field();
+      setModel((current) => current ? { ...current, field, session: { ...current.session, wallet: result.wallet } } : current);
+    } catch {
+      setNotice(result.trueSeedAwarded ? "瓜已埋好，真瓜籽 +1 · 瓜田数据稍后再刷新" : "瓜已埋好 · 瓜田数据稍后再刷新");
+    }
   };
 
   const quickSquat = async (id: string) => {
@@ -219,7 +298,7 @@ export function ChachaIsland() {
     }
   };
 
-  if (loadError) return <IslandUnavailable error={loadError} onRetry={() => { setLoadError(null); setRetryKey((value) => value + 1); }} onDemo={isExplicitServiceUnavailable(loadError) ? () => { setMode("demo"); setModel(null); setLoadError(null); setIslandAdapter(demoIslandAdapter); } : undefined} />;
+  if (loadError) return <IslandUnavailable error={loadError} onRetry={() => { setLoadError(null); setRetryKey((value) => value + 1); }} onDemo={() => { setMode("demo"); setModel(null); setLoadError(null); setIslandAdapter(demoIslandAdapter); }} />;
   if (!model || !activeCity) return <IslandLoading />;
 
   return (
@@ -228,13 +307,16 @@ export function ChachaIsland() {
       <header className="topbar">
         <button className="brand" onClick={() => setTab("radar")} aria-label="回到瓜域雷达">
           <Image className="brand-avatar" src="/brand/chacha-king-avatar.webp" width={96} height={96} loading="eager" alt="" />
-          <span><strong>猹猹王国</strong><small>CHACHA realm</small></span>
+          <span><strong>猹猹街</strong><small>CHACHA STREET</small></span>
         </button>
         <div className="topbar-actions">
           <button className="city-switch" onClick={() => setShowCities(true)} aria-label={`当前城市${activeCity.name}，切换城市`}>
             <LocationIcon /><span>{activeCity.name}</span><ChevronIcon />
           </button>
-          <span className="seed-count" aria-label={`拥有 ${model.session.seedCount} 粒瓜籽`}><SeedIcon />{model.session.seedCount}</span>
+          <button className="phase-mode-toggle" onClick={toggleDayPhase} aria-label={`当前${dayPhase === "day" ? "日间" : "夜间"}模式，切换到${dayPhase === "day" ? "夜间" : "日间"}模式`} title="切换日夜">
+            <span aria-hidden="true">{dayPhase === "day" ? "日" : "夜"}</span>
+          </button>
+          <span className="seed-count" aria-label={`拥有 ${model.session.wallet.trueSeedCount} 粒真瓜籽`}><SeedIcon />{model.session.wallet.trueSeedCount}</span>
         </div>
       </header>
 
@@ -243,19 +325,30 @@ export function ChachaIsland() {
         {!opened && !showBury && !showCities && <div className="live-notice" role="status"><span aria-hidden="true" />{notice}</div>}
         {tab === "radar" ? (
           <RadarView
+            key={`${activeCity.id}-${discoveryScope}`}
             items={model.discovery.items}
             details={model.melonDetails}
             quickSquats={quickSquats}
             cityId={activeCity.id}
             cityName={activeCity.name}
+            dayPhase={dayPhase}
+            demoMode={mode === "demo"}
+            sceneContext={model.discovery.sceneContext}
             visitorLocated={model.discovery.visitorType !== "location_unknown"}
+            scope={discoveryScope}
+            locatingNearby={locatingNearby}
             opening={activeCity.opening}
             openingMelon={openingMelon}
             onLocate={locate}
+            onCityBrowse={() => {
+              setDiscoveryScope("city");
+              setNotice(`正在浏览${activeCity.name}城市瓜区 · 附近范围已关闭`);
+            }}
             onSeek={seekZone}
             onOpen={openMelon}
             onSquat={quickSquat}
             onRefresh={async () => {
+              if (discoveryScope === "nearby") return locate();
               const discovery = await islandAdapter.discover({ selectedCityId: model.discovery.activeCityId });
               setModel({ ...model, discovery });
               setNotice("雷达已重听 · 同区、同城、远方依次排好");
@@ -263,7 +356,28 @@ export function ChachaIsland() {
             readOnly={writesBlocked}
           />
         ) : (
-          <MyField field={viewedField ?? model.field} isOwn={!viewedField} onBury={() => setShowBury(true)} />
+          <MyField
+            field={viewedField ?? model.field}
+            isOwn={!viewedField}
+            onBury={() => setShowBury(true)}
+            onPlant={async (plotIndex, operationId) => {
+              const result = await islandAdapter.plant({ plotIndex, operationId });
+              setModel((current) => current ? { ...current, field: result.field, session: { ...current.session, wallet: result.wallet } } : current);
+              setNotice("真瓜籽已经种下 · 12 小时后自然成熟");
+              return result.field;
+            }}
+            onRefresh={async () => {
+              const field = await islandAdapter.field();
+              if (!("wallet" in field)) throw new Error("暂时没有取到自己的瓜田数据。" );
+              setModel((current) => current ? { ...current, field } : current);
+              return field;
+            }}
+            onHarvest={() => islandAdapter.harvest()}
+            onHarvested={(result) => {
+              setModel((current) => current ? { ...current, field: result.field, session: { ...current.session, experience: result.experience } } : current);
+              setNotice("九个瓜已经收好 · XP +9");
+            }}
+          />
         )}
       </main>
 
@@ -280,18 +394,24 @@ export function ChachaIsland() {
   );
 }
 
-function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocated, opening, openingMelon, onLocate, onSeek, onOpen, onSquat, onRefresh, readOnly }: {
+function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, opening, openingMelon, onLocate, onCityBrowse, onSeek, onOpen, onSquat, onRefresh, readOnly }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
   quickSquats: string[];
   cityId: CityId;
   cityName: string;
+  dayPhase: "day" | "night";
+  demoMode: boolean;
+  sceneContext: DiscoverySceneContext;
   visitorLocated: boolean;
+  scope: DiscoveryScope;
+  locatingNearby: boolean;
   opening: CityOpeningState;
   openingMelon: boolean;
   onLocate: () => void;
+  onCityBrowse: () => void;
   onSeek: (spotId: string) => Promise<ZonePresenceResult>;
-  onOpen: (melon: MelonPreview) => void;
+  onOpen: (melon: MelonPreview, presenceToken?: string) => void;
   onSquat: (id: string) => void;
   onRefresh: () => void;
   readOnly: boolean;
@@ -303,7 +423,10 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
   const [seekResult, setSeekResult] = useState<ZonePresenceResult | null>(null);
   const [seekBusy, setSeekBusy] = useState(false);
   const [seekError, setSeekError] = useState<string | null>(null);
-  const spotGroups = Array.from(items.filter((melon) => melon.cityId === cityId).reduce((groups, melon) => {
+  const cityItems = items.filter((melon) => melon.cityId === cityId);
+  const nearbyItems = nearbyItemsForScene(items, sceneContext);
+  const scopedItems = scope === "nearby" ? nearbyItems : cityItems;
+  const spotGroups = Array.from(scopedItems.reduce((groups, melon) => {
     const group = groups.get(melon.spot.id) ?? [];
     group.push(melon);
     groups.set(melon.spot.id, group);
@@ -315,6 +438,19 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
   const zoneSpot = zoneItems[0]?.spot;
   const zoneScene = zoneSpot ? getSpotScene(zoneSpot) : null;
   const representatives = [...filteredItems].sort((left, right) => Number(right.status === "mature") - Number(left.status === "mature")).slice(0, 5);
+  const openRepresentative = representatives.find((melon) => melon.status === "mature" && melon.revealMode === "open");
+  const lockedRepresentative = representatives.find((melon) => melon.status === "mature" && melon.revealMode === "seek_locked");
+  const effectiveSceneKind = scope === "city" ? "city_overview" : sceneContext.kind;
+  const showingNearbyArea = effectiveSceneKind === "nearby_area";
+  const cityVisual = getCityVisual(cityId);
+  const sceneImage = showingNearbyArea
+    ? dayPhase === "day" ? "/scenes/nearby-neighborhood-day-v1.png" : "/scenes/nearby-neighborhood-night-v1.png"
+    : cityVisual.sceneImages[dayPhase];
+  const sceneLabel = showingNearbyArea
+    ? "普通生活街区瓜域场景：附近 1 公里，但尚未进入公共地标范围"
+    : effectiveSceneKind === "public_spot" && sceneContext.kind === "public_spot"
+      ? `${cityName}${getSpotScene(sceneContext.spot).displayName}公共地标瓜域场景：已进入公共地点附近，远景为${cityVisual.landmarkLabel}`
+      : `${cityName}城市瓜域总览场景：${cityVisual.landmarkLabel}`;
 
   const senseLeaves = async () => {
     if (!zoneSpot) return;
@@ -344,19 +480,38 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
   return (
     <>
       <section className="radar-intro" aria-labelledby="radar-title">
-        <p className="utility-label"><SunIcon /> 晴日雷达 · {cityName}</p>
-        <h1 id="radar-title">附近有瓜，<em>正在发亮。</em></h1>
-        <button className={visitorLocated ? "location-calibrated" : "location-callout"} onClick={onLocate} aria-label={visitorLocated ? "重新定位" : "开启定位"}>
-          {visitorLocated ? <CheckIcon /> : <LocationIcon />}
-          <span><strong>{visitorLocated ? "距离已校准" : "校准附近距离"}</strong><small>{visitorLocated ? "本次精确位置不会保存" : "拒绝也能按城市继续浏览"}</small></span>
-        </button>
+        <div className="discovery-scope" role="group" aria-label="吃瓜范围">
+          <button className={scope === "nearby" ? "active" : ""} onClick={onLocate} aria-pressed={scope === "nearby"} disabled={locatingNearby}>
+            <LocationIcon /><span><strong>{locatingNearby ? "正在定位" : demoMode ? "模拟附近 1km" : "附近 1km"}</strong><small>{visitorLocated ? `${nearbyItems.length} 颗瓜` : demoMode ? "不读取真实位置" : "需要本次定位"}</small></span>
+          </button>
+          <button className={scope === "city" ? "active" : ""} onClick={onCityBrowse} aria-pressed={scope === "city"}>
+            <RadarIcon /><span><strong>城市瓜区</strong><small>{cityItems.length} 颗公开瓜</small></span>
+          </button>
+        </div>
+        <p className="utility-label"><SunIcon /> {scope === "nearby" ? "附近 1 公里" : "城市瓜区"} · {cityName}</p>
+        <div className="radar-intro-layout">
+          <div className="radar-intro-copy">
+            <h1 id="radar-title">{scope === "nearby" ? <>1公里内，<em>正在冒瓜。</em></> : <>这座城的动静，<em>正在浮现。</em></>}</h1>
+            <button className={scope === "nearby" ? "location-calibrated" : "location-callout"} onClick={onLocate} aria-label={scope === "nearby" ? demoMode ? "刷新模拟附近1公里" : "刷新附近1公里" : demoMode ? "模拟附近1公里" : "开启附近1公里"} disabled={locatingNearby}>
+              {scope === "nearby" ? <CheckIcon /> : <LocationIcon />}
+              <span><strong>{locatingNearby ? demoMode ? "正在载入示例范围" : "正在获取本次位置" : scope === "nearby" ? demoMode ? "正在模拟 1 公里" : "只看附近 1 公里" : demoMode ? "模拟附近 1 公里" : "开启附近 1 公里"}</strong><small>{demoMode ? "本地试玩不读取真实位置" : scope === "nearby" ? "不会扩大范围 · 精确位置不保存" : "拒绝后仍可继续浏览城市瓜区"}</small></span>
+            </button>
+          </div>
+          <div className="scene-quick-actions" role="group" aria-label="瓜区快捷操作">
+            {openRepresentative && <button className="quick-open" onClick={() => onOpen(openRepresentative)}><span>日常小瓜</span><strong>直接吃</strong></button>}
+            {lockedRepresentative && <button className="quick-seek" onClick={() => seekTargetId === lockedRepresentative.id && seekResult?.seekState === "found" ? onOpen(lockedRepresentative, seekResult.presenceToken) : seekMelon(lockedRepresentative)} disabled={seekBusy && seekTargetId === lockedRepresentative.id}><span>现场大瓜</span><strong>{seekBusy && seekTargetId === lockedRepresentative.id ? "校准中" : seekTargetId === lockedRepresentative.id && seekResult?.seekState === "found" ? "揭开大瓜" : "顺藤摸瓜"}</strong></button>}
+          </div>
+        </div>
       </section>
 
       <section className="zone-console" aria-label="瓜区控制台">
         <div className="zone-heading">
-          <div><span className="zone-kicker">公共地点瓜棚</span><h2>{zoneScene?.displayName ?? `${cityName}瓜区`}</h2></div>
+          <div><span className="zone-kicker">{scope === "nearby" ? "附近 1km 瓜棚" : "公共地点瓜棚"}</span><h2>{zoneScene?.displayName ?? (scope === "nearby" ? "附近暂时安静" : `${cityName}瓜区`)}</h2></div>
           <strong>{filteredItems.length} 颗瓜</strong>
         </div>
+        {scope === "nearby" && scopedItems.length === 0 ? <div className="nearby-empty" role="status">
+          <RadarIcon /><strong>1 公里内暂时没有瓜</strong><span>这里不会偷偷扩大距离。可以回城市瓜区看看，或者去公共地点附近埋下第一颗。</span><button onClick={onCityBrowse}>看看城市瓜区</button>
+        </div> : <>
         {spotGroups.length > 1 && <div className="zone-switcher" role="group" aria-label="切换公共地点瓜区">{spotGroups.map((group) => {
           const spot = group[0].spot;
           return <button key={spot.id} className={spot.id === activeSpotId ? "active" : ""} onClick={() => selectZone(spot.id)} aria-pressed={spot.id === activeSpotId}>{getSpotScene(spot).displayName}<small>{group.length}</small></button>;
@@ -368,33 +523,46 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
         <div className={`leaf-seek ${seekResult ? `state-${seekResult.seekState}` : ""}`} role="status" aria-live="polite">
           <div className="leaf-sensor" aria-hidden="true"><i /><i /><i /><span /></div>
           <div className="leaf-copy">
-            <strong>{seekResult ? seekCopy[seekResult.seekState].label : "叶语寻瓜"}</strong>
-            <small>{seekResult ? seekCopy[seekResult.seekState].hint : "由你主动感应，只返回粗略接近状态。"}</small>
+            <strong>{seekResult ? seekCopy[seekResult.seekState].label : "顺藤摸瓜"}</strong>
+            <small>{seekResult ? seekCopy[seekResult.seekState].hint : "大瓜要走近才揭晓，只返回粗略接近状态。"}</small>
           </div>
-          <button onClick={senseLeaves} disabled={seekBusy || !zoneSpot}>{seekBusy ? "感应中" : seekResult ? "再感应" : "开始感应"}</button>
+          <button onClick={senseLeaves} disabled={seekBusy || !zoneSpot}>{seekBusy ? "校准中" : seekResult ? "继续摸瓜" : "开始找瓜"}</button>
         </div>
         {seekError && <p className="seek-fallback" role="alert">{seekError} 定位拒绝不影响远方围观。</p>}
         <ol className="seek-scale" aria-label="寻瓜四段状态">
           {(Object.keys(seekCopy) as SeekState[]).map((state) => <li key={state} className={seekResult?.seekState === state ? "current" : ""}>{seekCopy[state].label}</li>)}
         </ol>
+        </>}
       </section>
 
-      <section className="radar-stage" data-testid="radar-surface" aria-label="瓜区信号舞台：只展示代表瓜，不提供路线或精确距离" aria-busy={openingMelon}>
+      <section className={`radar-stage city-${cityId}${showingNearbyArea ? " is-nearby-area" : ""}`} data-testid="radar-surface" data-scene-context={effectiveSceneKind} aria-label={`${sceneLabel}。只展示代表瓜，没有坐标，不用于导航`} aria-busy={openingMelon}>
+        <Image
+          className="urban-scene-image"
+          src={sceneImage}
+          alt=""
+          fill
+          sizes="(max-width: 759px) 100vw, 530px"
+          priority
+        />
+        <div className="urban-scene-shade" aria-hidden="true" />
+        <div className="scene-context-badge"><span>{showingNearbyArea ? "普通附近" : effectiveSceneKind === "public_spot" ? "地标附近" : "城市瓜区"}</span><strong>{showingNearbyArea ? "1km 生活圈" : effectiveSceneKind === "public_spot" && sceneContext.kind === "public_spot" ? getSpotScene(sceneContext.spot).displayName : cityName}</strong></div>
         <div className="radar-grid" aria-hidden="true"><i /><i /><i /><span className="radar-sweep" /></div>
         <CityIsland cityId={cityId} cityName={cityName} radar />
         <div className="radar-origin" aria-hidden="true"><span>猹</span><i /></div>
         {representatives.map((melon, index) => {
           const scene = getSpotScene(melon.spot);
+          const locked = melon.revealMode === "seek_locked";
+          const found = seekTargetId === melon.id && seekResult?.seekState === "found";
           return <button
             key={melon.id}
             className={`melon-node node-${index + 1} ${melon.status} scene-${scene.kind}`}
-            onClick={() => melon.status === "mature" ? onOpen(melon) : onSquat(melon.id)}
+            onClick={() => melon.status === "mature" ? locked ? found ? onOpen(melon, seekResult?.presenceToken) : seekMelon(melon) : onOpen(melon) : onSquat(melon.id)}
             disabled={readOnly && melon.status === "incubating"}
-            aria-label={`${melon.status === "mature" ? "吃瓜" : quickSquats.includes(melon.id) ? "取消旁观" : "旁观"}：${topicName[melon.topic]}瓜，${scene.displayName}，${distanceName[melon.distanceBand]}`}
+            aria-label={`${melon.status === "mature" ? locked ? found ? "揭开大瓜" : "顺藤摸瓜" : "直接吃" : quickSquats.includes(melon.id) ? "取消旁观" : "旁观"}：${topicName[melon.topic]}瓜，${scene.displayName}，${distanceName[melon.distanceBand]}`}
             aria-pressed={melon.status === "incubating" ? quickSquats.includes(melon.id) : undefined}
           >
             <span className="melon-orb" aria-hidden="true"><i /><i /><i /></span>
-            <span className="node-label"><strong>{melon.status === "mature" ? "吃瓜" : quickSquats.includes(melon.id) ? "已旁观" : "旁观"}</strong><small>{topicName[melon.topic]} · {scene.displayName}</small></span>
+            <span className="node-label"><strong>{melon.status === "mature" ? locked ? found ? "揭开大瓜" : "大瓜锁定" : "直接吃" : quickSquats.includes(melon.id) ? "已旁观" : "旁观"}</strong><small>{topicName[melon.topic]} · {scene.displayName}</small></span>
           </button>;
         })}
         <div className="ring-label ring-one">瓜区</div><div className="ring-label ring-two">附近</div><div className="ring-label ring-three">同城</div>
@@ -425,10 +593,11 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
               </div>
               <div className="basket-actions">
                 {melon.status === "mature" ? <>
-                  <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
-                  {seekTargetId === melon.id && seekResult?.seekState === "found"
-                    ? <button onClick={() => onOpen(melon)}>打开这颗瓜</button>
-                    : <button onClick={() => seekMelon(melon)} disabled={seekBusy && seekTargetId === melon.id}>{seekBusy && seekTargetId === melon.id ? "叶语感应中" : seekTargetId === melon.id ? "继续寻瓜" : "去现场找"}</button>}
+                  {melon.revealMode === "open"
+                    ? <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
+                    : seekTargetId === melon.id && seekResult?.seekState === "found"
+                      ? <button className="basket-primary" onClick={() => onOpen(melon, seekResult.presenceToken)}>揭开现场大瓜</button>
+                      : <button className="basket-seek" onClick={() => seekMelon(melon)} disabled={seekBusy && seekTargetId === melon.id}>{seekBusy && seekTargetId === melon.id ? "正在校准" : seekTargetId === melon.id ? "继续摸瓜" : "顺藤摸瓜"}</button>}
                   {!readOnly && <button onClick={() => onSquat(melon.id)} aria-pressed={squatted}>{squatted ? "已蹲瓜" : "蹲瓜"}</button>}
                 </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly} aria-pressed={squatted}>{readOnly ? "只读" : squatted ? "已旁观" : "旁观"}</button>}
               </div>
@@ -438,6 +607,16 @@ function RadarView({ items, details, quickSquats, cityId, cityName, visitorLocat
       </section>
       <OpeningCard state={opening} />
     </>
+  );
+}
+
+function nearbyItemsForScene(
+  items: readonly MelonPreview[],
+  sceneContext: DiscoverySceneContext,
+): MelonPreview[] {
+  if (sceneContext.kind !== "public_spot") return [];
+  return items.filter(
+    (melon) => melon.distanceBand === "within_1km" && melon.spot.id === sceneContext.spot.id,
   );
 }
 
@@ -453,24 +632,141 @@ function OpeningCard({ state }: { state: CityOpeningState }) {
   );
 }
 
-function MyField({ field, isOwn, onBury }: { field: FieldView; isOwn: boolean; onBury: () => void }) {
-  const stages = [[1, "嫩芽"], [3, "藤蔓"], [7, "花"], [12, "青瓜"], [21, "成熟"]] as const;
-  const goal = field.progress.nextStageAt ?? field.progress.seedCount;
-  const previous = [...stages].reverse().find(([seed]) => seed <= field.progress.seedCount)?.[0] ?? 0;
-  const progress = goal === previous ? 100 : Math.min(100, ((field.progress.seedCount - previous) / (goal - previous)) * 100);
+function MyField({ field, isOwn, onBury, onPlant, onRefresh, onHarvest, onHarvested }: {
+  field: FieldView;
+  isOwn: boolean;
+  onBury: () => void;
+  onPlant: (plotIndex: FieldPlotIndex, operationId: string) => Promise<OwnFieldView>;
+  onRefresh: () => Promise<OwnFieldView>;
+  onHarvest: () => Promise<HarvestFieldResult>;
+  onHarvested: (result: HarvestFieldResult) => void;
+}) {
+  const [selectedPlot, setSelectedPlot] = useState<FieldPlotIndex | null>(null);
+  const [plantOperationId, setPlantOperationId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newPlantId, setNewPlantId] = useState<string | null>(null);
+  const [harvesting, setHarvesting] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
+  const ownField = isOwn && "wallet" in field ? field : null;
+  const visualMatureCount = field.plots.flatMap((plot) => plot.plants).filter((plant) => plant.stage === "mature").length;
+  const visuallyHarvestable = Boolean(ownField?.canHarvest);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!ownField?.nextMaturesAt) return;
+    const delay = Math.max(1_000, new Date(ownField.nextMaturesAt).getTime() - Date.now() + 1_000);
+    const timer = window.setTimeout(() => {
+      onRefresh().catch((caught) => setError(messageFrom(caught)));
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [onRefresh, ownField?.nextMaturesAt]);
+
+  const plantSelected = async () => {
+    if (selectedPlot === null || !ownField) return;
+    const operationId = plantOperationId ?? createOperationId();
+    if (!plantOperationId) setPlantOperationId(operationId);
+    setBusy(true); setError(null);
+    try {
+      const updated = await onPlant(selectedPlot, operationId);
+      const newest = updated.plots.flatMap((plot) => plot.plants).sort((a, b) => b.plantedAt.localeCompare(a.plantedAt))[0];
+      setNewPlantId(newest?.id ?? null);
+      setSelectedPlot(null);
+      setPlantOperationId(null);
+      window.setTimeout(() => setNewPlantId(null), 1100);
+      if ("vibrate" in navigator) navigator.vibrate?.(16);
+    } catch (caught) { setError(messageFrom(caught)); }
+    finally { setBusy(false); }
+  };
+
+  const harvestAll = async () => {
+    if (!ownField || !visuallyHarvestable) return;
+    setBusy(true); setError(null);
+    try {
+      const result = await onHarvest();
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!reduceMotion) {
+        setHarvesting(true);
+        await new Promise((resolve) => window.setTimeout(resolve, 620));
+      }
+      onHarvested(result);
+      if ("vibrate" in navigator) navigator.vibrate?.([18, 35, 18]);
+    } catch (caught) { setError(messageFrom(caught)); }
+    finally { setBusy(false); setHarvesting(false); }
+  };
+
   return (
-    <section className="field-view" aria-labelledby="field-title">
-      <p className="utility-label"><SproutIcon /> {isOwn ? "MY SUNNY PATCH" : "VISITING PATCH"}</p>
-      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>今天也晒着太阳。</em></> : <>{field.alias} <em>的瓜田</em></>}</h1>
-      <div className={`field-illustration stage-${field.progress.stage}`} data-testid="field-stage" aria-label={`瓜田阶段：${stages.find(([seed]) => seed === previous)?.[1] ?? "荒地"}`}>
-        <div className="field-sun" /><div className="field-soil" /><div className="vine vine-left"><i /><i /><i /></div><div className="vine vine-right"><i /><i /></div><span className="field-flower flower-one">✦</span><span className="field-flower flower-two">✦</span><span className="field-flower flower-three">✦</span>
+    <section className="field-view" aria-labelledby="field-title" aria-label={isOwn ? "我的瓜田" : `${field.alias}的瓜田`}>
+      <p className="utility-label"><SproutIcon /> {isOwn ? "MY THREE PATCHES" : "VISITING PATCH"}</p>
+      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>九个坑，慢慢长。</em></> : <>{field.alias} <em>的瓜田</em></>}</h1>
+
+      {ownField && <div className="field-ledger" aria-label="瓜田资产">
+        <div><span>田里</span><strong>{field.plantedCount}<small>/9</small></strong></div>
+        <div><span>小瓜籽</span><strong>{ownField.wallet.smallSeedCount}<small>/5</small></strong></div>
+        <div><span>真瓜籽</span><strong>{ownField.wallet.trueSeedCount}</strong></div>
+        <div><span>XP</span><strong>{ownField.experience.total}</strong></div>
+      </div>}
+
+      <div className={`field-illustration field-v1 ${harvesting ? "is-harvesting" : ""}`} data-testid="field-stage" aria-label={`三片瓜田，已经种下 ${field.plantedCount} 个瓜`}>
+        <div className="field-sun" /><div className="field-soil" />
+        {field.plots.map((plot) => {
+          const full = plot.plants.length >= plot.capacity;
+          const canSelect = Boolean(ownField && ownField.wallet.trueSeedCount > 0 && !full && !busy);
+          const className = `field-plot-hotspot plot-${plot.plotIndex + 1} ${selectedPlot === plot.plotIndex ? "selected" : ""} ${canSelect ? "plantable" : ""}`;
+          if (!isOwn) return <div className={`${className} is-public`} key={plot.plotIndex} aria-label={`第${plot.plotIndex + 1}片土地、${plot.plants.length}/3`}><span>第{plot.plotIndex + 1}片</span><strong>{plot.plants.length}/3</strong></div>;
+          return <button
+            type="button"
+            className={className}
+            key={plot.plotIndex}
+            aria-label={`第${plot.plotIndex + 1}片土地、${plot.plants.length}/3`}
+            aria-pressed={selectedPlot === plot.plotIndex}
+            disabled={!isOwn || full || busy || (ownField?.wallet.trueSeedCount ?? 0) < 1}
+            onClick={() => {
+              if (selectedPlot !== plot.plotIndex) setPlantOperationId(createOperationId());
+              setSelectedPlot(plot.plotIndex);
+            }}
+          >
+            <span>第{plot.plotIndex + 1}片</span><strong>{plot.plants.length}/3</strong>
+          </button>;
+        })}
+        {field.plots.flatMap((plot) => plot.plants).map((plant) => {
+          const ownPlant = isFieldPlant(plant) ? plant : null;
+          const maturesAt = ownPlant?.maturesAt;
+          const mature = plant.stage === "mature";
+          const remaining = maturesAt ? Math.max(0, new Date(maturesAt).getTime() - clock) : null;
+          const stage = mature ? "mature" : plant.stage;
+          return <span
+            key={`${plant.plotIndex}-${plant.slotIndex}`}
+            className={`field-crop plot-${plant.plotIndex + 1} slot-${plant.slotIndex + 1} ${stage} ${ownPlant?.id === newPlantId ? "just-planted" : ""}`}
+            role="img"
+            aria-label={mature ? `第${plant.plotIndex + 1}片土地的成熟瓜` : remaining === null ? `第${plant.plotIndex + 1}片土地的成长中瓜苗` : `第${plant.plotIndex + 1}片土地的瓜苗，还需 ${formatDuration(remaining)}`}
+          ><i /><b>{mature ? "熟了" : remaining === null ? "成长中" : formatDuration(remaining)}</b></span>;
+        })}
+        <div className="field-scene-status"><span>{field.plantedCount === 0 ? "藤蔓在等第一颗籽" : `${visualMatureCount} 个瓜已成熟`}</span><strong>{field.plantedCount}/9 · 三片土地</strong></div>
       </div>
-      <div className="field-progress">
-        <header><div><span>{field.alias}</span><strong>{field.progress.seedCount} 粒瓜籽 · {stages.find(([seed]) => seed === previous)?.[1] ?? "荒地"}</strong></div><SeedIcon /></header>
-        <div className="growth-track"><i style={{ width: `${progress}%` }} /></div>
-        <ol>{stages.map(([seed, label]) => <li key={seed} className={field.progress.seedCount >= seed ? (field.progress.seedCount === seed ? "current" : "done") : ""}>{seed} {label}</li>)}</ol>
-        <p>{field.progress.nextStageAt ? `再收 ${field.progress.nextStageAt - field.progress.seedCount} 粒，瓜田会长到下一阶段。` : "瓜田已经结出成熟瓜，风一吹就沙沙作响。"}</p>
-      </div>
+
+      {ownField && <div className="field-cycle-card">
+        <div><span>吃 5 颗瓜</span><i aria-hidden="true">→</i><span>1 颗真瓜籽</span><i aria-hidden="true">→</i><span>种 12 小时</span></div>
+        <p>{ownField.nextMaturesAt ? `下一颗约 ${formatDuration(Math.max(0, new Date(ownField.nextMaturesAt).getTime() - clock))} 后成熟。` : "吃瓜攒籽，或者分享今天第一颗原创瓜，然后选一片土地种下。"}</p>
+        {visuallyHarvestable
+          ? <button className="harvest-all" onClick={harvestAll} disabled={busy}>{busy ? "正在收瓜…" : "一键收瓜 · +9 XP"}</button>
+          : <small>{field.plantedCount === 9 ? `还差 ${9 - visualMatureCount} 个瓜成熟` : `再种 ${9 - field.plantedCount} 个，集齐后一起收`}</small>}
+        <div className="xp-source"><span>阅读所得 {ownField.experience.fromReads} XP</span><span>收获所得 {ownField.experience.fromHarvests} XP</span></div>
+      </div>}
+
+      {!isOwn && <p className="visiting-field-note">串门只能看这片地长到哪儿；瓜籽、XP 和种植操作只有瓜田主人能看到。</p>}
+
+      {selectedPlot !== null && ownField && <aside className="field-plant-confirm" role="dialog" aria-label="确认播种">
+        <div><span>第 {selectedPlot + 1} 片土地</span><strong>消耗 1 颗真瓜籽</strong></div>
+        <button onClick={() => { setSelectedPlot(null); setPlantOperationId(null); }}>取消</button>
+        <button className="confirm" onClick={plantSelected} disabled={busy}>{busy ? "正在破土…" : "种在这里"}</button>
+      </aside>}
+      {error && <p className="form-error field-error" role="alert">{error}</p>}
+
       <section className="my-melons" aria-labelledby="my-melons-title">
         <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />埋新瓜</button>}</header>
         {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这块地还空着</strong><span>去公共地点附近，埋下第一颗瓜</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
@@ -534,8 +830,9 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
           <div className="melon-peel" aria-hidden="true"><i /><i /><i /><span>{ready ? "瓜瓤见底了" : "慢慢剥开…"}</span></div>
         </div>
         <div className="read-finish">
-          <div className="read-clock" role="status" aria-live="polite" aria-label={completionResult ? (completionResult.readerSeedAwarded ? "完成吃瓜，瓜籽加一" : "已经吃过，本次不重复奖励") : ready ? "已经阅读 5 秒，可以完成吃瓜" : `还需阅读 ${Math.ceil((5000 - elapsed) / 1000)} 秒`}><span style={{ "--progress": `${elapsed / 50}%` } as CSSProperties}>{ready ? <CheckIcon /> : Math.ceil((5000 - elapsed) / 1000)}</span><p><strong>{completionResult ? (completionResult.readerSeedAwarded ? "完成吃瓜 · 瓜籽 +1" : "已经吃过 · 不重复奖励") : ready ? "可以完成吃瓜" : "别急着划走"}</strong><small>{completionResult ? `现在共有 ${completionResult.readerSeedCount} 粒瓜籽` : ready ? "完成后今日有效次数会由服务端判定" : "读满 5 秒，才算认真吃完"}</small></p></div>
-          <button className={finished ? "finish-button finished seed-launch" : "finish-button"} aria-label="完成吃瓜" onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> 已吃完，瓜籽飞进瓜田</> : busy ? "正在留籽…" : "完成吃瓜"}</button>
+          {completionResult?.autoConverted && <span className="seed-convert-burst" aria-hidden="true"><i/><i/><i/><i/><i/><b>真</b></span>}
+          <div className="read-clock" role="status" aria-live="polite" aria-label={completionResult ? readRewardLabel(completionResult) : ready ? "已经阅读 5 秒，可以完成吃瓜" : `还需阅读 ${Math.ceil((5000 - elapsed) / 1000)} 秒`}><span style={{ "--progress": `${elapsed / 50}%` } as CSSProperties}>{ready ? <CheckIcon /> : Math.ceil((5000 - elapsed) / 1000)}</span><p><strong>{completionResult ? readRewardLabel(completionResult) : ready ? "可以完成吃瓜" : "别急着划走"}</strong><small>{completionResult ? `小瓜籽 ${completionResult.wallet.smallSeedCount}/5 · 真瓜籽 ${completionResult.wallet.trueSeedCount}` : ready ? "完成后今日有效次数会由服务端判定" : "读满 5 秒，才算认真吃完"}</small></p></div>
+          <button className={finished ? `finish-button finished ${completionResult?.smallSeedAwarded ? "seed-launch" : ""}` : "finish-button"} aria-label="完成吃瓜" onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> {completionResult ? readRewardLabel(completionResult) : "已吃完"}</> : busy ? "正在留籽…" : "完成吃瓜"}</button>
           {error && <p className="form-error" role="alert">{error}</p>}
         </div>
         {!readOnly && <div className="reaction-row" aria-label="轻反应">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={reacted.includes(key)} aria-label={`${label}，当前 ${reactions[key]} 次${reacted.includes(key) ? "，已留下" : ""}`}><span aria-hidden="true">{reacted.includes(key) ? "✓" : glyph}</span>{label}<small>{reactions[key]}</small></button>)}</div>}
@@ -612,7 +909,7 @@ function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: {
     {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
     <div className={`comment-gate ${canComment ? "is-local" : ""}`}>
       <div className="comment-gate-copy"><LocationIcon /><p><strong>{readOnly ? "当前为只读状态" : canComment ? "现场凭证已点亮" : "远方围观模式"}</strong><small>{readOnly ? "仍可阅读全部公开评论。申诉入口即将开放。" : canComment ? "可以留下 140 字以内的平铺评论。" : "可读全部评论、轻反应和蹲瓜，不显示评论输入框。"}</small></p></div>
-      {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "叶语感应中" : presence ? "继续寻瓜" : "去现场找"}</button>}
+      {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "正在校准" : presence ? "继续摸瓜" : "顺藤摸瓜"}</button>}
       {presence && <p className="presence-result" role="status"><strong>{seekCopy[presence.seekState].label}</strong>{seekCopy[presence.seekState].hint}</p>}
     </div>
     {!readOnly && canComment && <form onSubmit={submit}>
@@ -698,7 +995,7 @@ function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootst
     if (title.trim().length < 4) return setError("标题至少写 4 个字，让路过的猹知道发生了什么。" );
     if (content.trim().length < 20) return setError("故事至少写 20 个字，再留一点现场细节。" );
     setBusy(true);
-    try { await onCreate({ spotId, topic, title: title.trim(), content: content.trim() }); }
+    try { await onCreate({ spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }); }
     catch (caught) { setError(messageFrom(caught)); }
     finally { setBusy(false); }
   };
@@ -728,7 +1025,7 @@ function PlaceScene({ spot, compact = false, stealth = false }: { spot: PublicSp
     <div
       className={`place-scene scene-${scene.kind}${compact ? " is-compact" : ""}${stealth ? " is-stealth" : ""}`}
       role="img"
-      aria-label={`${scene.title}的半真实卡通场景：${scene.sceneLabel}。${detail}，不是实景地图。`}
+      aria-label={`${scene.title}的半真实城市场景：${scene.sceneLabel}。${detail}，不是实景地图。`}
     >
       <span className="scene-sky" aria-hidden="true"><i /></span>
       <span className="scene-buildings" aria-hidden="true"><i /><i /><i /></span>
@@ -769,7 +1066,7 @@ function Sheet({ title, subtitle, onClose, children, wide = false, stealth = fal
 }
 
 function IslandLoading() {
-  return <main className="island-loading" aria-label="正在听王国里的动静"><div><i/><i/><span>猹</span></div><p>正在听王国里的动静…</p></main>;
+  return <main className="island-loading" aria-label="正在听街上的动静"><div><i/><i/><span>猹</span></div><p>正在听街上的动静…</p></main>;
 }
 
 function IslandUnavailable({ error, onRetry, onDemo }: { error: unknown; onRetry: () => void; onDemo?: () => void }) {
@@ -794,6 +1091,34 @@ function formatCountdown(value?: string) {
   if (minutes < 60) return `${minutes} 分钟`;
   const hours = Math.floor(minutes / 60);
   return `${hours} 小时 ${minutes % 60} 分`;
+}
+
+function formatDuration(milliseconds: number) {
+  const minutes = Math.max(0, Math.ceil(milliseconds / 60_000));
+  if (minutes < 60) return `${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}小时${rest}分` : `${hours}小时`;
+}
+
+function createOperationId() {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function isFieldPlant(plant: { plotIndex: FieldPlotIndex; slotIndex: number; stage: string }): plant is FieldPlant {
+  return "id" in plant && "plantedAt" in plant && "maturesAt" in plant;
+}
+
+function readRewardLabel(result: CompleteReadResult) {
+  if (result.autoConverted) return "五籽合一 · 真瓜籽 +1";
+  if (result.smallSeedAwarded) return "完成吃瓜 · 小瓜籽 +1";
+  if (result.counted) return "完成吃瓜 · 今日小籽已领完";
+  return "已经吃过 · 不重复奖励";
 }
 
 function formatRelativeTime(value: string) {

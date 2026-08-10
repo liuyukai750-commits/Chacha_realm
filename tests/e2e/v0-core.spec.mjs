@@ -126,8 +126,11 @@ test.describe("V0 核心循环", () => {
     await expect(page.getByRole("dialog").filter({ hasText: /定位|位置|公共地点.*500\s*米/ }).first()).toBeVisible();
   });
 
-  test("READ-5S / READ-FIRST：满 5 秒后首次完成并奖励 1 粒瓜籽", async ({ page }) => {
-    const api = await installV0Api(page, { seedCount: 2 });
+  test("READ-5S / READ-FIFTH：满 5 秒后第 5 颗小籽自动换成真瓜籽", async ({ page }) => {
+    const api = await installV0Api(page, {
+      wallet: { smallSeedCount: 4, trueSeedCount: 0 },
+      validReadsToday: 4,
+    });
     await enterIsland(page);
     const dialog = await openMelon(page);
     const complete = completeReadControl(dialog);
@@ -135,19 +138,21 @@ test.describe("V0 核心循环", () => {
 
     await expect(readingStatus).toHaveAccessibleName(/还需.*秒/);
     await expect(complete).toBeDisabled();
-    await page.clock.fastForward(4_000);
-    await expect(complete).toBeDisabled();
-    await page.clock.fastForward(1_100);
+    await page.clock.fastForward(5_100);
     await expect(complete).toBeEnabled();
 
     await complete.click();
     await expect.poll(() => api.completeRequests).toEqual([{ readToken: "short-lived-read-token" }]);
-    await expect(page.getByRole("status").filter({ hasText: /瓜籽.*\+1|获得.*1.*瓜籽/ }).first()).toBeVisible();
-    await expect(page.getByLabel(/拥有 3 (粒|颗)瓜籽/)).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /真瓜籽.*\+1|自动.*真瓜籽|五.*变成/ }).first()).toBeVisible();
+    await expect(page.getByText(/真瓜籽\s*1|1\s*颗真瓜籽/).first()).toBeVisible();
   });
 
   test("READ-REPEAT：服务端判定重复阅读时不重复奖励", async ({ page }) => {
-    const api = await installV0Api(page, { seedCount: 3, alreadyCompleted: true });
+    const api = await installV0Api(page, {
+      wallet: { smallSeedCount: 3, trueSeedCount: 1 },
+      validReadsToday: 3,
+      alreadyCompleted: true,
+    });
     await enterIsland(page);
     const dialog = await openMelon(page);
     await page.clock.fastForward(5_000);
@@ -155,7 +160,8 @@ test.describe("V0 核心循环", () => {
 
     await expect.poll(() => api.completeRequests).toHaveLength(1);
     await expect(page.getByRole("status").filter({ hasText: /已经吃过|不重复奖励|本次不计数/ }).first()).toBeVisible();
-    await expect(page.getByLabel(/拥有 3 (粒|颗)瓜籽/)).toBeVisible();
+    await expect(page.getByText(/小瓜籽\s*3|3\s*颗小瓜籽/).first()).toBeVisible();
+    await expect(page.getByText(/真瓜籽\s*1|1\s*颗真瓜籽/).first()).toBeVisible();
   });
 
   test("SQUAT：蹲瓜状态可开启和取消", async ({ page }) => {
@@ -197,7 +203,7 @@ test.describe("V0 核心循环", () => {
     await enterIsland(page);
     const dialog = await openMelon(page);
     await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
-    await dialog.getByRole("button", { name: "去现场找" }).click();
+    await dialog.getByRole("button", { name: "顺藤摸瓜" }).click();
     const input = dialog.getByRole("textbox", { name: /评论/ });
     await expect(input).toBeVisible();
     const commentForm = input.locator("xpath=ancestor::form[1]");
@@ -220,10 +226,13 @@ test.describe("V0 核心循环", () => {
     const dialog = await openMelon(page);
     await dialog.getByRole("link", { name: new RegExp(melon.alias) }).click();
 
-    await expect(page.getByText(melon.alias, { exact: true })).toBeVisible();
-    await expect(page.locator('[aria-label*="阶段"], [aria-label*="stage" i]').first()).toHaveAttribute("aria-label", /花|flower/);
+    await expect(page.getByRole("heading", { level: 1, name: new RegExp(melon.alias) })).toBeVisible();
+    const publicPlot = page.locator('.field-plot-hotspot.is-public[aria-label^="第1片土地"]');
+    await expect(publicPlot).toBeVisible();
+    await expect(publicPlot).toHaveJSProperty("tagName", "DIV");
     await expect(page.getByText(spot.name)).toBeVisible();
-    await expect(page.getByText(/supabase|user id/i)).toHaveCount(0);
+    await expect(page.getByText(/小瓜籽\s*\d|真瓜籽\s*\d|XP\s*\d|\d\s*XP|supabase|user id/i)).toHaveCount(0);
+    await expect(page.locator(".field-ledger, .field-cycle-card, .field-plant-confirm")).toHaveCount(0);
     await expect(page.getByRole("main").getByRole("button", { name: /埋.*瓜|种.*瓜/ })).toHaveCount(0);
   });
 });

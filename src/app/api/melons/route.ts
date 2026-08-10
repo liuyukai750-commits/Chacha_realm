@@ -3,7 +3,7 @@ import { readJson, requireSameOrigin, route } from "@/server/api";
 import { createMelon } from "@/server/repositories/island-repository";
 import { validateLocationProof } from "@/server/security/location";
 import { requireActiveSession } from "@/server/supabase/session";
-import { object, text, topic, uuid } from "@/server/validation";
+import { object, revealMode, text, topic, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +17,9 @@ export async function POST(request: Request) {
       topic: topic(body.topic),
       title: text(body.title, "title", 60),
       content: text(body.content, "content", 1000),
+      revealMode: revealMode(body.revealMode),
       location: validateLocationProof(body.location),
     };
-    return createMelon(input, session.accessToken);
+    return createMelon(input, session.userId);
   });
 }

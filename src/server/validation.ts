@@ -1,10 +1,11 @@
-import type { CityId, CreateReportRequest, ReactionType, SafeTopic } from "@/contracts";
+import type { CityId, CreateReportRequest, FieldPlotIndex, MelonRevealMode, ReactionType, SafeTopic } from "@/contracts";
 
 import { ApiProblem } from "@/server/api";
 
 const cityIds = new Set<CityId>(["changsha", "beijing", "shanghai", "guangzhou", "shenzhen"]);
 const topics = new Set<SafeTopic>(["daily", "work", "relationship", "food", "neighborhood"]);
 const reactions = new Set<ReactionType>(["juicy", "wild", "hug", "follow_up"]);
+const revealModes = new Set<MelonRevealMode>(["open", "seek_locked"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function object(value: unknown): Record<string, unknown> {
@@ -48,6 +49,20 @@ export function topic(value: unknown): SafeTopic {
     throw new ApiProblem(400, "invalid_topic", "话题参数无效。 ");
   }
   return value as SafeTopic;
+}
+
+export function revealMode(value: unknown): MelonRevealMode {
+  if (typeof value !== "string" || !revealModes.has(value as MelonRevealMode)) {
+    throw new ApiProblem(400, "invalid_reveal_mode", "瓜的开启方式无效。 ");
+  }
+  return value as MelonRevealMode;
+}
+
+export function fieldPlotIndex(value: unknown): FieldPlotIndex {
+  if (!Number.isInteger(value) || (value !== 0 && value !== 1 && value !== 2)) {
+    throw new ApiProblem(400, "invalid_plot_index", "土地编号只能是 0、1 或 2。");
+  }
+  return value as FieldPlotIndex;
 }
 
 export function reaction(value: unknown): ReactionType {

@@ -20,7 +20,11 @@ export async function POST(request: Request) {
     const local = evaluated.seekState === "inside_zone" || evaluated.seekState === "found";
     if (!local) return { presence: "remote", seekState: evaluated.seekState };
 
-    const credential = createPresenceCredential(session.userId, evaluated.spotId);
+    const credential = createPresenceCredential(
+      session.userId,
+      evaluated.spotId,
+      evaluated.seekState === "found" ? "found" : "zone",
+    );
     return {
       presence: "local",
       seekState: evaluated.seekState,

@@ -1,6 +1,6 @@
-# 猹猹王国
+# 猹猹街
 
-一个基于公共地点和模糊距离层级的匿名吃瓜社区。V0 覆盖长沙、北京、上海、广州和深圳，核心循环是吃瓜、留籽、瓜田成长、蹲后续和埋瓜。
+一个基于公共地点和模糊距离层级的匿名吃瓜社区。V1 覆盖长沙、北京、上海、广州和深圳，核心循环是吃瓜、五籽合一、三片地播种、蹲后续和埋瓜。
 
 ## 本地运行
 
@@ -27,7 +27,10 @@ npm run dev
 按顺序在目标 Supabase 项目执行：
 
 1. `supabase/migrations/202608040001_v0_schema.sql`
-2. `supabase/seed.sql`
+2. `supabase/migrations/202608090001_presence_comments_moderation.sql`
+3. `supabase/migrations/202608090002_melon_reveal_mode.sql`
+4. `supabase/migrations/202608100001_field_economy_v1.sql`
+5. `supabase/seed.sql`
 
 Schema 默认启用 RLS。用户精确坐标只参与单次服务端距离判断，不持久化，也不返回其他用户坐标。
 

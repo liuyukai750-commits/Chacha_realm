@@ -33,11 +33,27 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await expect(melonTrigger(page)).toBeVisible();
     await expect(page.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).first()).toBeInViewport();
 
+    const quickActions = page.getByRole("group", { name: "瓜区快捷操作" });
+    const [quickActionBox, radarBox] = await Promise.all([
+      quickActions.boundingBox(),
+      page.getByTestId("radar-surface").boundingBox(),
+    ]);
+    expect(quickActionBox, "玩法入口必须有可见布局盒").not.toBeNull();
+    expect(radarBox, "城市瓜区画面必须有可见布局盒").not.toBeNull();
+    const overlapsRadar = !(
+      quickActionBox.x + quickActionBox.width <= radarBox.x
+      || radarBox.x + radarBox.width <= quickActionBox.x
+      || quickActionBox.y + quickActionBox.height <= radarBox.y
+      || radarBox.y + radarBox.height <= quickActionBox.y
+    );
+    expect(overlapsRadar, "玩法入口不能覆盖城市瓜区画面").toBe(false);
+
     if (layout.innerWidth <= 430) {
       const criticalTargets = [
         ...await page.getByRole("navigation").getByRole("button").all(),
-        page.getByRole("button", { name: /开启定位|重新定位/ }),
-        page.getByRole("button", { name: "开始感应", exact: true }),
+        ...await quickActions.getByRole("button").all(),
+        page.getByRole("button", { name: /开启附近1公里|刷新附近1公里/ }),
+        page.getByRole("button", { name: "开始找瓜", exact: true }),
         page.getByRole("button", { name: /瓜篮/ }),
         ...await page.getByRole("group", { name: "按单一话题筛选" }).getByRole("button").all(),
       ];
@@ -92,17 +108,23 @@ test.describe("V0 响应式与无障碍门槛", () => {
     expect(unlabeledFields, "所有可见表单控件必须有可访问名称").toEqual([]);
   });
 
+  test("BRAND-ICP：用户界面统一显示猹猹街，不再出现猹猹王国", async ({ page }) => {
+    await enterIsland(page);
+    await expect(page.getByText("猹猹街", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/猹猹王国/)).toHaveCount(0);
+  });
+
   test("PLACE-SCENE：附近场景贯穿发现、吃瓜和埋瓜，但明确不是实景地图", async ({ page }, testInfo) => {
     await enterIsland(page);
 
-    const discoveryScene = page.getByRole("img", { name: /城市瓜域象征地标.*没有坐标.*不用于导航/ }).first();
+    const discoveryScene = page.getByRole("region", { name: /瓜域.*场景.*没有坐标.*不用于导航/ }).first();
     await expect(discoveryScene).toBeVisible();
     if (testInfo.project.name === "chromium-375") {
       await page.screenshot({ path: testInfo.outputPath("place-scene-discovery.png"), fullPage: true });
     }
 
     const reader = await openMelon(page);
-    await expect(reader.getByRole("img", { name: /半真实卡通场景.*不是实景地图/ })).toBeVisible();
+    await expect(reader.getByRole("img", { name: /半真实城市场景.*不是实景地图/ })).toBeVisible();
     if (testInfo.project.name === "chromium-375") {
       await page.screenshot({ path: testInfo.outputPath("place-scene-reader.png") });
     }
@@ -110,7 +132,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
 
     await page.getByRole("button", { name: /埋.*瓜/ }).first().click();
     const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
-    await expect(buryDialog.getByRole("img", { name: /半真实卡通场景.*不是实景地图/ })).toBeVisible();
+    await expect(buryDialog.getByRole("img", { name: /半真实城市场景.*不是实景地图/ })).toBeVisible();
   });
 
   test("PLACE-PRIVACY：公司、医院和酒店类场景不展示具体机构名称", async ({ page }) => {
@@ -128,7 +150,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await expect(zone.getByRole("heading", { name: "医疗建筑附近", exact: true })).toBeVisible();
     await expect(page.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
 
-    await page.getByRole("button", { name: /吃瓜：职场瓜，医疗建筑附近，同一瓜区/ }).click();
+    await page.getByRole("button", { name: /直接吃：职场瓜，医疗建筑附近，同一瓜区/ }).click();
     const reader = openedMelonDialog(page);
     await expect(reader.getByRole("img", { name: /医疗建筑附近.*地点名称已模糊.*不是实景地图/ })).toBeVisible();
     await expect(page.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
@@ -145,12 +167,101 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await enterIsland(page);
 
     await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
-    await expect(page.getByRole("img", { name: /城市瓜域象征地标.*没有坐标.*不用于导航/ }).first()).toBeVisible();
+    await expect(page.getByRole("region", { name: /瓜域.*场景.*没有坐标.*不用于导航/ }).first()).toBeVisible();
     await expect(melonTrigger(page)).toBeVisible();
     await expect(page.getByRole("button", { name: /埋.*瓜/ }).first()).toBeInViewport();
     if (testInfo.project.name === "chromium-375") {
       await page.screenshot({ path: testInfo.outputPath("place-scene-night.png"), fullPage: true });
     }
+  });
+
+  test("NIGHT-CONTRAST：蓝灰月光模式下核心文字保持清晰", async ({ page }) => {
+    await page.clock.install({ time: new Date("2026-08-04T22:00:00+08:00") });
+    await page.unrouteAll({ behavior: "wait" });
+    await installV0Api(page, {
+      wallet: { smallSeedCount: 2, trueSeedCount: 1 },
+      plants: [
+        { id: "night-seedling", plotIndex: 0, slotIndex: 0, plantedAt: "2026-08-04T16:00:00.000Z", maturesAt: "2026-08-05T04:00:00.000Z", stage: "seedling" },
+        { id: "night-mature", plotIndex: 1, slotIndex: 0, plantedAt: "2026-08-03T16:00:00.000Z", maturesAt: "2026-08-04T04:00:00.000Z", stage: "mature" },
+      ],
+    });
+    await enterIsland(page);
+    await expect(page.locator(".brand strong")).toBeVisible();
+
+    const textLuminance = async (selectors) => page.evaluate((targets) => {
+      const luminance = (color) => {
+        const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+        return channels.reduce((sum, channel, index) => {
+          const value = channel / 255;
+          const linear = value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+          return sum + linear * [0.2126, 0.7152, 0.0722][index];
+        }, 0);
+      };
+
+      return Object.fromEntries(targets.map((selector) => {
+        const element = document.querySelector(selector);
+        return [selector, element ? luminance(getComputedStyle(element).color) : -1];
+      }));
+    }, selectors);
+
+    const radarText = await textLuminance([
+      ".brand strong",
+      ".city-switch",
+      ".zone-kicker",
+      ".zone-heading h2",
+      ".basket-handle strong",
+    ]);
+    for (const [selector, luminance] of Object.entries(radarText)) {
+      expect(luminance, `${selector} 在夜间深色表面上应使用明亮文字`).toBeGreaterThan(0.58);
+    }
+
+    await page.getByRole("button", { name: "瓜田", exact: true }).click();
+    const fieldText = await textLuminance([
+      ".field-ledger strong",
+      ".field-cycle-card>div:first-child",
+      ".field-cycle-card p",
+      ".my-melons h2",
+      ".bottom-dock button.active",
+    ]);
+    for (const [selector, luminance] of Object.entries(fieldText)) {
+      expect(luminance, `${selector} 在夜间瓜田中应保持清晰`).toBeGreaterThan(0.58);
+    }
+
+    const stateContrast = await page.evaluate((selectors) => {
+      const luminance = (color) => {
+        const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [];
+        return channels.reduce((sum, channel, index) => {
+          const value = channel / 255;
+          const linear = value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+          return sum + linear * [0.2126, 0.7152, 0.0722][index];
+        }, 0);
+      };
+      return Object.fromEntries(selectors.map((selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return [selector, -1];
+        const style = getComputedStyle(element);
+        const foreground = luminance(style.color);
+        const background = luminance(style.backgroundColor);
+        return [selector, (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)];
+      }));
+    }, [".field-plot-hotspot>span", ".field-crop.seedling b", ".field-crop.mature b"]);
+    for (const [selector, contrast] of Object.entries(stateContrast)) {
+      expect(contrast, `${selector} 的土地/作物状态文字在夜间应达到 4.5:1`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  test("PHASE-TOGGLE：日夜模式可手动切换并在刷新后保留", async ({ page }) => {
+    await page.clock.install({ time: new Date("2026-08-04T10:00:00+08:00") });
+    await enterIsland(page);
+
+    const shell = page.locator(".sunny-shell");
+    await expect(shell).toHaveAttribute("data-day-phase", "day");
+    await page.getByRole("button", { name: "当前日间模式，切换到夜间模式" }).click();
+    await expect(shell).toHaveAttribute("data-day-phase", "night");
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: "当前夜间模式，切换到日间模式" })).toBeVisible();
+    await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
   });
 
   test("A11Y-KEYBOARD：瓜详情对话框圈定焦点并把焦点还给触发器", async ({ page }) => {

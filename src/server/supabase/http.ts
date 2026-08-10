@@ -31,6 +31,15 @@ function mapSupabaseError(status: number, body: unknown): ApiProblem {
   }
   if (/rate_limited/i.test(signal)) return new ApiProblem(429, "rate_limited", "操作太频繁，请稍后再试。 ");
   if (/content_held/i.test(signal)) return new ApiProblem(422, "content_held", "内容需要安全复核，暂未公开。 ");
+  if (/insufficient_true_seeds/i.test(signal)) {
+    return new ApiProblem(409, "insufficient_true_seeds", "真瓜籽不足，先去吃瓜或分享一颗安全原创瓜吧。");
+  }
+  if (/field_plot_full/i.test(signal)) {
+    return new ApiProblem(409, "field_plot_full", "这片土地已经种满了，请换一片土地。");
+  }
+  if (/field_not_ready/i.test(signal)) {
+    return new ApiProblem(409, "field_not_ready", "九颗瓜全部成熟后才能一键收瓜。");
+  }
   if (/not_available|not_found|P0002/i.test(signal)) return new ApiProblem(404, "not_found", "没有找到可用内容。 ");
   if (/invalid_|22023/i.test(signal)) return new ApiProblem(400, "invalid_request", "请求字段未通过校验。 ");
   return unavailable();

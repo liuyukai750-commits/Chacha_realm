@@ -1,12 +1,15 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
-const TOKEN_VERSION = 1;
+const TOKEN_VERSION = 2;
 const TOKEN_TTL_MS = 15 * 60 * 1000;
+
+export type PresenceTokenLevel = "zone" | "found";
 
 interface PresenceTokenPayload {
   v: typeof TOKEN_VERSION;
   sub: string;
   spotId: string;
+  level: PresenceTokenLevel;
   iat: number;
   exp: number;
   nonce: string;
@@ -33,6 +36,7 @@ function decodePayload(encoded: string): PresenceTokenPayload {
       value.v !== TOKEN_VERSION ||
       typeof value.sub !== "string" ||
       typeof value.spotId !== "string" ||
+      (value.level !== "zone" && value.level !== "found") ||
       typeof value.iat !== "number" ||
       typeof value.exp !== "number" ||
       typeof value.nonce !== "string"
@@ -46,7 +50,7 @@ function decodePayload(encoded: string): PresenceTokenPayload {
 }
 
 export function issuePresenceToken(
-  binding: { userId: string; spotId: string },
+  binding: { userId: string; spotId: string; level: PresenceTokenLevel },
   secret: string,
   now = Date.now(),
   nonce = randomUUID(),
@@ -55,6 +59,7 @@ export function issuePresenceToken(
     v: TOKEN_VERSION,
     sub: binding.userId,
     spotId: binding.spotId,
+    level: binding.level,
     iat: now,
     exp: now + TOKEN_TTL_MS,
     nonce,
@@ -66,10 +71,10 @@ export function issuePresenceToken(
 
 export function verifyPresenceToken(
   token: string,
-  binding: { userId: string; spotId?: string },
+  binding: { userId: string; spotId?: string; requireFound?: boolean },
   secret: string,
   now = Date.now(),
-): { spotId: string; expiresAt: string } {
+): { spotId: string; level: PresenceTokenLevel; expiresAt: string } {
   const [encoded, suppliedMac, extra] = token.split(".");
   if (!encoded || !suppliedMac || extra) throw new PresenceTokenError("invalid");
 
@@ -91,5 +96,6 @@ export function verifyPresenceToken(
   if (payload.sub !== binding.userId || (binding.spotId && payload.spotId !== binding.spotId)) {
     throw new PresenceTokenError("binding_mismatch");
   }
-  return { spotId: payload.spotId, expiresAt: new Date(payload.exp).toISOString() };
+  if (binding.requireFound && payload.level !== "found") throw new PresenceTokenError("binding_mismatch");
+  return { spotId: payload.spotId, level: payload.level, expiresAt: new Date(payload.exp).toISOString() };
 }

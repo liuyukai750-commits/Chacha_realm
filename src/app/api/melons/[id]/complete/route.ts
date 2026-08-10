@@ -15,6 +15,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = object(await readJson(request));
     const readToken = text(body.readToken, "readToken", 4096);
     verifyReadToken(readToken, session.userId, id);
-    return completeRead(id, session.accessToken);
+    return completeRead(id, session.userId);
   });
 }

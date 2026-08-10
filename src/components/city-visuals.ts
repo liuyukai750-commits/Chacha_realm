@@ -12,6 +12,7 @@ export interface CityVisualConfig {
   landmarkKind: CityLandmarkKind;
   landmarkLabel: string;
   realmLabel: string;
+  sceneImages: Readonly<Record<"day" | "night", string>>;
   landmarkSpotIds: readonly string[];
 }
 
@@ -101,6 +102,7 @@ const cityVisuals: Record<CityId, CityVisualConfig> = {
     landmarkKind: "tianxin-orange-isle",
     landmarkLabel: "天心阁与橘子洲意象",
     realmLabel: "湘江边的长沙瓜域",
+    sceneImages: { day: "/scenes/changsha-wuyi-day.png", night: "/scenes/changsha-wuyi-night.png" },
     landmarkSpotIds: ["cs-orange-isle", "cs-tianxin-pavilion", "spot-cs-01", "spot-cs-02"],
   },
   beijing: {
@@ -108,6 +110,7 @@ const cityVisuals: Record<CityId, CityVisualConfig> = {
     landmarkKind: "temple-of-heaven",
     landmarkLabel: "天坛意象",
     realmLabel: "北京城市瓜域",
+    sceneImages: { day: "/scenes/beijing-temple-of-heaven-day-v1.png", night: "/scenes/beijing-temple-of-heaven-night-v1.png" },
     landmarkSpotIds: ["bj-temple-of-heaven"],
   },
   shanghai: {
@@ -115,6 +118,7 @@ const cityVisuals: Record<CityId, CityVisualConfig> = {
     landmarkKind: "oriental-pearl",
     landmarkLabel: "东方明珠意象",
     realmLabel: "黄浦江边的上海瓜域",
+    sceneImages: { day: "/scenes/shanghai-oriental-pearl-day-v1.png", night: "/scenes/shanghai-oriental-pearl-night-v1.png" },
     landmarkSpotIds: ["sh-peoples-square"],
   },
   guangzhou: {
@@ -122,13 +126,15 @@ const cityVisuals: Record<CityId, CityVisualConfig> = {
     landmarkKind: "canton-tower",
     landmarkLabel: "广州塔意象",
     realmLabel: "珠江边的广州瓜域",
+    sceneImages: { day: "/scenes/guangzhou-canton-tower-day-v1.png", night: "/scenes/guangzhou-canton-tower-night-v1.png" },
     landmarkSpotIds: ["gz-library", "gz-haizhu-lake"],
   },
   shenzhen: {
     cityId: "shenzhen",
     landmarkKind: "shenzhen-skyline",
-    landmarkLabel: "深圳城市天际线意象",
-    realmLabel: "深圳城市瓜域",
+    landmarkLabel: "深圳湾意象",
+    realmLabel: "深圳湾畔城市瓜域",
+    sceneImages: { day: "/scenes/shenzhen-bay-day-v1.png", night: "/scenes/shenzhen-bay-night-v1.png" },
     landmarkSpotIds: ["sz-lianhuashan-park", "sz-talent-park"],
   },
 };

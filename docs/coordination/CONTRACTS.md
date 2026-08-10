@@ -1,4 +1,4 @@
-# 猹猹王国 V0 共享契约
+# 猹猹街 V1 共享契约
 
 此文件和 `src/contracts/index.ts` 是跨任务接口真源，仅由总控修改。工作任务不得自行改变字段含义。
 
@@ -23,9 +23,20 @@
 | `POST /api/presence/verify` | `VerifyZonePresenceRequest` | `ZonePresenceResult` |
 | `GET /api/fields/me` | 无 | `FieldView` |
 | `GET /api/fields/:alias` | alias | `FieldView` |
+| `POST /api/fields/me/plant` | `{ plotIndex: 0 \| 1 \| 2, operationId: UUID }` | `PlantFieldResult`；同一 operationId 重试返回首次结果 |
+| `POST /api/fields/me/harvest` | 无 | `HarvestFieldResult` |
 | `POST /api/reports` | `CreateReportRequest` | `{ accepted: true }` |
 
 所有时间使用 ISO 8601 字符串。所有错误返回 `{ error: { code, message } }`。动态路由在 Next.js 16 中必须 await `params`。
+
+## V1 瓜籽与瓜田不变量
+
+- `SeedWallet` 只含小瓜籽与真瓜籽；小瓜籽范围恒为 `0..4`，第 5 次当日有效吃瓜在同一事务中自动换成 1 颗真瓜籽。
+- 每日边界统一使用 `Asia/Shanghai`。每天第一颗进入 `incubating` 的安全原创瓜奖励 1 颗真瓜籽；`held` 与失败请求不奖励。
+- 瓜田固定 3 片地，每片 3 个活动位。游戏瓜不关联帖子，服务端以 `plantedAt / maturesAt` 判定 12 小时成长。
+- 九瓜全部成熟才允许一次性收获；收获归档本批九瓜并恰好增加 9 XP。
+- 每位不同读者第一次有效吃完一颗瓜，为作者增加 1 XP；自读、重复与无效阅读不增加。
+- `GET /api/fields/:alias` 不返回钱包、经验、精确种植/成熟时间或操作权限；只有 `GET /api/fields/me` 返回 `OwnFieldView`。
 
 评论写入必须携带仍有效的瓜区凭证。凭证绑定匿名会话与公共地点，默认 15 分钟过期，不包含原始经纬度。距离公共地点 1 公里内为 `local`，500 米内为 `found`；远程用户可以读取评论、轻反应和蹲瓜，但不能发表文字评论。
 

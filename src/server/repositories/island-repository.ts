@@ -9,17 +9,24 @@ import type {
   CreateReportRequest,
   DiscoveryRequest,
   DiscoveryResponse,
-  FieldStage,
+  DiscoverySceneContext,
+  FieldPlotIndex,
   FieldView,
+  HarvestFieldResult,
   MelonComment,
   MelonCommentsPage,
   MelonDetail,
   MelonPreview,
+  MelonRevealMode,
+  OwnFieldView,
+  PlantFieldResult,
+  PublicFieldView,
   ReactionType,
   VisitorType,
 } from "@/contracts";
 import { ApiProblem } from "@/server/api";
 import { decodeCommentCursor, encodeCommentCursor } from "@/server/repositories/comment-cursor";
+import { isInsidePublicSpotScene } from "@/server/security/discovery-scene";
 import { distanceMeters, toDistanceBand } from "@/server/security/location";
 import { requireSafeSeek } from "@/server/security/seek";
 import { rpc, selectRows, serviceRpc } from "@/server/supabase/http";
@@ -39,22 +46,6 @@ interface DiscoveryCandidate extends Omit<MelonPreview, "distanceBand" | "isRemo
   createdAt: string;
 }
 
-interface RawFieldView {
-  alias: string;
-  animal: string;
-  seedCount: number;
-  melons: MelonPreview[];
-}
-
-function fieldStage(seedCount: number): { stage: FieldStage; nextStageAt?: number } {
-  if (seedCount >= 21) return { stage: "ripe_melon" };
-  if (seedCount >= 12) return { stage: "green_melon", nextStageAt: 21 };
-  if (seedCount >= 7) return { stage: "flower", nextStageAt: 12 };
-  if (seedCount >= 3) return { stage: "vine", nextStageAt: 7 };
-  if (seedCount >= 1) return { stage: "sprout", nextStageAt: 3 };
-  return { stage: "bare", nextStageAt: 1 };
-}
-
 async function publicSpots(accessToken: string): Promise<PublicSpotRow[]> {
   return selectRows<PublicSpotRow[]>(
     "public_spots",
@@ -70,6 +61,26 @@ function nearestSpot(location: { latitude: number; longitude: number }, spots: P
     if (!nearest || distanceM < nearest.distanceM) nearest = { spot, distanceM };
   }
   return nearest;
+}
+
+function discoverySceneContext(
+  location: DiscoveryRequest["location"],
+  nearest: { spot: PublicSpotRow; distanceM: number } | null,
+): DiscoverySceneContext {
+  if (!location) return { kind: "city_overview" };
+  const accuracyM = Math.max(0, location.accuracyM ?? 0);
+  if (!nearest || !isInsidePublicSpotScene(nearest.distanceM, accuracyM)) {
+    return { kind: "nearby_area" };
+  }
+  return {
+    kind: "public_spot",
+    spot: {
+      id: nearest.spot.id,
+      cityId: nearest.spot.city_id,
+      districtId: nearest.spot.district_id,
+      name: nearest.spot.name,
+    },
+  };
 }
 
 export async function getCities(): Promise<CitySummary[]> {
@@ -108,6 +119,7 @@ export async function discover(
         ...(candidate.title ? { title: candidate.title } : {}),
         ...(typeof candidate.commentCount === "number" ? { commentCount: candidate.commentCount } : {}),
         isRemote: candidate.cityId !== activeCityId,
+        revealMode: candidate.revealMode ?? "open",
       };
       const priority = activeDistrictId && candidate.districtId === activeDistrictId ? 0 : candidate.cityId === activeCityId ? 1 : 2;
       return { preview, priority, distanceM, createdAt: Date.parse(candidate.createdAt) };
@@ -118,31 +130,44 @@ export async function discover(
   return {
     visitorType,
     activeCityId,
+    sceneContext: discoverySceneContext(input.location, nearest),
     items,
     localEmpty: !items.some((item) => item.cityId === activeCityId),
   };
 }
 
-export async function createMelon(input: CreateMelonRequest, accessToken: string): Promise<CreateMelonResult> {
+export async function createMelon(input: CreateMelonRequest, actorId: string): Promise<CreateMelonResult> {
   const evaluated = requireSafeSeek(input.spotId, input.location);
   if (evaluated.seekState !== "found") {
     throw new ApiProblem(403, "outside_spot_radius", "只有定位误差范围完整落在公共地点 500 米内才能埋瓜。 ");
   }
-  return rpc<CreateMelonResult>(
+  return serviceRpc<CreateMelonResult>(
     "create_melon",
-    { p_spot_id: input.spotId, p_topic: input.topic, p_title: input.title, p_content: input.content },
-    accessToken,
+    {
+      p_actor_id: actorId,
+      p_spot_id: input.spotId,
+      p_topic: input.topic,
+      p_title: input.title,
+      p_content: input.content,
+      p_reveal_mode: input.revealMode,
+    },
   );
 }
 
-export async function openMelon(melonId: string, accessToken: string): Promise<MelonDetail> {
-  const detail = await rpc<MelonDetail | null>("get_melon_detail", { p_melon_id: melonId }, accessToken);
+export async function openMelon(melonId: string, actorId: string): Promise<MelonDetail> {
+  const detail = await serviceRpc<(Omit<MelonDetail, "revealMode"> & { revealMode?: MelonRevealMode }) | null>(
+    "get_melon_detail_for_actor",
+    { p_melon_id: melonId, p_actor_id: actorId },
+  );
   if (!detail) throw new ApiProblem(404, "not_found", "这个瓜尚未成熟或已不可用。 ");
-  return detail;
+  return { ...detail, revealMode: detail.revealMode ?? "open" };
 }
 
-export function completeRead(melonId: string, accessToken: string): Promise<CompleteReadResult> {
-  return rpc<CompleteReadResult>("complete_melon_read", { p_melon_id: melonId }, accessToken);
+export function completeRead(melonId: string, actorId: string): Promise<CompleteReadResult> {
+  return serviceRpc<CompleteReadResult>("complete_melon_read", {
+    p_actor_id: actorId,
+    p_melon_id: melonId,
+  });
 }
 
 export function setSquat(melonId: string, active: boolean, accessToken: string): Promise<{ active: boolean }> {
@@ -190,16 +215,28 @@ export async function addComment(
   return result.comment;
 }
 
+export function getField(alias: null, accessToken: string): Promise<OwnFieldView>;
+export function getField(alias: string, accessToken: string): Promise<PublicFieldView>;
 export async function getField(alias: string | null, accessToken: string): Promise<FieldView> {
-  const field = await rpc<RawFieldView | null>("get_field_view", { p_alias: alias }, accessToken);
+  const field = await rpc<FieldView | null>("get_field_view", { p_alias: alias }, accessToken);
   if (!field) throw new ApiProblem(404, "not_found", "没有找到这片瓜田。 ");
-  const stage = fieldStage(field.seedCount);
-  return {
-    alias: field.alias,
-    animal: field.animal,
-    progress: { seedCount: field.seedCount, stage: stage.stage, ...(stage.nextStageAt ? { nextStageAt: stage.nextStageAt } : {}) },
-    melons: field.melons,
-  };
+  return field;
+}
+
+export function plantField(
+  plotIndex: FieldPlotIndex,
+  operationId: string,
+  accessToken: string,
+): Promise<PlantFieldResult> {
+  return rpc<PlantFieldResult>(
+    "plant_field_melon",
+    { p_plot_index: plotIndex, p_operation_id: operationId },
+    accessToken,
+  );
+}
+
+export function harvestField(accessToken: string): Promise<HarvestFieldResult> {
+  return rpc<HarvestFieldResult>("harvest_field", {}, accessToken);
 }
 
 export function createReport(input: CreateReportRequest, accessToken: string): Promise<{ accepted: true }> {

@@ -7,8 +7,11 @@ export type VisitorType = "local" | "outsider" | "location_unknown";
 export type MelonStatus = "incubating" | "mature" | "archived" | "held" | "removed";
 export type DistanceBand = "within_1km" | "within_3km" | "within_8km" | "within_20km" | "remote";
 export type SafeTopic = "daily" | "work" | "relationship" | "food" | "neighborhood";
+export type MelonRevealMode = "open" | "seek_locked";
 export type ReactionType = "juicy" | "wild" | "hug" | "follow_up";
-export type FieldStage = "bare" | "sprout" | "vine" | "flower" | "green_melon" | "ripe_melon";
+export type FieldPlantStage = "seedling" | "growing" | "mature";
+export type FieldPlotIndex = 0 | 1 | 2;
+export type FieldSlotIndex = 0 | 1 | 2;
 export type ZonePresence = "unknown" | "remote" | "local";
 export type SeekState = "outside" | "near" | "inside_zone" | "found";
 export type AccountStatus = "active" | "banned";
@@ -26,8 +29,20 @@ export interface LocationProof extends Coordinates {
 export interface AnonymousSession {
   alias: string;
   animal: string;
-  seedCount: number;
+  wallet: SeedWallet;
+  experience: ExperienceSummary;
   accountStatus?: AccountStatus;
+}
+
+export interface SeedWallet {
+  smallSeedCount: number;
+  trueSeedCount: number;
+}
+
+export interface ExperienceSummary {
+  total: number;
+  fromReads: number;
+  fromHarvests: number;
 }
 
 export interface PublicSpotSummary {
@@ -36,6 +51,11 @@ export interface PublicSpotSummary {
   districtId: DistrictId;
   name: string;
 }
+
+export type DiscoverySceneContext =
+  | { kind: "city_overview" }
+  | { kind: "nearby_area" }
+  | { kind: "public_spot"; spot: PublicSpotSummary };
 
 export interface CityOpeningState {
   cityId: CityId;
@@ -68,6 +88,7 @@ export interface MelonPreview {
   title?: string;
   commentCount?: number;
   isRemote: boolean;
+  revealMode: MelonRevealMode;
 }
 
 export interface MelonDetail extends MelonPreview {
@@ -88,6 +109,7 @@ export interface DiscoveryRequest {
 export interface DiscoveryResponse {
   visitorType: VisitorType;
   activeCityId: CityId;
+  sceneContext: DiscoverySceneContext;
   items: MelonPreview[];
   localEmpty: boolean;
 }
@@ -97,6 +119,7 @@ export interface CreateMelonRequest {
   topic: SafeTopic;
   title: string;
   content: string;
+  revealMode: MelonRevealMode;
   location: LocationProof;
 }
 
@@ -104,6 +127,8 @@ export interface CreateMelonResult {
   id: string;
   status: "incubating" | "held";
   maturesAt?: string;
+  trueSeedAwarded: boolean;
+  wallet: SeedWallet;
 }
 
 export interface OpenedMelon {
@@ -118,31 +143,83 @@ export interface CompleteReadRequest {
 
 export interface CompleteReadResult {
   counted: boolean;
-  readerSeedAwarded: boolean;
-  authorSeedAwarded: boolean;
-  readerSeedCount: number;
+  smallSeedAwarded: boolean;
+  autoConverted: boolean;
+  wallet: SeedWallet;
+  authorExperienceAwarded: number;
   completedReads: number;
 }
 
-export interface FieldProgress {
-  seedCount: number;
-  stage: FieldStage;
-  nextStageAt?: number;
+export interface PublicFieldPlant {
+  plotIndex: FieldPlotIndex;
+  slotIndex: FieldSlotIndex;
+  stage: FieldPlantStage;
 }
 
-export interface FieldView {
+export interface FieldPlant extends PublicFieldPlant {
+  id: string;
+  plantedAt: string;
+  maturesAt: string;
+}
+
+export interface FieldPlot<TPlant extends PublicFieldPlant = PublicFieldPlant> {
+  plotIndex: FieldPlotIndex;
+  capacity: 3;
+  plants: TPlant[];
+}
+
+export interface PublicFieldView {
   alias: string;
   animal: string;
-  progress: FieldProgress;
+  plots: FieldPlot[];
+  plantedCount: number;
+  matureCount: number;
   melons: MelonPreview[];
+}
+
+export interface OwnFieldView extends Omit<PublicFieldView, "plots"> {
+  plots: FieldPlot<FieldPlant>[];
+  wallet: SeedWallet;
+  experience: ExperienceSummary;
+  canHarvest: boolean;
+  nextMaturesAt?: string;
+}
+
+export type FieldView = PublicFieldView | OwnFieldView;
+
+export interface PlantFieldRequest {
+  plotIndex: FieldPlotIndex;
+  operationId: string;
+}
+
+export interface PlantFieldResult {
+  plant: FieldPlant;
+  wallet: SeedWallet;
+  field: OwnFieldView;
+}
+
+export interface HarvestFieldResult {
+  harvestedCount: 9;
+  experienceAwarded: 9;
+  experience: ExperienceSummary;
+  field: OwnFieldView;
 }
 
 export interface SeedLedgerEntry {
   id: string;
-  reason: "read_complete" | "author_read";
-  amount: 1;
+  reason:
+    | "small_seed_read"
+    | "small_seed_exchange"
+    | "true_seed_share"
+    | "true_seed_plant"
+    | "author_read_xp"
+    | "field_harvest_xp";
+  resource: "small_seed" | "true_seed" | "experience";
+  amount: number;
   createdAt: string;
-  melonId: string;
+  melonId?: string;
+  plantId?: string;
+  harvestBatchId?: string;
 }
 
 export interface MelonComment {
