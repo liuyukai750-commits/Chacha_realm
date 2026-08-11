@@ -95,6 +95,20 @@ type LandmarkKind = "pavilion" | "temple" | "pearl" | "canton" | "skyline" | "me
 type DiscoveryScope = "nearby" | "city";
 type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded">;
 
+async function refreshOwnFieldAfterCreate(adapter: IslandAdapter): Promise<FieldView> {
+  const delays = [0, 600, 1_800];
+  let lastError: unknown;
+  for (const delay of delays) {
+    if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
+    try {
+      return await adapter.field();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 const demoNearbyCoordinates = {
   latitude: 28.195397,
   longitude: 112.976869,
@@ -279,7 +293,7 @@ export function ChachaIsland() {
       ? "瓜埋好了 · 今日首颗安全原创奖励真瓜籽 +1"
       : "瓜埋好了 · 今天的首发真瓜籽奖励已经领过");
 
-    void islandAdapter.field().then(
+    void refreshOwnFieldAfterCreate(islandAdapter).then(
       (field) => setModel((current) => current ? {
         ...current,
         field,
@@ -776,8 +790,8 @@ function MyField({ field, isOwn, onBury, onPlant, onRefresh, onHarvest, onHarves
       {error && <p className="form-error field-error" role="alert">{error}</p>}
 
       <section className="my-melons" aria-labelledby="my-melons-title">
-        <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />埋新瓜</button>}</header>
-        {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这块地还空着</strong><span>去公共地点附近，埋下第一颗瓜</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
+        <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />再埋一个故事</button>}</header>
+        {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "held" ? "安全复核中 · 暂不发籽" : melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这里还没有埋过故事</strong><span>可以埋在附近生活圈或公共地点</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
       </section>
     </section>
   );

@@ -758,13 +758,17 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .bury-mode-picker button{padding-inline:9px}
 }
 
-/* Published feedback stays in document flow, so it remains visible without
-   competing with the fixed bottom navigation. */
+/* Publishing feedback must stay in the current viewport. Mobile users often
+   submit from the bottom of a long sheet, so an in-flow result above the fold
+   looks like no response at all. */
 .bury-success-panel{
-  position:relative;
-  z-index:12;
-  width:100%;
-  margin:0 0 14px;
+  position:fixed;
+  z-index:45;
+  left:50%;
+  bottom:calc(100px + env(safe-area-inset-bottom));
+  width:min(calc(100% - 28px),560px);
+  margin:0;
+  transform:translateX(-50%);
   padding:14px 15px;
   border:1px solid rgba(34,91,72,.34);
   border-radius:16px;

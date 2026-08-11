@@ -105,6 +105,10 @@ export interface MelonDetail extends MelonPreview {
   reactions: Record<ReactionType, number>;
 }
 
+export interface FieldMelonPreview extends Omit<MelonPreview, "status"> {
+  status: "incubating" | "mature" | "held";
+}
+
 export interface DiscoveryRequest {
   location?: LocationProof;
   selectedCityId?: CityId;
@@ -181,7 +185,7 @@ export interface PublicFieldView {
   plots: FieldPlot[];
   plantedCount: number;
   matureCount: number;
-  melons: MelonPreview[];
+  melons: FieldMelonPreview[];
 }
 
 export interface OwnFieldView extends Omit<PublicFieldView, "plots"> {
