@@ -24,6 +24,7 @@ import type {
   CityOpeningState,
   CompleteReadResult,
   CreateMelonRequest,
+  CreateMelonResult,
   CreateReportRequest,
   DiscoverySceneContext,
   DistanceBand,
@@ -92,6 +93,7 @@ const seekCopy: Record<SeekState, { label: string; hint: string; notice: string 
 
 type LandmarkKind = "pavilion" | "temple" | "pearl" | "canton" | "skyline" | "meadow";
 type DiscoveryScope = "nearby" | "city";
+type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded">;
 
 const demoNearbyCoordinates = {
   latitude: 28.195397,
@@ -131,6 +133,7 @@ export function ChachaIsland() {
   const [discoveryScope, setDiscoveryScope] = useState<DiscoveryScope>("city");
   const [showCities, setShowCities] = useState(false);
   const [showBury, setShowBury] = useState(false);
+  const [buryFeedback, setBuryFeedback] = useState<BuryFeedback | null>(null);
   const [notice, setNotice] = useState("定位未开启 · 正在浏览公开瓜场");
 
   useLayoutEffect(() => {
@@ -257,19 +260,45 @@ export function ChachaIsland() {
       ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString(), simulated: true, simulationLabel: input.burialKind === "public_spot" ? "demo_public_spot_arrival" : "demo_nearby_life_circle" }
       : await requestLocationProof();
     const result = await islandAdapter.createMelon({ ...input, location });
-    if (model) {
-      const discovery = await islandAdapter.discover({ location, selectedCityId: input.cityId ?? model.discovery.activeCityId });
-      setModel({ ...model, session: { ...model.session, wallet: result.wallet }, discovery });
-      setDiscoveryScope("nearby");
-    }
+
+    // The create transaction is the source of truth. Reflect it before any
+    // secondary refresh so a slow discovery request cannot hide a successful
+    // publish or its wallet reward on mobile networks.
     setShowBury(false);
-    setTab("radar");
-    setNotice(result.status === "held" ? "这颗瓜需要人工复核，暂时不会成熟" : result.trueSeedAwarded ? "瓜埋好了 · 今日首颗原创奖励真瓜籽 +1" : "瓜埋好了 · 约 2 小时后成熟");
-    try {
-      const field = await islandAdapter.field();
-      setModel((current) => current ? { ...current, field, session: { ...current.session, wallet: result.wallet } } : current);
-    } catch {
-      setNotice(result.trueSeedAwarded ? "瓜已埋好，真瓜籽 +1 · 瓜田数据稍后再刷新" : "瓜已埋好 · 瓜田数据稍后再刷新");
+    setBuryFeedback({ id: result.id, status: result.status, trueSeedAwarded: result.trueSeedAwarded });
+    setModel((current) => {
+      if (!current) return current;
+      const field = "wallet" in current.field
+        ? { ...current.field, wallet: result.wallet }
+        : current.field;
+      return { ...current, field, session: { ...current.session, wallet: result.wallet } };
+    });
+    setNotice(result.status === "held"
+      ? "瓜已收到 · 内容正在安全复核，暂不发放真瓜籽"
+      : result.trueSeedAwarded
+      ? "瓜埋好了 · 今日首颗安全原创奖励真瓜籽 +1"
+      : "瓜埋好了 · 今天的首发真瓜籽奖励已经领过");
+
+    void islandAdapter.field().then(
+      (field) => setModel((current) => current ? {
+        ...current,
+        field,
+        session: { ...current.session, wallet: result.wallet },
+      } : current),
+      () => setNotice(result.trueSeedAwarded
+        ? "瓜已埋好，真瓜籽 +1 · 瓜田列表暂时没刷新，可点击重试"
+        : "瓜已埋好 · 瓜田列表暂时没刷新，可点击重试"),
+    );
+
+    const selectedCityId = input.cityId ?? model?.discovery.activeCityId;
+    if (selectedCityId) {
+      void islandAdapter.discover({ location, selectedCityId }).then(
+        (discovery) => {
+          setModel((current) => current ? { ...current, discovery } : current);
+          setDiscoveryScope("nearby");
+        },
+        () => undefined,
+      );
     }
   };
 
@@ -330,6 +359,22 @@ export function ChachaIsland() {
       <main className="island-main">
         {writesBlocked && <div className="account-readonly" role="status"><strong>当前为只读状态</strong><span>匿名身份已被封禁，仍可读瓜和查看公开评论。申诉入口即将开放。</span></div>}
         {!opened && !showBury && !showCities && <div className="live-notice" role="status"><span aria-hidden="true" />{notice}</div>}
+        {buryFeedback && !opened && !showBury && !showCities && <section className="bury-success-panel" aria-label="埋瓜结果">
+          <div role="status" aria-live="polite">
+            <strong>{buryFeedback.status === "held" ? "瓜已送去安全复核" : "这颗瓜已经埋好"}</strong>
+            <p>{buryFeedback.status === "held"
+              ? "复核通过前不会公开，也不会发放首发真瓜籽。"
+              : buryFeedback.trueSeedAwarded
+              ? "今日首颗安全原创奖励了 1 颗真瓜籽，现在可以种进自己的瓜田。"
+              : "它已经进入孵化；今天的首发真瓜籽奖励此前已经领过。"}</p>
+          </div>
+          <div>
+            <button type="button" onClick={async () => { setBuryFeedback(null); await showOwnField(); }}>
+              <FieldIcon />{buryFeedback.trueSeedAwarded ? "去瓜田种下" : "查看我埋下的瓜"}
+            </button>
+            <button type="button" aria-label="关闭埋瓜结果" onClick={() => setBuryFeedback(null)}><CloseIcon /></button>
+          </div>
+        </section>}
         {tab === "radar" ? (
           <RadarView
             key={`${activeCity.id}-${discoveryScope}`}

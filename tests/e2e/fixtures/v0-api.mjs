@@ -238,6 +238,9 @@ export async function installV0Api(page, options = {}) {
     completeRequests: [],
     createRequests: [],
     createOperations: new Map(),
+    createdMelons: structuredClone(options.createdMelons ?? []),
+    createStatusSequence: [...(options.createStatusSequence ?? [])],
+    fieldRequests: [],
     discoveryRequests: [],
     presenceRequests: [],
     reactionRequests: [],
@@ -472,15 +475,39 @@ export async function installV0Api(page, options = {}) {
           403,
         );
       }
-      const trueSeedAwarded = !state.originalRewardClaimed;
+      const status = state.createStatusSequence.shift() ?? "incubating";
+      const trueSeedAwarded = status === "incubating" && !state.originalRewardClaimed;
       if (trueSeedAwarded) {
         state.originalRewardClaimed = true;
         state.wallet.trueSeedCount += 1;
       }
+      const createdSpot = body.burialKind === "nearby_area"
+        ? {
+            id: `nearby-area-${body.cityId}`,
+            cityId: body.cityId,
+            districtId: "nearby-area",
+            name: "附近生活圈",
+          }
+        : state.activeSpot;
+      const createdMelon = {
+        id: `melon-new-${state.createdMelons.length + 1}`,
+        status,
+        topic: body.topic,
+        cityId: body.cityId,
+        districtId: createdSpot.districtId,
+        spot: createdSpot,
+        burialKind: body.burialKind,
+        distanceBand: "within_1km",
+        maturesAt: status === "incubating" ? "2026-08-04T14:00:00.000Z" : undefined,
+        completedReads: 0,
+        isRemote: false,
+        revealMode: "open",
+      };
+      if (status === "incubating" || status === "mature") state.createdMelons.unshift(createdMelon);
       const result = {
-        id: "melon-new",
-        status: "incubating",
-        maturesAt: "2026-08-04T14:00:00.000Z",
+        id: createdMelon.id,
+        status,
+        ...(createdMelon.maturesAt ? { maturesAt: createdMelon.maturesAt } : {}),
         trueSeedAwarded,
         wallet: { ...state.wallet },
       };
@@ -489,6 +516,7 @@ export async function installV0Api(page, options = {}) {
     }
 
     if (method === "GET" && path === "/api/fields/me") {
+      state.fieldRequests.push({ at: Date.now() });
       return json(route, ownField(state));
     }
 
@@ -600,7 +628,7 @@ function ownField(state) {
     plantedCount: state.plants.length,
     matureCount,
     nextMaturesAt: state.plants.find((plant) => plant.stage !== "mature")?.maturesAt,
-    melons: [],
+    melons: structuredClone(state.createdMelons),
     wallet: { ...state.wallet },
     experience: { ...state.experience },
     canHarvest: state.plants.length === 9 && matureCount === 9,

@@ -11,7 +11,6 @@ import type {
   MelonComment,
   MelonCommentsPage,
   OpenedMelon,
-  OwnFieldView,
   PlantFieldRequest,
   PlantFieldResult,
   ReactionType,
@@ -47,20 +46,6 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-function emptyField(session: AnonymousSession): OwnFieldView {
-  return {
-    alias: session.alias,
-    animal: session.animal,
-    plots: ([0, 1, 2] as const).map((plotIndex) => ({ plotIndex, capacity: 3, plants: [] })),
-    plantedCount: 0,
-    matureCount: 0,
-    melons: [],
-    wallet: session.wallet,
-    experience: session.experience,
-    canHarvest: false,
-  };
-}
-
 export const httpIslandAdapter: IslandAdapter = {
   async bootstrap(): Promise<IslandBootstrap> {
     const [session, cities] = await Promise.all([
@@ -68,8 +53,11 @@ export const httpIslandAdapter: IslandAdapter = {
       requestJson<CitySummary[]>("/api/cities"),
     ]);
     const selectedCityId = cities[0]?.id;
-    const discovery = await requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(selectedCityId ? { selectedCityId } : {}) });
-    return { session, cities, discovery, field: emptyField(session), melonDetails: {} };
+    const [discovery, field] = await Promise.all([
+      requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(selectedCityId ? { selectedCityId } : {}) }),
+      requestJson<FieldView>("/api/fields/me"),
+    ]);
+    return { session, cities, discovery, field, melonDetails: {} };
   },
   discover(request) {
     return requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(request) });
