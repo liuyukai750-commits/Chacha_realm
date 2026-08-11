@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import type { BurialKind, CityId, CitySummary, CreateMelonRequest, SafeTopic } from "@/contracts";
 import { getSpotScene } from "./city-visuals";
 import { CheckIcon, CloseIcon, LocationIcon, RadarIcon } from "./icons";
@@ -40,6 +40,7 @@ export function BurySheetV1({
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const selectedSpot = spots.find((spot) => spot.id === spotId);
   const missingItems = [
     buryMode === "public_spot" && !spotId ? "请选择公共地点" : "",
@@ -61,6 +62,10 @@ export function BurySheetV1({
         : { operationId, burialKind: "public_spot", cityId, spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "这次没有成功，请稍后再试。");
+      window.requestAnimationFrame(() => {
+        errorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        errorRef.current?.focus({ preventScroll: true });
+      });
     } finally {
       setBusy(false);
     }
@@ -110,9 +115,9 @@ export function BurySheetV1({
             {buryMode === "public_spot" && selectedSpot && <div className="bury-mode-note" role="status"><RadarIcon /><p><strong>{getSpotScene(selectedSpot).displayName}</strong>提交时验证约 500 米范围，人在别的城市会返回明确错误。</p></div>}
             <p className="safety-note">不要写真实姓名、联系方式、具体门牌或能认出某个人的信息。禁止造谣和开黄腔。</p>
             <div className="location-gate"><LocationIcon /><p><strong>发布时才请求一次定位</strong>{buryMode === "nearby_area" ? "只用于服务端计算模糊生活圈；不保存原始经纬度。" : "只用于服务端验证你在所选公共地点约 500 米内；不保存原始经纬度。"}</p></div>
-            {error && <p className="form-error" role="alert">{error}</p>}
+            {error && <p ref={errorRef} className="form-error bury-submit-error" role="alert" aria-live="assertive" tabIndex={-1}><strong>这次还没埋成功</strong><span>{error}</span></p>}
             {!canSubmit && !busy && <p className="form-missing" role="status">还差：{missingItems.join("、")}</p>}
-            <button className="bury-submit" aria-label="埋瓜，把秘密压进土里" disabled={!canSubmit}>{busy ? "正在压土..." : demoMode ? "模拟抵达并埋瓜" : "把秘密压进土里"}</button>
+            <button className="bury-submit" aria-label="埋瓜，把秘密压进土里" disabled={!canSubmit}>{busy ? "正在压土..." : error ? "重新埋一次" : demoMode ? "模拟抵达并埋瓜" : "把秘密压进土里"}</button>
           </form>
         </div>
       </section>

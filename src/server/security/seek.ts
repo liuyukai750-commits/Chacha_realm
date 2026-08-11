@@ -17,7 +17,7 @@ export function requireSafeSeek(spotId: string, location: LocationProof): { spot
     throw new ApiProblem(400, "stale_location", "位置证明已过期，请重新获取位置。 ");
   }
   if (evaluated.reason === "low_accuracy" || evaluated.reason === "boundary_uncertain") {
-    throw new ApiProblem(400, "location_too_imprecise", "当前定位精度不足，请靠近公共地点后重试。 ");
+    throw new ApiProblem(400, "location_too_imprecise", "定位精度不足，请在 iPhone 设置中为 Safari 开启精确位置，并靠近所选公共地点后重试。");
   }
   throw new ApiProblem(400, "invalid_location", "需要有效的一次性位置证明。 ");
 }

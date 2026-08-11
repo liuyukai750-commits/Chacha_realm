@@ -24,7 +24,15 @@ export async function route<T>(work: () => Promise<T>): Promise<NextResponse<T |
   try {
     return NextResponse.json(await work());
   } catch (error) {
-    if (error instanceof ApiProblem) return apiError(error);
+    if (error instanceof ApiProblem) {
+      // Log only the status and stable error code. Request bodies, content,
+      // tokens and one-time coordinates must never enter application logs.
+      console.warn("[api] request rejected", { status: error.status, code: error.code });
+      return apiError(error);
+    }
+    console.error("[api] internal error", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
     return apiError(new ApiProblem(500, "internal_error", "服务暂时开小差了，请稍后再试。"));
   }
 }

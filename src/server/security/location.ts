@@ -30,7 +30,7 @@ export function validateLocationProof(value: unknown, now = Date.now()): Locatio
     throw new ApiProblem(400, "invalid_location", "位置证明格式无效。 ");
   }
   if (accuracyM !== undefined && (typeof accuracyM !== "number" || accuracyM < 0 || accuracyM > 1000)) {
-    throw new ApiProblem(400, "location_too_imprecise", "当前位置精度不足，请靠近公共地点后重试。 ");
+    throw new ApiProblem(400, "location_too_imprecise", "定位精度不足，请在 iPhone 设置中为 Safari 开启精确位置后重试。");
   }
   const capturedTime = Date.parse(capturedAt);
   if (!Number.isFinite(capturedTime) || capturedTime < now - MAX_LOCATION_AGE_MS || capturedTime > now + MAX_FUTURE_SKEW_MS) {

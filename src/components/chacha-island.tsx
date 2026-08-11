@@ -1087,9 +1087,17 @@ function requestLocationProof(): Promise<LocationProof> {
     if (!window.isSecureContext) return reject(new Error("当前页面不是安全连接，不能读取位置。仍可按城市继续浏览。" ));
     if (!("geolocation" in navigator)) return reject(new Error("当前浏览器不支持定位。仍可按城市继续浏览。" ));
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracyM: position.coords.accuracy, capturedAt: new Date(position.timestamp).toISOString() }),
+      (position) => resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyM: position.coords.accuracy,
+        // Safari may reuse a provider timestamp even when maximumAge is zero.
+        // The proof is created when this callback receives the position; the
+        // coordinates themselves are never persisted or written to logs.
+        capturedAt: new Date().toISOString(),
+      }),
       (error) => reject(new Error(error.code === error.PERMISSION_DENIED ? "定位已拒绝 · 已保留城市浏览，埋瓜需要本次定位" : "这次没有取到位置 · 可以重试或继续按城市浏览" )),
-      { enableHighAccuracy: false, maximumAge: 0, timeout: 8000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
     );
   });
 }
