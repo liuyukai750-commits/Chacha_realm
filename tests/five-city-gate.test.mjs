@@ -45,6 +45,9 @@ test("nearby discovery is filtered by service-role RPC and does not expose cell 
   assert.match(repository, /serviceRpc<DiscoveryCandidate\[\]>\(\s*"get_discovery_candidates_for_visitor"/);
   assert.match(repository, /p_nearby_cell_id:\s*visitorNearbyCellId \?\? null/);
   assert.doesNotMatch(repository, /candidate\.nearbyCellId/);
+  assert.match(repository, /isDiscoveryItemVisible/);
+  assert.match(repository, /hasLocation:\s*Boolean\(input\.location\)/);
+  assert.match(repository, /sceneKind:\s*sceneContext\.kind/);
 });
 
 test("melon create requires explicit cityId and operationId for public and nearby", () => {

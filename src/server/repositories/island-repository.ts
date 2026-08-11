@@ -29,6 +29,7 @@ import type {
 } from "@/contracts";
 import { ApiProblem } from "@/server/api";
 import { decodeCommentCursor, encodeCommentCursor } from "@/server/repositories/comment-cursor";
+import { isDiscoveryItemVisible } from "@/server/repositories/discovery-visibility";
 import { isInsidePublicSpotScene } from "@/server/security/discovery-scene";
 import { distanceMeters, toDistanceBand } from "@/server/security/location";
 import { requireSafeSeek } from "@/server/security/seek";
@@ -112,6 +113,7 @@ export async function discover(
   const visitorType: VisitorType = !input.location ? "location_unknown" : nearest && nearest.distanceM <= 50_000 ? "local" : "outsider";
   const activeCityId: CityId = input.selectedCityId ?? nearest?.spot.city_id ?? "changsha";
   const activeDistrictId = nearest?.spot.city_id === activeCityId ? nearest.spot.district_id : undefined;
+  const sceneContext = discoverySceneContext(input.location, nearest);
   const visitorNearbyCellId = input.location && process.env.CHACHA_LOCATION_HMAC_SECRET ? nearbyCellIdForLocation(activeCityId, input.location) : undefined;
   const candidates = await serviceRpc<DiscoveryCandidate[]>(
     "get_discovery_candidates_for_visitor",
@@ -144,14 +146,25 @@ export async function discover(
       const priority = activeDistrictId && candidate.districtId === activeDistrictId ? 0 : candidate.cityId === activeCityId ? 1 : 2;
       return { preview, priority, distanceM, createdAt: Date.parse(candidate.createdAt) };
     })
-    .filter((item): item is { preview: MelonPreview; priority: number; distanceM: number; createdAt: number } => item !== null)
+    .filter((item) => isDiscoveryItemVisible(
+      {
+        hasLocation: Boolean(input.location),
+        sceneKind: sceneContext.kind,
+        ...(sceneContext.kind === "public_spot" ? { activeSpotId: sceneContext.spot.id } : {}),
+      },
+      {
+        burialKind: item.preview.burialKind ?? "public_spot",
+        distanceBand: item.preview.distanceBand,
+        spotId: item.preview.spot.id,
+      },
+    ))
     .sort((a, b) => a.priority - b.priority || a.distanceM - b.distanceM || b.createdAt - a.createdAt)
     .map(({ preview }) => preview);
 
   return {
     visitorType,
     activeCityId,
-    sceneContext: discoverySceneContext(input.location, nearest),
+    sceneContext,
     items,
     localEmpty: !items.some((item) => item.cityId === activeCityId),
   };
