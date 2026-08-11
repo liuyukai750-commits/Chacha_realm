@@ -119,6 +119,7 @@ export interface DiscoveryResponse {
 }
 
 export interface CreateMelonRequest {
+  operationId: string;
   burialKind?: BurialKind;
   cityId?: CityId;
   spotId?: SpotId;

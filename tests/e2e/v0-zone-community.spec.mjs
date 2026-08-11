@@ -368,10 +368,10 @@ test.describe("移动浏览器能力模拟（不是实机或真实引擎）", ()
 
     const dialog = await openLocalMelon(page);
     await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
-    await expect(dialog.getByRole("status").filter({ hasText: "现场评论可用" }).first()).toBeVisible();
+    await expect(dialog.getByText("现场凭证已点亮", { exact: true }).first()).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__vibrationCalls)).toEqual([18]);
     await page.setViewportSize({ width: 430, height: 820 });
-    await expect(page.getByText("现场评论可用", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("现场凭证已点亮", { exact: true }).first()).toBeVisible();
   });
 
   test("SIM-HARMONY：定位与振动均缺失、动态视口变化时仍无横向溢出", async ({ page }, testInfo) => {

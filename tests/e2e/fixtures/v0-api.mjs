@@ -9,6 +9,87 @@ export const spot = {
   name: "五一广场",
 };
 
+export const fiveCityMatrix = [
+  {
+    id: "changsha",
+    name: "长沙",
+    districtId: "cs-furong",
+    districtName: "芙蓉区",
+    spots: [
+      ["cs-orange-isle", "橘子洲"],
+      ["cs-yuelu-mountain", "岳麓山"],
+      ["cs-wuyi-square", "五一广场"],
+      ["cs-hunan-museum", "湖南博物院"],
+      ["cs-tianxin-pavilion", "天心阁"],
+    ],
+  },
+  {
+    id: "beijing",
+    name: "北京",
+    districtId: "bj-dongcheng",
+    districtName: "东城区",
+    spots: [
+      ["bj-temple-of-heaven", "天坛公园"],
+      ["bj-olympic-forest", "奥林匹克森林公园"],
+      ["bj-summer-palace", "颐和园"],
+      ["bj-zoo", "北京动物园"],
+      ["bj-garden-expo", "北京园博园"],
+    ],
+  },
+  {
+    id: "shanghai",
+    name: "上海",
+    districtId: "sh-huangpu",
+    districtName: "黄浦区",
+    spots: [
+      ["sh-peoples-square", "人民广场"],
+      ["sh-xujiahui-park", "徐家汇公园"],
+      ["sh-zhongshan-park", "中山公园"],
+      ["sh-natural-history-museum", "上海自然博物馆"],
+      ["sh-gongqing-forest-park", "共青森林公园"],
+    ],
+  },
+  {
+    id: "guangzhou",
+    name: "广州",
+    districtId: "gz-yuexiu",
+    districtName: "越秀区",
+    spots: [
+      ["gz-yuexiu-park", "越秀公园"],
+      ["gz-shamian-park", "沙面公园"],
+      ["gz-library", "广州图书馆"],
+      ["gz-haizhu-lake", "海珠湖公园"],
+      ["gz-baiyun-south-gate", "白云山南门（云台花园）"],
+    ],
+  },
+  {
+    id: "shenzhen",
+    name: "深圳",
+    districtId: "sz-futian",
+    districtName: "福田区",
+    spots: [
+      ["sz-lianhuashan-park", "莲花山公园"],
+      ["sz-talent-park", "深圳人才公园"],
+      ["sz-donghu-park", "东湖公园"],
+      ["sz-baoan-park", "宝安公园"],
+      ["sz-longcheng-park", "龙城公园"],
+    ],
+  },
+].map((city, index) => ({
+  id: city.id,
+  name: city.name,
+  districts: [{ id: city.districtId, name: city.districtName }],
+  spots: city.spots.map(([id, name]) => ({ id, cityId: city.id, districtId: city.districtId, name })),
+  opening: {
+    cityId: city.id,
+    status: index < 3 ? "open" : "gathering",
+    safeMelons: 30 + index,
+    distinctAuthors: 25 + index,
+    distinctSpots: 5,
+    distinctTopics: 5,
+  },
+}));
+
 export const melon = {
   id: "melon-local-1",
   status: "mature",
@@ -69,6 +150,42 @@ export const publicComments = [
   },
 ];
 
+export function cityFixture(cityId) {
+  return fiveCityMatrix.find((city) => city.id === cityId);
+}
+
+export function primarySpotForCity(cityId) {
+  return cityFixture(cityId)?.spots[0] ?? spot;
+}
+
+export function cityMelons(cityId, activeSpot = primarySpotForCity(cityId), options = {}) {
+  const city = cityFixture(cityId);
+  const local = discoveryMelons.slice(0, 4).map((item, index) => ({
+    ...item,
+    id: item.id === melon.id ? `${cityId}-local-1` : `${cityId}-${item.id}`,
+    cityId,
+    districtId: activeSpot.districtId,
+    spot: activeSpot,
+    title: item.id === melon.id ? `${city?.name ?? cityId}公共瓜` : `${city?.name ?? cityId}瓜区第 ${index + 1} 件小事`,
+    distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
+    isRemote: false,
+  }));
+  const remoteCityId = cityId === "changsha" ? "beijing" : "changsha";
+  return [
+    ...local,
+    {
+      ...discoveryMelons.at(-1),
+      id: `${cityId}-remote-1`,
+      cityId: remoteCityId,
+      districtId: "remote-district",
+      spot: { id: "remote-spot", cityId: remoteCityId, districtId: "remote-district", name: "远方公开瓜棚" },
+      distanceBand: "remote",
+      isRemote: true,
+      title: "远方瓜棚传来一阵笑声",
+    },
+  ];
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -120,6 +237,7 @@ export async function installV0Api(page, options = {}) {
     commentGetRequests: [],
     completeRequests: [],
     createRequests: [],
+    createOperations: new Map(),
     discoveryRequests: [],
     presenceRequests: [],
     reactionRequests: [],
@@ -140,6 +258,8 @@ export async function installV0Api(page, options = {}) {
     alreadyCompleted: options.alreadyCompleted ?? false,
     plantDistanceFailure: options.plantDistanceFailure ?? false,
     activeSpot: options.spot ?? spot,
+    activeCityId: options.activeCityId ?? "changsha",
+    fiveCities: options.fiveCities ?? false,
     presenceSequence: options.presenceSequence ?? ["inside_zone"],
     presenceAttempt: 0,
     commentFailure: options.commentFailure ?? null,
@@ -163,51 +283,67 @@ export async function installV0Api(page, options = {}) {
     }
 
     if (method === "GET" && path === "/api/cities") {
-      return json(route, [
-        {
-          id: "changsha",
-          name: "长沙",
-          districts: [{ id: "furong", name: "芙蓉区" }],
-          spots: [state.activeSpot],
-          opening: {
-            cityId: "changsha",
-            status: "open",
-            safeMelons: 30,
-            distinctAuthors: 25,
-            distinctSpots: 3,
-            distinctTopics: 3,
-          },
+      if (state.fiveCities) return json(route, fiveCityMatrix);
+      return json(route, [{
+        id: "changsha",
+        name: "长沙",
+        districts: [{ id: "furong", name: "芙蓉区" }],
+        spots: [state.activeSpot],
+        opening: {
+          cityId: "changsha",
+          status: "open",
+          safeMelons: 30,
+          distinctAuthors: 25,
+          distinctSpots: 3,
+          distinctTopics: 3,
         },
-      ]);
+      }]);
     }
 
     if (method === "POST" && path === "/api/discovery") {
       state.discoveryRequests.push(body);
+      const requestedCityId = body?.selectedCityId ?? state.activeCityId;
+      if (state.fiveCities) {
+        const activeSpot = primarySpotForCity(requestedCityId);
+        state.activeCityId = requestedCityId;
+        state.activeSpot = activeSpot;
+        return json(route, {
+          visitorType: body?.location ? "local" : "location_unknown",
+          activeCityId: requestedCityId,
+          sceneContext: body?.location
+            ? options.nearLandmark === false ? { kind: "nearby_area" } : { kind: "public_spot", spot: activeSpot }
+            : { kind: "city_overview" },
+          items: cityMelons(requestedCityId, activeSpot, options),
+          localEmpty: false,
+        });
+      }
       return json(route, {
         visitorType: body?.location ? "local" : "location_unknown",
         activeCityId: "changsha",
         sceneContext: body?.location
           ? options.nearLandmark === false ? { kind: "nearby_area" } : { kind: "public_spot", spot: state.activeSpot }
           : { kind: "city_overview" },
-        items: discoveryMelons.map((item) => ({
+        items: discoveryMelons.map((item, index) => ({
           id: item.id,
-          status: item.status,
+          status: options.includeIncubating && index === 1 ? "incubating" : item.status,
           topic: item.topic,
           cityId: state.activeSpot.cityId,
           districtId: state.activeSpot.districtId,
           spot: state.activeSpot,
           distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
           completedReads: item.id === melon.id ? state.completedReads : item.completedReads,
-          title: item.title,
+          title: options.includeIncubating && index === 1 ? "还在长的后续瓜" : item.title,
           commentCount: publicComments.length,
           isRemote: item.isRemote,
           revealMode: item.revealMode,
+          ...(options.includeIncubating && index === 1 ? { maturesAt: "2026-08-04T14:00:00.000Z" } : {}),
         })),
         localEmpty: false,
       });
     }
 
-    const requestedMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}`);
+    const requestMelons = state.fiveCities ? cityMelons(state.activeCityId, state.activeSpot, options) : discoveryMelons;
+    const requestedMelon = requestMelons.find((item) => path === `/api/melons/${item.id}`);
     if (method === "GET" && requestedMelon) {
       return json(route, {
         melon: {
@@ -222,7 +358,7 @@ export async function installV0Api(page, options = {}) {
       });
     }
 
-    const completedMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/complete`);
+    const completedMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/complete`);
     if (method === "POST" && completedMelon) {
       state.completeRequests.push(body);
       const counted = !state.alreadyCompleted || completedMelon.id !== melon.id;
@@ -257,13 +393,13 @@ export async function installV0Api(page, options = {}) {
       return json(route, { active: Boolean(body?.active) });
     }
 
-    const squatMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/squat`);
+    const squatMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/squat`);
     if (method === "POST" && squatMelon) {
       state.squatRequests.push({ melonId: squatMelon.id, ...body });
       return json(route, { active: Boolean(body?.active) });
     }
 
-    const reactionMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/reactions`);
+    const reactionMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/reactions`);
     if (method === "POST" && reactionMelon) {
       state.reactionRequests.push({ melonId: reactionMelon.id, ...body });
       return json(route, {
@@ -272,7 +408,7 @@ export async function installV0Api(page, options = {}) {
       });
     }
 
-    const commentsMelon = discoveryMelons.find((item) => path === `/api/melons/${item.id}/comments`);
+    const commentsMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/comments`);
     if (method === "GET" && commentsMelon) {
       state.commentGetRequests.push({ melonId: commentsMelon.id, search: url.search });
       return json(route, { items: publicComments.map((item) => ({ ...item, melonId: commentsMelon.id })) });
@@ -321,6 +457,14 @@ export async function installV0Api(page, options = {}) {
 
     if (method === "POST" && path === "/api/melons") {
       state.createRequests.push(body);
+      if (typeof body?.operationId !== "string") {
+        return json(route, { error: { code: "INVALID_OPERATION_ID", message: "缺少埋瓜操作编号" } }, 400);
+      }
+      if (typeof body?.cityId !== "string") {
+        return json(route, { error: { code: "INVALID_CITY", message: "缺少埋瓜城市" } }, 400);
+      }
+      const previousCreateResult = state.createOperations.get(body.operationId);
+      if (previousCreateResult) return json(route, structuredClone(previousCreateResult), 201);
       if (state.plantDistanceFailure) {
         return json(
           route,
@@ -333,13 +477,15 @@ export async function installV0Api(page, options = {}) {
         state.originalRewardClaimed = true;
         state.wallet.trueSeedCount += 1;
       }
-      return json(route, {
+      const result = {
         id: "melon-new",
         status: "incubating",
         maturesAt: "2026-08-04T14:00:00.000Z",
         trueSeedAwarded,
         wallet: { ...state.wallet },
-      }, 201);
+      };
+      state.createOperations.set(body.operationId, structuredClone(result));
+      return json(route, result, 201);
     }
 
     if (method === "GET" && path === "/api/fields/me") {

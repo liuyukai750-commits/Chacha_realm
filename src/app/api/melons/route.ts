@@ -1,5 +1,5 @@
 import type { CreateMelonRequest } from "@/contracts";
-import { readJson, requireSameOrigin, route } from "@/server/api";
+import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
 import { createMelon } from "@/server/repositories/island-repository";
 import { validateLocationProof } from "@/server/security/location";
 import { requireActiveSession } from "@/server/supabase/session";
@@ -13,7 +13,11 @@ export async function POST(request: Request) {
     const session = await requireActiveSession();
     const body = object(await readJson(request));
     const kind = burialKind(body.burialKind ?? "public_spot");
+    const parsedCityId = cityId(body.cityId);
+    if (!parsedCityId) throw new ApiProblem(400, "invalid_city", "cityId is required.");
     const base = {
+      operationId: uuid(body.operationId, "operationId"),
+      cityId: parsedCityId,
       topic: topic(body.topic),
       title: text(body.title, "title", 60),
       content: text(body.content, "content", 1000),
@@ -21,7 +25,7 @@ export async function POST(request: Request) {
       location: validateLocationProof(body.location),
     };
     const input: CreateMelonRequest = kind === "nearby_area"
-      ? { ...base, burialKind: "nearby_area", cityId: cityId(body.cityId) ?? "changsha" }
+      ? { ...base, burialKind: "nearby_area" }
       : { ...base, burialKind: "public_spot", spotId: uuid(body.spotId, "spotId") };
     return createMelon(input, session.userId);
   });

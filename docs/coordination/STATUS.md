@@ -31,7 +31,7 @@
 ## 仍需真实环境验证
 
 - 在预发布 Supabase 执行迁移并验证 RLS、并发留籽、封禁/解封与审核流程。
-- 配置 `SUPABASE_SERVICE_ROLE_KEY`、`CHACHA_READ_TOKEN_SECRET`、`CHACHA_PRESENCE_TOKEN_SECRET`。
+- 配置 `SUPABASE_SECRET_KEY`（新 `sb_secret`，仅作 `apikey`）、`CHACHA_READ_TOKEN_SECRET`、`CHACHA_PRESENCE_TOKEN_SECRET`。
 - iOS Safari、Android Chrome、鸿蒙系统浏览器的真实定位权限、软键盘与触感反馈。
 - 选择并接入真实短信/OAuth 身份提供商后，才能保证清理浏览器数据也无法绕过封禁。
 

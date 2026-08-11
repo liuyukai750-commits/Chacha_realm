@@ -48,12 +48,13 @@
 | 变量 | 用途 | 暴露规则 |
 |---|---|---|
 | `SUPABASE_URL` | 服务端路由连接 Supabase。 | 不是密钥，但除非有意公开，不要贴到公共 issue 或聊天。 |
-| `SUPABASE_ANON_KEY` | 服务端调用公开/登录态 Supabase API。 | 设计上可浏览器公开，但本项目当前仍建议只放托管环境变量。 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 服务端专用，执行审核、评论写入、读瓜完成、瓜详情和其他 actor-bound RPC。 | 绝密。不得发聊天、不得加 `NEXT_PUBLIC_*`、不得提交。 |
+| `SUPABASE_PUBLISHABLE_KEY` | 新 Supabase publishable API key，服务端调用公开/登录态 Supabase API。未登录请求只放 `apikey`；有用户 access token 时才发送 `Authorization: Bearer <user JWT>`。 | 设计上可公开，但本项目当前仍建议只放托管环境变量。预发布不使用 legacy anon JWT。 |
+| `SUPABASE_SECRET_KEY` | 新 Supabase secret API key，服务端专用，执行审核、评论写入、读瓜完成、瓜详情和其他 actor-bound RPC。 | 绝密。只放 `apikey`，不得作为 Bearer，不得发聊天、不得加 `NEXT_PUBLIC_*`、不得提交。预发布不使用 legacy service role JWT。 |
 | `CHACHA_READ_TOKEN_SECRET` | 5 秒读瓜完成凭证 HMAC。 | 绝密，至少 32 个随机字符。 |
 | `CHACHA_PRESENCE_TOKEN_SECRET` | 15 分钟附近评论资格凭证 HMAC。 | 绝密，必须与 `CHACHA_READ_TOKEN_SECRET` 不同。 |
+| `CHACHA_LOCATION_HMAC_SECRET` | 附近生活圈模糊 cell HMAC，用于 nearby_area 发现与埋瓜。 | 绝密，至少 32 个随机字符，必须与其他 HMAC secret 不同。 |
 
-绝不能提交或发送到聊天：真实 `.env` / `.env.local`、Supabase access token、数据库连接串、带凭据的迁移输出、浏览器数据、Cookie、含 key 截图、生产日志、用户个人数据。
+绝不能提交或发送到聊天：真实 `.env` / `.env.local`、Supabase secret key、legacy service role key、access token、数据库连接串、带凭据的迁移输出、浏览器数据、Cookie、含 key 截图、生产日志、用户个人数据。
 
 ### 迁移执行顺序
 
@@ -98,7 +99,7 @@
 ## 4. 建议执行顺序
 
 1. 决定内测稳定身份 provider：手机号可接受则选 phone OTP；隐私摩擦优先则选 OAuth。
-2. 创建一次性 Supabase 测试项目，把五个必需变量放入本地/托管 secret storage。
+2. 创建一次性 Supabase 测试项目，把六个必需变量放入本地/托管 secret storage。
 3. 按时间戳执行迁移，只在测试项目执行 seed。
 4. 完成真实数据库验收清单后再邀请内测用户。
 5. 准备预发布部署，不接生产数据，不做真实用户迁移。

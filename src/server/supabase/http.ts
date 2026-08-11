@@ -10,6 +10,19 @@ interface SupabaseErrorBody {
   msg?: string;
 }
 
+function requestHeaders(
+  apikey: string,
+  init: RequestInit,
+  accessToken?: string,
+): HeadersInit {
+  return {
+    apikey,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(init.body ? { "Content-Type": "application/json" } : {}),
+    ...init.headers,
+  };
+}
+
 async function responseBody(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
@@ -58,12 +71,7 @@ export async function supabaseFetch<T>(
       ...init,
       cache: "no-store",
       signal: init.signal ?? AbortSignal.timeout(8_000),
-      headers: {
-        apikey: config.anonKey,
-        Authorization: `Bearer ${accessToken ?? config.anonKey}`,
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...init.headers,
-      },
+      headers: requestHeaders(config.publishableKey, init, accessToken),
     });
   } catch {
     throw unavailable();
@@ -88,8 +96,8 @@ export async function serviceRpc<T>(name: string, input: Record<string, unknown>
       signal: AbortSignal.timeout(8_000),
       body: JSON.stringify(input),
       headers: {
-        apikey: config.serviceRoleKey,
-        Authorization: `Bearer ${config.serviceRoleKey}`,
+        apikey: config.secretKey,
+        ...(config.secretKeySource === "legacy_service_role" ? { Authorization: `Bearer ${config.secretKey}` } : {}),
         "Content-Type": "application/json",
       },
     });

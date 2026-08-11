@@ -32,6 +32,7 @@ export function BurySheetV1({
   const topicInputId = useId();
   const titleInputId = useId();
   const contentInputId = useId();
+  const [operationId] = useState(() => createOperationId());
   const [buryMode, setBuryMode] = useState<BurialKind>("nearby_area");
   const [spotId, setSpotId] = useState(spots[0]?.id ?? "");
   const [topic, setTopic] = useState<SafeTopic>("daily");
@@ -56,8 +57,8 @@ export function BurySheetV1({
     setBusy(true);
     try {
       await onCreate(buryMode === "nearby_area"
-        ? { burialKind: "nearby_area", cityId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }
-        : { burialKind: "public_spot", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
+        ? { operationId, burialKind: "nearby_area", cityId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }
+        : { operationId, burialKind: "public_spot", cityId, spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "这次没有成功，请稍后再试。");
     } finally {
@@ -117,4 +118,10 @@ export function BurySheetV1({
       </section>
     </div>
   );
+}
+
+function createOperationId(): string {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const hex = () => Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
+  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-8${hex().slice(1)}-${hex()}${hex()}${hex()}`;
 }

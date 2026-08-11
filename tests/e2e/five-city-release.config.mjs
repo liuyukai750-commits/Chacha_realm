@@ -1,0 +1,54 @@
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  testDir: ".",
+  testMatch: "five-city-release.spec.mjs",
+  outputDir: "../.artifacts/five-city-release-results",
+  fullyParallel: true,
+  timeout: 75_000,
+  reporter: [["list"]],
+  expect: { timeout: 7_500 },
+  use: {
+    baseURL: "http://127.0.0.1:3117",
+    locale: "zh-CN",
+    timezoneId: "Asia/Shanghai",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+  },
+  webServer: {
+    command: "npm run build && npm run start -- --port 3117",
+    url: "http://127.0.0.1:3117",
+    reuseExistingServer: false,
+    timeout: 180_000,
+    stdout: "pipe",
+    stderr: "pipe",
+  },
+  projects: [
+    {
+      name: "chromium-375",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 375, height: 812 },
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
+    {
+      name: "chromium-430",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 430, height: 932 },
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
+    {
+      name: "chromium-desktop",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1280, height: 900 },
+      },
+    },
+  ],
+});

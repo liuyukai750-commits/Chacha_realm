@@ -351,7 +351,6 @@ export function ChachaIsland() {
               setDiscoveryScope("city");
               setNotice(`正在浏览${activeCity.name}城市瓜区 · 附近范围已关闭`);
             }}
-            onSeek={seekZone}
             onOpen={openMelon}
             onSquat={quickSquat}
             onRefresh={async () => {
@@ -401,7 +400,7 @@ export function ChachaIsland() {
   );
 }
 
-function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, opening, openingMelon, onLocate, onCityBrowse, onSeek, onOpen, onSquat, onRefresh, readOnly }: {
+function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, opening, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onRefresh, readOnly }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
   quickSquats: string[];
@@ -417,7 +416,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   openingMelon: boolean;
   onLocate: () => void;
   onCityBrowse: () => void;
-  onSeek: (spotId: string) => Promise<ZonePresenceResult>;
   onOpen: (melon: MelonPreview, presenceToken?: string) => void;
   onSquat: (id: string) => void;
   onRefresh: () => void;
@@ -426,10 +424,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const [topic, setTopic] = useState<SafeTopic | "all">("all");
   const [basketOpen, setBasketOpen] = useState(false);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
-  const [seekTargetId, setSeekTargetId] = useState<string | null>(null);
-  const [seekResult, setSeekResult] = useState<ZonePresenceResult>({ presence: "remote", seekState: "outside" });
-  const [seekBusy, setSeekBusy] = useState(false);
-  const [seekError, setSeekError] = useState<string | null>(null);
   const cityItems = items.filter((melon) => melon.cityId === cityId);
   const nearbyItems = nearbyItemsForScene(items, sceneContext);
   const scopedItems = scope === "nearby" ? nearbyItems : cityItems;
@@ -446,7 +440,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const zoneScene = zoneSpot ? getSpotScene(zoneSpot) : null;
   const representatives = [...filteredItems].sort((left, right) => Number(right.status === "mature") - Number(left.status === "mature")).slice(0, 5);
   const openRepresentative = representatives.find((melon) => melon.status === "mature" && melon.revealMode === "open");
-  const lockedRepresentative = representatives.find((melon) => melon.status === "mature" && melon.revealMode === "seek_locked");
   const effectiveSceneKind = scope === "city" ? "city_overview" : sceneContext.kind;
   const showingNearbyArea = effectiveSceneKind === "nearby_area";
   const cityVisual = getCityVisual(cityId);
@@ -459,31 +452,10 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
       ? `${cityName}${getSpotScene(sceneContext.spot).displayName}公共地标瓜域场景：已进入公共地点附近，远景为${cityVisual.landmarkLabel}`
       : `${cityName}城市瓜域总览场景：${cityVisual.landmarkLabel}`;
 
-  const senseLeaves = async () => {
-    if (!zoneSpot) return;
-    setSeekBusy(true);
-    setSeekError(null);
-    try { setSeekResult(await onSeek(zoneSpot.id)); }
-    catch (error) { setSeekError(messageFrom(error)); }
-    finally { setSeekBusy(false); }
-  };
-
   const selectZone = (spotId: string) => {
     setSelectedSpotId(spotId);
-    setSeekResult({ presence: "remote", seekState: "outside" });
-    setSeekTargetId(null);
     setTopic("all");
   };
-
-  const seekMelon = async (melon: MelonPreview) => {
-    setSeekTargetId(melon.id);
-    setSeekBusy(true);
-    setSeekError(null);
-    try { setSeekResult(await onSeek(melon.spot.id)); }
-    catch (error) { setSeekError(messageFrom(error)); }
-    finally { setSeekBusy(false); }
-  };
-
   return (
     <>
       <section className="radar-intro" aria-labelledby="radar-title">
@@ -506,7 +478,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
           </div>
           <div className="scene-quick-actions" role="group" aria-label="瓜区快捷操作">
             {openRepresentative && <button className="quick-open" onClick={() => onOpen(openRepresentative)}><span>日常小瓜</span><strong>直接吃</strong></button>}
-            {lockedRepresentative && <button className="quick-seek" onClick={() => seekTargetId === lockedRepresentative.id && seekResult?.seekState === "found" ? onOpen(lockedRepresentative, seekResult.presenceToken) : seekMelon(lockedRepresentative)} disabled={seekBusy && seekTargetId === lockedRepresentative.id}><span>现场大瓜</span><strong>{seekBusy && seekTargetId === lockedRepresentative.id ? "校准中" : seekTargetId === lockedRepresentative.id && seekResult?.seekState === "found" ? "揭开大瓜" : "顺藤摸瓜"}</strong></button>}
           </div>
         </div>
       </section>
@@ -518,7 +489,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
         </div>
         {scope === "nearby" && scopedItems.length === 0 ? <div className="nearby-empty" role="status">
           <RadarIcon /><strong>1 公里内暂时没有瓜</strong><span>这里不会偷偷扩大距离。可以回城市瓜区看看，或者去公共地点附近埋下第一颗。</span><button onClick={onCityBrowse}>看看城市瓜区</button>
-        </div> : false && <>
+        </div> : <>
         {spotGroups.length > 1 && <div className="zone-switcher" role="group" aria-label="切换公共地点瓜区">{spotGroups.map((group) => {
           const spot = group[0].spot;
           return <button key={spot.id} className={spot.id === activeSpotId ? "active" : ""} onClick={() => selectZone(spot.id)} aria-pressed={spot.id === activeSpotId}>{getSpotScene(spot).displayName}<small>{group.length}</small></button>;
@@ -527,18 +498,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
           <button className={topic === "all" ? "active" : ""} onClick={() => setTopic("all")} aria-pressed={topic === "all"}>全部</button>
           {(Object.keys(topicName) as SafeTopic[]).map((key) => <button key={key} className={topic === key ? "active" : ""} onClick={() => setTopic(key)} aria-pressed={topic === key}>{topicName[key]}</button>)}
         </div>
-        <div className={`leaf-seek ${seekResult ? `state-${seekResult.seekState}` : ""}`} role="status" aria-live="polite">
-          <div className="leaf-sensor" aria-hidden="true"><i /><i /><i /><span /></div>
-          <div className="leaf-copy">
-            <strong>{seekResult ? seekCopy[seekResult.seekState].label : "顺藤摸瓜"}</strong>
-            <small>{seekResult ? seekCopy[seekResult.seekState].hint : "大瓜要走近才揭晓，只返回粗略接近状态。"}</small>
-          </div>
-          <button onClick={senseLeaves} disabled={seekBusy || !zoneSpot}>{seekBusy ? "校准中" : seekResult ? "继续摸瓜" : "开始找瓜"}</button>
-        </div>
-        {seekError && <p className="seek-fallback" role="alert">{seekError} 定位拒绝不影响远方围观。</p>}
-        <ol className="seek-scale" aria-label="寻瓜四段状态">
-          {(Object.keys(seekCopy) as SeekState[]).map((state) => <li key={state} className={seekResult?.seekState === state ? "current" : ""}>{seekCopy[state].label}</li>)}
-        </ol>
         </>}
       </section>
 
@@ -558,18 +517,16 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
         <div className="radar-origin" aria-hidden="true"><span>猹</span><i /></div>
         {representatives.map((melon, index) => {
           const scene = getSpotScene(melon.spot);
-          const locked = melon.revealMode === "seek_locked";
-          const found = seekTargetId === melon.id && seekResult?.seekState === "found";
           return <button
             key={melon.id}
             className={`melon-node node-${index + 1} ${melon.status} scene-${scene.kind}`}
-            onClick={() => melon.status === "mature" ? locked ? found ? onOpen(melon, seekResult?.presenceToken) : seekMelon(melon) : onOpen(melon) : onSquat(melon.id)}
+            onClick={() => melon.status === "mature" ? onOpen(melon) : onSquat(melon.id)}
             disabled={readOnly && melon.status === "incubating"}
-            aria-label={`${melon.status === "mature" ? locked ? found ? "揭开大瓜" : "顺藤摸瓜" : "直接吃" : quickSquats.includes(melon.id) ? "取消旁观" : "旁观"}：${topicName[melon.topic]}瓜，${scene.displayName}，${distanceName[melon.distanceBand]}`}
+            aria-label={`${melon.status === "mature" ? "直接吃" : quickSquats.includes(melon.id) ? "取消蹲后续" : "蹲后续"}：${topicName[melon.topic]}瓜，${scene.displayName}，${distanceName[melon.distanceBand]}`}
             aria-pressed={melon.status === "incubating" ? quickSquats.includes(melon.id) : undefined}
           >
             <span className="melon-orb" aria-hidden="true"><i /><i /><i /></span>
-            <span className="node-label"><strong>{melon.status === "mature" ? locked ? found ? "揭开大瓜" : "大瓜锁定" : "直接吃" : quickSquats.includes(melon.id) ? "已旁观" : "旁观"}</strong><small>{topicName[melon.topic]} · {scene.displayName}</small></span>
+            <span className="node-label"><strong>{melon.status === "mature" ? "直接吃" : quickSquats.includes(melon.id) ? "已蹲后续" : "蹲后续"}</strong><small>{topicName[melon.topic]} · {scene.displayName}</small></span>
           </button>;
         })}
         <div className="ring-label ring-one">瓜区</div><div className="ring-label ring-two">附近</div><div className="ring-label ring-three">同城</div>
@@ -596,17 +553,13 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
               <div className="basket-copy">
                 <span>{topicName[melon.topic]}瓜 / {scene.displayName}</span>
                 <h3>{melon.status === "mature" ? displayTitle : `正在孵化，${formatCountdown(melon.maturesAt)} 后成熟`}</h3>
-                <p>{melon.status === "mature" ? `${detail?.alias ?? "匿名小动物"} / ${distanceName[melon.distanceBand]} / ${melon.commentCount ?? 0} 条评论` : "旁观不会打扰它成熟"}</p>
+                <p>{melon.status === "mature" ? `${detail?.alias ?? "匿名小动物"} / ${distanceName[melon.distanceBand]} / ${melon.commentCount ?? 0} 条评论` : "蹲后续不会打扰它成熟"}</p>
               </div>
               <div className="basket-actions">
                 {melon.status === "mature" ? <>
-                  {melon.revealMode === "open"
-                    ? <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
-                    : seekTargetId === melon.id && seekResult?.seekState === "found"
-                      ? <button className="basket-primary" onClick={() => onOpen(melon, seekResult.presenceToken)}>揭开现场大瓜</button>
-                      : <button className="basket-seek" onClick={() => seekMelon(melon)} disabled={seekBusy && seekTargetId === melon.id}>{seekBusy && seekTargetId === melon.id ? "正在校准" : seekTargetId === melon.id ? "继续摸瓜" : "顺藤摸瓜"}</button>}
+                  <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
                   {!readOnly && <button onClick={() => onSquat(melon.id)} aria-pressed={squatted}>{squatted ? "已蹲瓜" : "蹲瓜"}</button>}
-                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly} aria-pressed={squatted}>{readOnly ? "只读" : squatted ? "已旁观" : "旁观"}</button>}
+                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly} aria-pressed={squatted}>{readOnly ? "只读" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
               </div>
             </article>;
           }) : <div className="basket-empty"><SproutIcon /><strong>这个话题暂时没有瓜</strong><span>换一个话题，或稍后再听一听。</span></div>}
@@ -1006,7 +959,7 @@ function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootst
     if (title.trim().length < 4) return setError("标题至少写 4 个字，让路过的猹知道发生了什么。" );
     if (content.trim().length < 20) return setError("故事至少写 20 个字，再留一点现场细节。" );
     setBusy(true);
-    try { await onCreate({ spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }); }
+    try { await onCreate({ operationId: createOperationId(), burialKind: "public_spot", cityId: selectedSpot?.cityId ?? "changsha", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }); }
     catch (caught) { setError(messageFrom(caught)); }
     finally { setBusy(false); }
   };

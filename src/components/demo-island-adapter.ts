@@ -161,6 +161,7 @@ const commentStore: Record<string, MelonComment[]> = {
 const presenceTokens = new Map<string, { expiresAt: number; spotId: string; seekState: SeekState }>();
 const seekAttempts = new Map<string, number>();
 const plantOperations = new Map<string, PlantFieldResult>();
+const createOperations = new Map<string, CreateMelonResult>();
 let lastDemoScene: DiscoverySceneContext | null = null;
 
 const delay = async <T>(value: T, ms = 120): Promise<T> => new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
@@ -324,6 +325,8 @@ export const demoIslandAdapter: IslandAdapter = {
   },
   async createMelon(request) {
     refreshDailyRewards();
+    const previous = createOperations.get(request.operationId);
+    if (previous) return delay(copy(previous));
     const id = `demo-melon-${Date.now()}`;
     const burialKind = request.burialKind ?? "public_spot";
     const cityId = request.cityId ?? "changsha";
@@ -340,7 +343,9 @@ export const demoIslandAdapter: IslandAdapter = {
     session = { ...session, wallet };
     previews.unshift(preview);
     fieldView = { ...fieldView, wallet, melons: [preview, ...fieldView.melons] };
-    return delay<CreateMelonResult>({ id, status: "incubating", maturesAt: preview.maturesAt, trueSeedAwarded, wallet });
+    const result: CreateMelonResult = { id, status: "incubating", maturesAt: preview.maturesAt, trueSeedAwarded, wallet };
+    createOperations.set(request.operationId, copy(result));
+    return delay<CreateMelonResult>(copy(result));
   },
   async report() {
     return delay({ accepted: true as const });
