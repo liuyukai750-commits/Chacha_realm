@@ -109,9 +109,6 @@ export const melon = {
   reactions: { juicy: 2, wild: 1, hug: 0, follow_up: 0 },
 };
 
-const melonTopicLabel = "职场瓜";
-const melonDistanceLabel = /同一瓜区/;
-
 const topicCycle = ["work", "daily", "relationship", "food", "neighborhood"];
 export const discoveryMelons = Array.from({ length: 12 }, (_, index) => {
   if (index === 0) return melon;
@@ -184,10 +181,6 @@ export function cityMelons(cityId, activeSpot = primarySpotForCity(cityId), opti
       title: "远方瓜棚传来一阵笑声",
     },
   ];
-}
-
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const emptyPlots = () => ([0, 1, 2].map((plotIndex) => ({ plotIndex, capacity: 3, plants: [] })));
@@ -329,6 +322,7 @@ export async function installV0Api(page, options = {}) {
         items: discoveryMelons.map((item, index) => ({
           id: item.id,
           status: options.includeIncubating && index === 1 ? "incubating" : item.status,
+          burialKind: options.includeNearbyAreaInCity && index === 0 ? "nearby_area" : "public_spot",
           topic: item.topic,
           cityId: state.activeSpot.cityId,
           districtId: state.activeSpot.districtId,
@@ -616,11 +610,7 @@ export async function enterIsland(page) {
 }
 
 export function melonTrigger(page) {
-  const accessibleName = new RegExp(
-    `${escapeRegex(melonTopicLabel)}.*${escapeRegex(spot.name)}.*${melonDistanceLabel.source}`,
-    "i",
-  );
-  return page.getByRole("button", { name: accessibleName }).first();
+  return page.getByRole("button", { name: /瓜区总览：\d+颗瓜，点开挑选/ }).first();
 }
 
 function ownField(state) {
@@ -656,7 +646,10 @@ export function completeReadControl(dialog) {
 }
 
 export async function openMelon(page) {
-  const trigger = melonTrigger(page);
+  const overview = melonTrigger(page);
+  await expect(overview).toBeVisible();
+  await overview.click();
+  const trigger = page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "直接吃", exact: true });
   await expect(trigger).toBeVisible();
   await trigger.click();
   const dialog = openedMelonDialog(page);

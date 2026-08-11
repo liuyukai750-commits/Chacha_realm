@@ -27,8 +27,9 @@ test("public spot only returns melons from that exact landmark", () => {
   assert.equal(isDiscoveryItemVisible(context, nearbyMelon), false);
 });
 
-test("city browsing without location keeps city and remote fallback candidates", () => {
+test("city browsing without location never mixes in private nearby life-circle melons", () => {
   const context = { hasLocation: false, sceneKind: "city_overview" };
-  assert.equal(isDiscoveryItemVisible(context, nearbyMelon), true);
+  assert.equal(isDiscoveryItemVisible(context, nearbyMelon), false);
+  assert.equal(isDiscoveryItemVisible(context, landmarkMelon), true);
   assert.equal(isDiscoveryItemVisible(context, { ...landmarkMelon, distanceBand: "remote" }), true);
 });

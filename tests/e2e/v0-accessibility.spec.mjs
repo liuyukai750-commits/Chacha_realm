@@ -33,25 +33,16 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await expect(melonTrigger(page)).toBeVisible();
     await expect(page.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).first()).toBeInViewport();
 
-    const quickActions = page.getByRole("group", { name: "瓜区快捷操作" });
-    const [quickActionBox, radarBox] = await Promise.all([
-      quickActions.boundingBox(),
-      page.getByTestId("radar-surface").boundingBox(),
-    ]);
-    expect(quickActionBox, "玩法入口必须有可见布局盒").not.toBeNull();
+    const overview = melonTrigger(page);
+    const [overviewBox, radarBox] = await Promise.all([overview.boundingBox(), page.getByTestId("radar-surface").boundingBox()]);
+    expect(overviewBox, "瓜量总览必须有可见布局盒").not.toBeNull();
     expect(radarBox, "城市瓜区画面必须有可见布局盒").not.toBeNull();
-    const overlapsRadar = !(
-      quickActionBox.x + quickActionBox.width <= radarBox.x
-      || radarBox.x + radarBox.width <= quickActionBox.x
-      || quickActionBox.y + quickActionBox.height <= radarBox.y
-      || radarBox.y + radarBox.height <= quickActionBox.y
-    );
-    expect(overlapsRadar, "玩法入口不能覆盖城市瓜区画面").toBe(false);
+    expect(overviewBox.width, "总览入口不能挤成小按钮").toBeGreaterThanOrEqual(Math.min(300, radarBox.width - 24));
 
     if (layout.innerWidth <= 430) {
       const criticalTargets = [
         ...await page.getByRole("navigation").getByRole("button").all(),
-        ...await quickActions.getByRole("button").all(),
+        overview,
         page.getByRole("button", { name: /开启附近1公里|刷新附近1公里/ }),
         page.getByRole("button", { name: /瓜篮/ }),
         ...await page.getByRole("group", { name: "按单一话题筛选" }).getByRole("button").all(),
@@ -149,7 +140,8 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await expect(zone.getByRole("heading", { name: "医疗建筑附近", exact: true })).toBeVisible();
     await expect(page.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
 
-    await page.getByRole("button", { name: /直接吃：职场瓜，医疗建筑附近，同一瓜区/ }).click();
+    await melonTrigger(page).click();
+    await page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "直接吃", exact: true }).click();
     const reader = openedMelonDialog(page);
     await expect(reader.getByRole("img", { name: /医疗建筑附近.*地点名称已模糊.*不是实景地图/ })).toBeVisible();
     await expect(page.getByText(sensitiveSpot.name, { exact: true })).toHaveCount(0);
@@ -265,7 +257,11 @@ test.describe("V0 响应式与无障碍门槛", () => {
 
   test("A11Y-KEYBOARD：瓜详情对话框圈定焦点并把焦点还给触发器", async ({ page }) => {
     await enterIsland(page);
-    const trigger = melonTrigger(page);
+    const overview = melonTrigger(page);
+    await overview.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: /瓜篮/ })).toHaveAttribute("aria-expanded", "true");
+    const trigger = page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "直接吃", exact: true });
     await trigger.focus();
     await page.keyboard.press("Enter");
 

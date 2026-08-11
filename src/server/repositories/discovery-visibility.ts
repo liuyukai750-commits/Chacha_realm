@@ -22,7 +22,7 @@ export function isDiscoveryItemVisible(
   context: DiscoveryVisibilityContext,
   item: DiscoveryVisibilityItem,
 ): boolean {
-  if (!context.hasLocation) return true;
+  if (!context.hasLocation) return item.burialKind === "public_spot";
   if (item.distanceBand !== "within_1km") return false;
   if (context.sceneKind === "nearby_area") return item.burialKind === "nearby_area";
   if (context.sceneKind === "public_spot") {

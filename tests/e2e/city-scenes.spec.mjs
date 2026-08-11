@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { enterIsland, installV0Api } from "./fixtures/v0-api.mjs";
 
 const cityScenes = [
   {
@@ -82,7 +83,7 @@ test.describe("五城场景与附近生活圈验收", () => {
   test.setTimeout(90_000);
 
   test.beforeEach(async ({ page }) => {
-    await page.clock.install({ time: new Date("2026-08-10T10:00:00+08:00") });
+    await page.clock.setFixedTime(new Date("2026-08-10T10:00:00+08:00"));
   });
 
   test("CITY-SCENES：五城日夜资源和地标语义各不相同", async ({ page }) => {
@@ -107,6 +108,26 @@ test.describe("五城场景与附近生活圈验收", () => {
       nightSources.add(await expectSceneLoaded(page, expected.night));
     }
     expect(nightSources.size, "五城夜间场景必须使用五个不同资源").toBe(cityScenes.length);
+  });
+
+  test("CITY-OVERVIEW：五城昼夜雷达都只显示单一瓜量总览", async ({ page }) => {
+    await installV0Api(page, { fiveCities: true });
+    await enterIsland(page);
+
+    for (const phase of ["day", "night"]) {
+      if (phase === "night") {
+        await page.getByRole("button", { name: "当前日间模式，切换到夜间模式" }).click();
+      }
+      for (const expected of cityScenes) {
+        await switchCity(page, expected.city);
+        const stage = page.getByTestId("radar-surface");
+        await expect(stage).toHaveAttribute("data-scene-context", "city_overview");
+        await expect(stage.locator(".melon-node")).toHaveCount(0);
+        await expect(page.locator(".radar-summary-signal")).toHaveCount(1);
+        await expect(page.getByRole("button", { name: /瓜区总览：\d+颗瓜，点开挑选/ })).toBeVisible();
+        await assertNoHorizontalOverflow(page, `${expected.city}${phase === "day" ? "日间" : "夜间"}瓜量总览`);
+      }
+    }
   });
 
   test("NEARBY-SHARED：任意城市的附近 1km 共用生活圈资源且不展示地标瓜", async ({ page }) => {

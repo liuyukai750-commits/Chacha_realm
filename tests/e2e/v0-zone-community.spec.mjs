@@ -135,6 +135,8 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(page.getByTestId("radar-surface")).toHaveAttribute("data-scene-context", "public_spot");
     await expect(page.getByTestId("radar-surface").locator("img")).toHaveAttribute("src", /changsha-wuyi-(day|night)/);
     await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("4 颗瓜");
+    await expect(page.getByTestId("radar-surface").locator(".melon-node")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "瓜区总览：4颗瓜，点开挑选" })).toBeVisible();
     await expandBasket(page);
     await expect(page.getByRole("article")).toHaveCount(4);
     await expect.poll(() => api.discoveryRequests.at(-1)).toMatchObject({
@@ -186,7 +188,12 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await enterIsland(page);
 
     await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("12 颗瓜");
-    await expandBasket(page);
+    const stage = page.getByTestId("radar-surface");
+    await expect(stage.locator(".melon-node")).toHaveCount(0);
+    const overview = page.getByRole("button", { name: "瓜区总览：12颗瓜，点开挑选" });
+    await expect(overview).toBeVisible();
+    await overview.click();
+    await expect(page.getByRole("button", { name: /瓜篮/ })).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("article")).toHaveCount(12);
 
     const topicFilter = page.getByRole("group", { name: "按单一话题筛选" });
@@ -209,6 +216,18 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     const remoteRow = page.getByRole("article", { name: remote.title, exact: true });
     await expect(remoteRow.getByRole("button", { name: "远方围观", exact: true })).toBeVisible();
     await expect(remoteRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toHaveCount(0);
+  });
+
+  test("CITY-ISOLATION：城市瓜区不会混入手机附近生活圈的瓜", async ({ page }) => {
+    await installV0Api(page, { includeNearbyAreaInCity: true });
+    await enterIsland(page);
+
+    const cityScope = page.getByRole("group", { name: "吃瓜范围" }).getByRole("button", { name: /城市瓜区/ });
+    await expect(cityScope).toContainText("11 颗公开瓜");
+    await expect(page.getByRole("button", { name: "瓜区总览：11颗瓜，点开挑选" })).toBeVisible();
+    await page.getByRole("button", { name: "瓜区总览：11颗瓜，点开挑选" }).click();
+    await expect(page.getByRole("article")).toHaveCount(11);
+    await expect(page.getByRole("article", { name: melon.title, exact: true })).toHaveCount(0);
   });
 
   test("REMOTE-READ：远程可读正文、公开评论、轻反应和蹲瓜，但没有评论输入", async ({ page }) => {

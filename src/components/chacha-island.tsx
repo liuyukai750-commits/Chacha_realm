@@ -502,7 +502,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const [topic, setTopic] = useState<SafeTopic | "all">("all");
   const [basketOpen, setBasketOpen] = useState(false);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
-  const cityItems = items.filter((melon) => melon.cityId === cityId);
+  const cityItems = items.filter((melon) => melon.cityId === cityId && (melon.burialKind ?? "public_spot") === "public_spot");
   const nearbyItems = nearbyItemsForScene(items, sceneContext);
   const scopedItems = scope === "nearby" ? nearbyItems : cityItems;
   const spotGroups = Array.from(scopedItems.reduce((groups, melon) => {
@@ -516,8 +516,8 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const filteredItems = topic === "all" ? zoneItems : zoneItems.filter((melon) => melon.topic === topic);
   const zoneSpot = zoneItems[0]?.spot;
   const zoneScene = zoneSpot ? getSpotScene(zoneSpot) : null;
-  const representatives = [...filteredItems].sort((left, right) => Number(right.status === "mature") - Number(left.status === "mature")).slice(0, 5);
-  const openRepresentative = representatives.find((melon) => melon.status === "mature" && melon.revealMode === "open");
+  const matureCount = filteredItems.filter((melon) => melon.status === "mature").length;
+  const incubatingCount = filteredItems.length - matureCount;
   const effectiveSceneKind = scope === "city" ? "city_overview" : sceneContext.kind;
   const showingNearbyArea = effectiveSceneKind === "nearby_area";
   const cityVisual = getCityVisual(cityId);
@@ -533,6 +533,11 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const selectZone = (spotId: string) => {
     setSelectedSpotId(spotId);
     setTopic("all");
+  };
+  const openBasketFromRadar = () => {
+    if (filteredItems.length === 0) return;
+    setBasketOpen(true);
+    window.requestAnimationFrame(() => document.getElementById("basket-title")?.scrollIntoView({ block: "start" }));
   };
   return (
     <>
@@ -553,9 +558,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
               {scope === "nearby" ? <CheckIcon /> : <LocationIcon />}
               <span><strong>{locatingNearby ? demoMode ? "正在载入示例范围" : "正在获取本次位置" : scope === "nearby" ? demoMode ? "正在模拟 1 公里" : "只看附近 1 公里" : demoMode ? "模拟附近 1 公里" : "开启附近 1 公里"}</strong><small>{demoMode ? "本地试玩不读取真实位置" : scope === "nearby" ? "不会扩大范围 · 精确位置不保存" : "拒绝后仍可继续浏览城市瓜区"}</small></span>
             </button>
-          </div>
-          <div className="scene-quick-actions" role="group" aria-label="瓜区快捷操作">
-            {openRepresentative && <button className="quick-open" onClick={() => onOpen(openRepresentative)}><span>日常小瓜</span><strong>直接吃</strong></button>}
           </div>
         </div>
       </section>
@@ -579,7 +581,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
         </>}
       </section>
 
-      <section className={`radar-stage city-${cityId}${showingNearbyArea ? " is-nearby-area" : ""}`} data-testid="radar-surface" data-scene-context={effectiveSceneKind} aria-label={`${sceneLabel}。只展示代表瓜，没有坐标，不用于导航`} aria-busy={openingMelon}>
+      <section className={`radar-stage city-${cityId}${showingNearbyArea ? " is-nearby-area" : ""}`} data-testid="radar-surface" data-scene-context={effectiveSceneKind} aria-label={`${sceneLabel}。只展示瓜量总览，没有坐标，不用于导航`} aria-busy={openingMelon}>
         <Image
           className="urban-scene-image"
           src={sceneImage}
@@ -593,25 +595,23 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
         <div className="radar-grid" aria-hidden="true"><i /><i /><i /><span className="radar-sweep" /></div>
         <CityIsland cityId={cityId} cityName={cityName} radar />
         <div className="radar-origin" aria-hidden="true"><span>猹</span><i /></div>
-        {representatives.map((melon, index) => {
-          const scene = getSpotScene(melon.spot);
-          return <button
-            key={melon.id}
-            className={`melon-node node-${index + 1} ${melon.status} scene-${scene.kind}`}
-            onClick={() => melon.status === "mature" ? onOpen(melon) : onSquat(melon.id)}
-            disabled={readOnly && melon.status === "incubating"}
-            aria-label={`${melon.status === "mature" ? "直接吃" : quickSquats.includes(melon.id) ? "取消蹲后续" : "蹲后续"}：${topicName[melon.topic]}瓜，${scene.displayName}，${distanceName[melon.distanceBand]}`}
-            aria-pressed={melon.status === "incubating" ? quickSquats.includes(melon.id) : undefined}
-          >
-            <span className="melon-orb" aria-hidden="true"><i /><i /><i /></span>
-            <span className="node-label"><strong>{melon.status === "mature" ? "直接吃" : quickSquats.includes(melon.id) ? "已蹲后续" : "蹲后续"}</strong><small>{topicName[melon.topic]} · {scene.displayName}</small></span>
-          </button>;
-        })}
         <div className="ring-label ring-one">瓜区</div><div className="ring-label ring-two">附近</div><div className="ring-label ring-three">同城</div>
       </section>
 
+      <button
+        type="button"
+        className={`radar-summary-signal ${filteredItems.length ? "has-melons" : "is-empty"}`}
+        onClick={openBasketFromRadar}
+        disabled={filteredItems.length === 0}
+        aria-label={filteredItems.length ? `瓜区总览：${filteredItems.length}颗瓜，点开挑选` : "瓜区总览：暂时没有瓜"}
+      >
+        <span className="radar-summary-count"><strong>{filteredItems.length}</strong><small>颗瓜</small></span>
+        <span className="radar-summary-copy"><small>{scope === "nearby" ? "附近生活圈" : zoneScene?.displayName ?? `${cityName}瓜区`}</small><strong>{filteredItems.length ? "打开瓜篮，挑一颗吃" : "这片瓜区暂时安静"}</strong><em>{matureCount} 颗成熟 · {incubatingCount} 颗孵化中</em></span>
+        {filteredItems.length > 0 && <ChevronIcon />}
+      </button>
+
       <section className="radar-legend" aria-label="雷达说明">
-        <span><i className="legend-mature" />成熟，可吃</span><span><i className="legend-sleep" />孵化中</span>
+        <span><i className="legend-mature" />成熟 {matureCount}</span><span><i className="legend-sleep" />孵化中 {incubatingCount}</span>
         <button onClick={onRefresh}>重新听一圈 <RadarIcon /></button>
       </section>
       <section className={`melon-basket ${basketOpen ? "is-open" : ""}`} aria-labelledby="basket-title">
