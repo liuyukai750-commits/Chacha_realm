@@ -345,7 +345,10 @@ export async function installV0Api(page, options = {}) {
       });
     }
 
-    const requestMelons = state.fiveCities ? cityMelons(state.activeCityId, state.activeSpot, options) : discoveryMelons;
+    const requestMelons = [
+      ...(state.fiveCities ? cityMelons(state.activeCityId, state.activeSpot, options) : discoveryMelons),
+      ...state.createdMelons,
+    ];
     const requestedMelon = requestMelons.find((item) => path === `/api/melons/${item.id}`);
     if (method === "GET" && requestedMelon) {
       return json(route, {
@@ -502,6 +505,12 @@ export async function installV0Api(page, options = {}) {
         completedReads: 0,
         isRemote: false,
         revealMode: "open",
+        alias: "巡城小猹 101",
+        title: body.title,
+        content: body.content,
+        createdAt: fixedNow,
+        squatted: false,
+        reactions: { juicy: 0, wild: 0, hug: 0, follow_up: 0 },
       };
       if (status === "incubating" || status === "mature") state.createdMelons.unshift(createdMelon);
       const result = {

@@ -92,6 +92,35 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
     expect(api.fieldRequests.length, "页面刷新后必须再次读取服务端瓜田").toBeGreaterThanOrEqual(2);
   });
 
+  test("OWNER-READER：点击我埋下的成熟瓜可查看原文和公开评论", async ({ baseURL, context, page }) => {
+    const api = await installV0Api(page, {
+      wallet: { smallSeedCount: 0, trueSeedCount: 0 },
+      createStatusSequence: ["mature"],
+    });
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+
+    const dialog = await openBurySheet(page);
+    await fillSafeMelon(dialog, "，成熟后能打开评论");
+    const expectedTitle = await dialog.getByRole("textbox", { name: "标题" }).inputValue();
+    const expectedContent = await dialog.getByRole("textbox", { name: "故事内容" }).inputValue();
+    await dialog.getByRole("button", { name: /埋瓜，把秘密压进土里/ }).click();
+    await expect.poll(() => api.createdMelons).toHaveLength(1);
+
+    await page.getByRole("button", { name: "查看我埋下的瓜", exact: true }).click();
+    await expect(page.getByRole("region", { name: /我的瓜田/ })).toBeVisible();
+    await page.getByRole("button", { name: /查看日常瓜的正文和评论/ }).click();
+
+    const reader = page.getByRole("dialog", { name: expectedTitle });
+    await expect(reader).toBeVisible();
+    await expect(reader.getByText("我的瓜 · 瓜主管理视图")).toBeVisible();
+    await expect(reader.getByText(expectedContent)).toBeVisible();
+    await expect(reader.getByRole("heading", { name: "吃瓜猹的评论" })).toBeVisible();
+    await expect(reader.getByText("这是从评论 GET fixture 读取的第一条公开回声。")).toBeVisible();
+    await expect(reader.getByText("远方围观也应该看得到这条评论。")).toBeVisible();
+    expect(api.commentGetRequests).toEqual([{ melonId: api.createdMelons[0].id, search: "?limit=20" }]);
+  });
+
   test("SHARE-LEDGER：held、后续发布和幂等重放都不会多发真瓜籽", async ({ page }) => {
     const api = await installV0Api(page, {
       wallet: { smallSeedCount: 0, trueSeedCount: 0 },
