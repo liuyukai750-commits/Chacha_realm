@@ -1,0 +1,25 @@
+# Local dependencies and build output
+node_modules/
+.next/
+out/
+
+# Local environment and secrets
+.env*
+!.env.example
+
+# Local test artifacts
+test-results/
+playwright-report/
+blob-report/
+coverage/
+*.log
+*.trace.zip
+*.har
+
+# Unrelated or source-unknown local files
+DESIGN.md
+PRODUCT.md
+scripts/
+processed_id_images/
+猹猹岛素材库/
+猹猹王国产品书/
