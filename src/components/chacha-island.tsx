@@ -29,6 +29,7 @@ import type {
   DiscoverySceneContext,
   DistanceBand,
   FieldPlant,
+  FieldMelonPreview,
   FieldPlotIndex,
   FieldView,
   HarvestFieldResult,
@@ -139,6 +140,7 @@ export function ChachaIsland() {
   const [retryKey, setRetryKey] = useState(0);
   const [tab, setTab] = useState<"radar" | "field">("radar");
   const [opened, setOpened] = useState<OpenedMelon | null>(null);
+  const [openedAsOwner, setOpenedAsOwner] = useState(false);
   const [viewedField, setViewedField] = useState<FieldView | null>(null);
   const [quickSquats, setQuickSquats] = useState<string[]>([]);
   const [zonePresence, setZonePresence] = useState<Record<string, ZonePresenceResult>>({});
@@ -250,6 +252,7 @@ export function ChachaIsland() {
     }
     setOpeningMelon(true);
     try {
+      setOpenedAsOwner(false);
       setOpened(await islandAdapter.openMelon(preview.id, presenceToken));
     } catch (error) {
       setNotice(messageFrom(error));
@@ -313,6 +316,19 @@ export function ChachaIsland() {
         },
         () => undefined,
       );
+    }
+  };
+
+  const openOwnedMelon = async (preview: FieldMelonPreview) => {
+    setOpeningMelon(true);
+    try {
+      setOpenedAsOwner(true);
+      setOpened(await islandAdapter.openMelon(preview.id));
+    } catch (error) {
+      setOpenedAsOwner(false);
+      setNotice(messageFrom(error));
+    } finally {
+      setOpeningMelon(false);
     }
   };
 
@@ -425,6 +441,7 @@ export function ChachaIsland() {
             field={viewedField ?? model.field}
             isOwn={!viewedField}
             onBury={() => setShowBury(true)}
+            onOpen={openOwnedMelon}
             onPlant={async (plotIndex, operationId) => {
               const result = await islandAdapter.plant({ plotIndex, operationId });
               setModel((current) => current ? { ...current, field: result.field, session: { ...current.session, wallet: result.wallet } } : current);
@@ -452,7 +469,9 @@ export function ChachaIsland() {
         <button className={tab === "field" ? "active" : ""} onClick={showOwnField} aria-current={tab === "field" ? "page" : undefined}><FieldIcon /><span>瓜田</span></button>
       </nav>
 
-      {opened && <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.spot.id]} />}
+      {opened && (openedAsOwner
+        ? <OwnerMelonReader adapter={islandAdapter} opened={opened} onClose={() => { setOpened(null); setOpenedAsOwner(false); }} />
+        : <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.spot.id]} />)}
       {showCities && <CityPicker model={model} onClose={() => setShowCities(false)} onSelect={selectCity} />}
       {showBury && !writesBlocked && <BurySheetV1 key={activeCity.id} cityId={activeCity.id} spots={activeCity.spots} cityName={activeCity.name} demoMode={mode === "demo"} onClose={() => setShowBury(false)} onCreate={createMelon} />}
     </div>
@@ -654,10 +673,11 @@ function OpeningCard({ state }: { state: CityOpeningState }) {
   );
 }
 
-function MyField({ field, isOwn, onBury, onPlant, onRefresh, onHarvest, onHarvested }: {
+function MyField({ field, isOwn, onBury, onOpen, onPlant, onRefresh, onHarvest, onHarvested }: {
   field: FieldView;
   isOwn: boolean;
   onBury: () => void;
+  onOpen: (preview: FieldMelonPreview) => Promise<void>;
   onPlant: (plotIndex: FieldPlotIndex, operationId: string) => Promise<OwnFieldView>;
   onRefresh: () => Promise<OwnFieldView>;
   onHarvest: () => Promise<HarvestFieldResult>;
@@ -791,10 +811,48 @@ function MyField({ field, isOwn, onBury, onPlant, onRefresh, onHarvest, onHarves
 
       <section className="my-melons" aria-labelledby="my-melons-title">
         <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />再埋一个故事</button>}</header>
-        {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "held" ? "安全复核中 · 暂不发籽" : melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这里还没有埋过故事</strong><span>可以埋在附近生活圈或公共地点</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
+        {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => isOwn
+          ? <button type="button" className="field-melon-card" key={melon.id} onClick={() => void onOpen(melon)} aria-label={`查看${topicName[melon.topic]}瓜的正文和评论`}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "held" ? "安全复核中 · 点击查看原文" : melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟 · 点击查看` : "已经成熟 · 查看评论"}</small></div><ChevronIcon /></button>
+          : <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这里还没有埋过故事</strong><span>可以埋在附近生活圈或公共地点</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
       </section>
     </section>
   );
+}
+
+function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void }) {
+  const [comments, setComments] = useState<MelonComment[]>([]);
+  const [loading, setLoading] = useState(opened.melon.status === "mature");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (opened.melon.status !== "mature") return;
+    let active = true;
+    adapter.comments(opened.melon.id).then(
+      (page) => { if (active) setComments(page.items); },
+      (caught) => { if (active) setError(messageFrom(caught)); },
+    ).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [adapter, opened.melon.id, opened.melon.status]);
+
+  const statusCopy = opened.melon.status === "held"
+    ? "安全复核中 · 只有你能看到原文，暂不公开或发放真瓜籽"
+    : opened.melon.status === "incubating"
+    ? `正在孵化 · 约 ${formatCountdown(opened.melon.maturesAt)} 后公开`
+    : "已经成熟 · 下方是吃瓜猹留下的公开回声";
+
+  return <Sheet title={opened.melon.title} subtitle="我的瓜 · 瓜主管理视图" onClose={onClose} wide stealth>
+    <article className="owner-melon-reader">
+      <div className={`owner-melon-status is-${opened.melon.status}`} role="status"><strong>{statusCopy}</strong></div>
+      <PlaceScene spot={opened.melon.spot} stealth />
+      <section className="owner-story"><span>{topicName[opened.melon.topic]}瓜 · {getSpotScene(opened.melon.spot).displayName}</span><p>{opened.melon.content}</p><small>发布于 {formatRelativeTime(opened.melon.createdAt)}</small></section>
+      <div className="owner-melon-stats" aria-label="这颗瓜的数据"><span>吃完 <strong>{opened.melon.completedReads ?? 0}</strong> 只猹</span>{reactionMeta.map(([key, label]) => <span key={key}>{label} <strong>{opened.melon.reactions[key]}</strong></span>)}</div>
+      <section className="comments owner-comments" aria-labelledby="owner-comments-title">
+        <header><div><span>公开回声</span><h3 id="owner-comments-title">吃瓜猹的评论</h3></div><strong>{comments.length}</strong></header>
+        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </section>
+    </article>
+  </Sheet>;
 }
 
 function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (spotId: string) => Promise<ZonePresenceResult>; readOnly: boolean; initialPresence?: ZonePresenceResult }) {

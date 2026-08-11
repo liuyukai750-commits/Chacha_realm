@@ -28,12 +28,13 @@ test("安全复核中的瓜只对瓜主瓜田可见，不会被静默丢失", ()
   assert.ok(definitions.length > 0);
   const latest = definitions.at(-1)[0];
   assert.match(latest, /p_include_private\s+and\s+m\.status\s*=\s*'held'/i);
-  assert.match(component, /安全复核中 · 暂不发籽/);
+  assert.match(component, /安全复核中 · 点击查看原文/);
 });
 
 test("安全复核触发器使用 Supabase extensions schema，不会回滚埋瓜", () => {
-  const latestMigration = migrations.at(-1);
-  assert.match(latestMigration, /extensions\.digest\(new\.title/i);
-  assert.match(latestMigration, /extensions\.digest\(new\.content/i);
-  assert.doesNotMatch(latestMigration, /(?<!extensions\.)digest\(/i);
+  const moderationMigration = migrations[migrationNames.indexOf("202608110004_moderation_digest_schema.sql")];
+  assert.ok(moderationMigration, "必须保留内容复核 digest schema 修复迁移");
+  assert.match(moderationMigration, /extensions\.digest\(new\.title/i);
+  assert.match(moderationMigration, /extensions\.digest\(new\.content/i);
+  assert.doesNotMatch(moderationMigration, /(?<!extensions\.)digest\(/i);
 });

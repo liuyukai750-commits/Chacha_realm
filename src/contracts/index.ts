@@ -95,8 +95,8 @@ export interface MelonPreview {
   revealMode: MelonRevealMode;
 }
 
-export interface MelonDetail extends MelonPreview {
-  status: "mature";
+export interface MelonDetail extends Omit<MelonPreview, "status"> {
+  status: "incubating" | "mature" | "held";
   alias: string;
   title: string;
   content: string;
