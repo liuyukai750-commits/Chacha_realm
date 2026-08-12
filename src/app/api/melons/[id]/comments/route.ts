@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = object(await readJson(request));
     const content = text(body.content, "content", 140);
     const presenceToken = text(body.presenceToken, "presenceToken", 2_048);
-    const presence = requirePresenceCredential(presenceToken, session.userId);
-    return addComment(id, presence.spotId, content, session.userId);
+    requirePresenceCredential(presenceToken, session.userId, { spotId: id });
+    return addComment(id, content, session.userId);
   });
 }

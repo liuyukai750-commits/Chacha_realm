@@ -258,10 +258,10 @@ export function ChachaIsland() {
     }
   };
 
-  const seekZone = async (spotId: string) => {
+  const seekZone = async (melonId: string) => {
     const location = await requestLocationProof();
-    const result = await islandAdapter.verifyZonePresence({ spotId, location });
-    setZonePresence((current) => ({ ...current, [spotId]: result }));
+    const result = await islandAdapter.verifyZonePresence({ melonId, location });
+    setZonePresence((current) => ({ ...current, [melonId]: result }));
     setNotice(seekCopy[result.seekState].notice);
     if (result.seekState === "found" && "vibrate" in navigator) navigator.vibrate?.(18);
     return result;
@@ -534,7 +534,7 @@ export function ChachaIsland() {
 
       {opened && (openedAsOwner
         ? <OwnerMelonReader adapter={islandAdapter} opened={opened} onClose={() => { setOpened(null); setOpenedAsOwner(false); }} />
-        : <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} onSquatChanged={refreshSquatShelf} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.spot.id]} />)}
+        : <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} onSquatChanged={refreshSquatShelf} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.id]} />)}
       {showCities && <CityPicker model={model} onClose={() => setShowCities(false)} onSelect={selectCity} />}
       {showSquatShelf && <SquatShelfSheet shelf={model.squatShelf} busy={openingMelon} onClose={() => setShowSquatShelf(false)} onOpen={openSquattedMelon} onCancel={quickSquat} />}
       {showBury && !writesBlocked && <BurySheetV1 key={activeCity.id} spots={activeCity.spots} cityName={activeCity.name} demoMode={mode === "demo"} onClose={() => setShowBury(false)} onCreate={createMelon} />}
@@ -956,7 +956,7 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
   </Sheet>;
 }
 
-function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (spotId: string) => Promise<ZonePresenceResult>; onSquatChanged: () => Promise<void>; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
+function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (melonId: string) => Promise<ZonePresenceResult>; onSquatChanged: () => Promise<void>; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
   const [elapsed, setElapsed] = useState(0);
   const [finished, setFinished] = useState(false);
   const [completionResult, setCompletionResult] = useState<CompleteReadResult | null>(null);
@@ -966,6 +966,8 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   const [squatCount, setSquatCount] = useState(opened.melon.squatCount ?? 0);
   const [reactions, setReactions] = useState(opened.melon.reactions);
   const [liked, setLiked] = useState(Boolean(opened.melon.liked));
+  const [interactionBusy, setInteractionBusy] = useState<"like" | "squat" | null>(null);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
 
   useEffect(() => {
     const start = window.performance.now();
@@ -989,16 +991,48 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   };
 
   const toggleSquat = async () => {
-    const result = await adapter.setSquat(opened.melon.id, !squatted);
-    setSquatted(result.active);
-    setSquatCount(result.squatCount);
-    await onSquatChanged();
+    if (interactionBusy) return;
+    const priorActive = squatted;
+    const priorCount = squatCount;
+    const nextActive = !priorActive;
+    setInteractionBusy("squat");
+    setInteractionError(null);
+    setSquatted(nextActive);
+    setSquatCount(Math.max(0, priorCount + (nextActive ? 1 : -1)));
+    try {
+      const result = await adapter.setSquat(opened.melon.id, nextActive);
+      setSquatted(result.active);
+      setSquatCount(result.squatCount);
+      void onSquatChanged();
+    } catch (caught) {
+      setSquatted(priorActive);
+      setSquatCount(priorCount);
+      setInteractionError(messageFrom(caught));
+    } finally {
+      setInteractionBusy(null);
+    }
   };
 
   const react = async (reaction: ReactionType) => {
-    const result = await adapter.react(opened.melon.id, reaction, !liked);
-    setLiked(result.active);
-    setReactions(result.reactions);
+    if (interactionBusy) return;
+    const priorActive = liked;
+    const priorReactions = reactions;
+    const nextActive = !priorActive;
+    setInteractionBusy("like");
+    setInteractionError(null);
+    setLiked(nextActive);
+    setReactions({ ...priorReactions, like: Math.max(0, (priorReactions.like ?? 0) + (nextActive ? 1 : -1)) });
+    try {
+      const result = await adapter.react(opened.melon.id, reaction, nextActive);
+      setLiked(result.active);
+      setReactions(result.reactions);
+    } catch (caught) {
+      setLiked(priorActive);
+      setReactions(priorReactions);
+      setInteractionError(messageFrom(caught));
+    } finally {
+      setInteractionBusy(null);
+    }
   };
 
   return (
@@ -1006,7 +1040,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
       <article className="melon-reader">
         <StealthCue title="扒开草丛" copy="叶影替你挡住路过的视线，正文仍保持清楚可读。" />
         <PlaceScene spot={opened.melon.spot} stealth />
-        <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span>{!readOnly && <button onClick={toggleSquat} aria-pressed={squatted}>{squatted ? <CheckIcon /> : <SproutIcon />}{squatted ? "取消蹲后续" : "蹲后续"}<small>{squatCount}</small></button>}</div>
+        <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span></div>
         <div className="reader-links"><a href={`/fields/${encodeURIComponent(opened.melon.alias)}`} onClick={(event) => { event.preventDefault(); onViewField(opened.melon.alias); }}>查看 {opened.melon.alias} 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
         <ReportControl adapter={adapter} targetType="melon" targetId={opened.melon.id} label="举报这颗瓜" />
         <div className="peel-story" style={peelStyle}>
@@ -1019,7 +1053,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
           <button className={finished ? `finish-button finished ${completionResult?.smallSeedAwarded ? "seed-launch" : ""}` : "finish-button"} aria-label="完成吃瓜" onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> {completionResult ? readRewardLabel(completionResult) : "已吃完"}</> : busy ? "正在留籽…" : "完成吃瓜"}</button>
           {error && <p className="form-error" role="alert">{error}</p>}
         </div>
-        {!readOnly && <div className="reaction-row" aria-label="轻反应">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} aria-pressed={liked} aria-label={`${label}，当前 ${reactions[key] ?? 0} 次${liked ? "，已点赞" : ""}`}><span aria-hidden="true">{liked ? "✓" : glyph}</span>{label}<small>{reactions[key] ?? 0}</small></button>)}</div>}
+        {!readOnly && <div className="reader-interactions"><div className="reaction-row" aria-label="点赞与蹲后续">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={Boolean(interactionBusy)} aria-pressed={liked} aria-label={`${label}，当前 ${reactions[key] ?? 0} 次${liked ? "，已点赞" : ""}`}><span aria-hidden="true">{liked ? "✓" : glyph}</span>{interactionBusy === "like" ? "正在点赞" : label}<small>{reactions[key] ?? 0}</small></button>)}<button onClick={toggleSquat} disabled={Boolean(interactionBusy)} aria-pressed={squatted} aria-label={`蹲后续，当前 ${squatCount} 人${squatted ? "，已蹲瓜" : ""}`}><span aria-hidden="true">{squatted ? "✓" : "⌛"}</span>{interactionBusy === "squat" ? "正在蹲瓜" : squatted ? "已蹲后续" : "蹲后续"}<small>{squatCount}</small></button></div>{interactionError && <p className="form-error interaction-error" role="alert">{interactionError}</p>}</div>}
         {readOnly && <p className="readonly-note">当前匿名身份只能阅读，不能轻反应、蹲瓜或评论。申诉入口即将开放。</p>}
         <InlineComments adapter={adapter} melon={opened.melon} onSeek={onSeek} readOnly={readOnly} initialPresence={initialPresence} />
       </article>
@@ -1027,7 +1061,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   );
 }
 
-function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: { adapter: IslandAdapter; melon: OpenedMelon["melon"]; onSeek: (spotId: string) => Promise<ZonePresenceResult>; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
+function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: { adapter: IslandAdapter; melon: OpenedMelon["melon"]; onSeek: (melonId: string) => Promise<ZonePresenceResult>; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
   const [comments, setComments] = useState<MelonComment[]>([]);
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1066,7 +1100,7 @@ function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: {
 
   const seek = async () => {
     setSeeking(true); setError(null);
-    try { setPresence(await onSeek(melon.spot.id)); }
+    try { setPresence(await onSeek(melon.id)); }
     catch (caught) { setError(messageFrom(caught)); }
     finally { setSeeking(false); }
   };

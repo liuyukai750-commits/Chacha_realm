@@ -276,7 +276,7 @@ export interface SquatShelf {
 }
 
 export interface VerifyZonePresenceRequest {
-  spotId: SpotId;
+  melonId: string;
   location: LocationProof;
 }
 

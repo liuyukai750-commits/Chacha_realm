@@ -13,6 +13,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const session = await requireActiveSession();
     const body = object(await readJson(request));
     if (typeof body.active !== "boolean") throw new ApiProblem(400, "invalid_request", "active 必须是布尔值。");
-    return setReaction(id, reaction(body.reaction), body.active, session.accessToken);
+    return setReaction(id, reaction(body.reaction), body.active, session.userId);
   });
 }

@@ -57,7 +57,7 @@ interface DiscoveryCandidate extends Omit<MelonPreview, "distanceBand" | "isRemo
 
 const APPROX_500M_LAT_DEGREES = 0.0045;
 
-function nearbyCellIdForLocation(cityId: CityId, location: CreateMelonRequest["location"]): string {
+export function nearbyCellIdForLocation(cityId: CityId, location: CreateMelonRequest["location"]): string {
   const secret = process.env.CHACHA_LOCATION_HMAC_SECRET;
   if (!secret || secret.length < 32) {
     throw new ApiProblem(503, "location_secret_missing", "附近生活圈密钥未配置，暂时不能埋生活圈瓜。");
@@ -236,8 +236,8 @@ export function completeRead(melonId: string, actorId: string): Promise<Complete
   });
 }
 
-export function setSquat(melonId: string, active: boolean, accessToken: string): Promise<SquatResult> {
-  return rpc("set_melon_squat", { p_melon_id: melonId, p_active: active }, accessToken);
+export function setSquat(melonId: string, active: boolean, actorId: string): Promise<SquatResult> {
+  return serviceRpc("set_melon_squat", { p_actor_id: actorId, p_melon_id: melonId, p_active: active });
 }
 
 export function getSquatShelf(accessToken: string): Promise<SquatShelf> {
@@ -248,8 +248,24 @@ export function markSquatAlertSeen(melonId: string, accessToken: string): Promis
   return rpc<{ seen: true }>("mark_squat_alert_seen", { p_melon_id: melonId }, accessToken);
 }
 
-export function setReaction(melonId: string, reaction: ReactionType, active: boolean, accessToken: string): Promise<ReactionResult> {
-  return rpc("set_melon_reaction", { p_melon_id: melonId, p_reaction: reaction, p_active: active }, accessToken);
+export function setReaction(melonId: string, reaction: ReactionType, active: boolean, actorId: string): Promise<ReactionResult> {
+  return serviceRpc("set_melon_reaction", { p_actor_id: actorId, p_melon_id: melonId, p_reaction: reaction, p_active: active });
+}
+
+export interface MelonPresenceTarget {
+  burialKind: "nearby_area" | "public_spot";
+  spotId?: string;
+  nearbyCityId?: CityId;
+  nearbyCellId?: string;
+}
+
+export async function getMelonPresenceTarget(melonId: string, actorId: string): Promise<MelonPresenceTarget> {
+  const target = await serviceRpc<MelonPresenceTarget | null>("get_melon_presence_target", {
+    p_actor_id: actorId,
+    p_melon_id: melonId,
+  });
+  if (!target) throw new ApiProblem(404, "not_found", "这个瓜尚未成熟或已不可用。 ");
+  return target;
 }
 
 export async function getComments(melonId: string, cursorValue: string | null, limit: number): Promise<MelonCommentsPage> {
@@ -275,13 +291,12 @@ interface AddCommentRpcResult {
 
 export async function addComment(
   melonId: string,
-  spotId: string,
   content: string,
   actorId: string,
 ): Promise<MelonComment> {
   const result = await serviceRpc<AddCommentRpcResult>(
     "add_melon_comment",
-    { p_actor_id: actorId, p_melon_id: melonId, p_spot_id: spotId, p_content: content },
+    { p_actor_id: actorId, p_melon_id: melonId, p_content: content },
   );
   if (result.held || !result.comment) {
     throw new ApiProblem(422, "content_held", "内容需要安全复核，暂未公开。 ");

@@ -335,13 +335,13 @@ export const demoIslandAdapter: IslandAdapter = {
     return delay(copy({ items: commentStore[id] ?? [] }));
   },
   async verifyZonePresence(request) {
-    const attempt = (seekAttempts.get(request.spotId) ?? 0) + 1;
-    seekAttempts.set(request.spotId, attempt);
+    const attempt = (seekAttempts.get(request.melonId) ?? 0) + 1;
+    seekAttempts.set(request.melonId, attempt);
     const states = ["outside", "near", "inside_zone", "found"] as const;
     const seekState = states[Math.min(attempt - 1, states.length - 1)];
     const local = seekState === "inside_zone" || seekState === "found";
-    const token = local ? `demo-presence-${request.spotId}-${Date.now()}` : undefined;
-    if (token) presenceTokens.set(token, { expiresAt: Date.now() + 15 * 60 * 1000, spotId: request.spotId, seekState });
+    const token = local ? `demo-presence-${request.melonId}-${Date.now()}` : undefined;
+    if (token) presenceTokens.set(token, { expiresAt: Date.now() + 15 * 60 * 1000, spotId: request.melonId, seekState });
     return delay(copy({
       presence: local ? "local" : "remote",
       seekState,

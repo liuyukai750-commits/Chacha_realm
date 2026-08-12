@@ -264,6 +264,8 @@ export async function installV0Api(page, options = {}) {
     commentFailureUsed: false,
     squats: new Map(),
     likes: new Set(options.likes ?? []),
+    reactionFailure: options.reactionFailure ?? null,
+    reactionFailureUsed: false,
   };
 
   await page.route("**/api/**", async (route) => {
@@ -429,6 +431,10 @@ export async function installV0Api(page, options = {}) {
     const reactionMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/reactions`);
     if (method === "POST" && reactionMelon) {
       state.reactionRequests.push({ melonId: reactionMelon.id, ...body });
+      if (state.reactionFailure && (!state.reactionFailure.once || !state.reactionFailureUsed)) {
+        state.reactionFailureUsed = true;
+        return json(route, { error: { code: "REACTION_FAILED", message: state.reactionFailure.message ?? "点赞暂时失败，请重试" } }, state.reactionFailure.status ?? 503);
+      }
       if (body?.reaction === "like" && body?.active) state.likes.add(reactionMelon.id);
       if (body?.reaction === "like" && body?.active === false) state.likes.delete(reactionMelon.id);
       const baseLike = reactionMelon.reactions.like ?? 0;

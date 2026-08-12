@@ -6,7 +6,6 @@ import {
   installV0Api,
   melon,
   publicComments,
-  spot,
 } from "./fixtures/v0-api.mjs";
 
 const preciseLocation = { latitude: 28.195397, longitude: 112.976869, accuracy: 18 };
@@ -281,6 +280,18 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(reopened.dialog.getByRole("button", { name: /蹲/ }).first()).toContainText("0");
   });
 
+  test("LIKE-FAILURE：点赞失败会回滚计数并明确提示，不再像点击没反应", async ({ page }) => {
+    await installV0Api(page, { reactionFailure: { once: true, message: "点赞暂时失败，请重试" } });
+    await enterIsland(page);
+    const { dialog } = await openRemoteMelon(page);
+    const like = dialog.getByRole("button", { name: /^点赞/ });
+    const before = await like.locator("small").textContent();
+    await like.click();
+    await expect(dialog.getByRole("alert")).toContainText("点赞暂时失败，请重试");
+    await expect(like.locator("small")).toHaveText(before ?? "0");
+    await expect(like).toHaveAttribute("aria-pressed", "false");
+  });
+
   test("COMMENTS-GET：评论保持单层，刷新后重新读取 GET fixture，且没有社交入口", async ({ page }) => {
     const api = await installV0Api(page);
     await enterIsland(page);
@@ -313,7 +324,7 @@ test.describe("现场评论凭证", () => {
     await dialog.getByRole("button", { name: "验证现场评论资格", exact: true }).click();
     await expect(dialog.getByRole("textbox", { name: /评论/ })).toBeVisible();
     await expect.poll(() => api.presenceRequests).toHaveLength(1);
-    expect(api.presenceRequests[0].spotId).toBe(spot.id);
+    expect(api.presenceRequests[0].melonId).toBe(melon.id);
     expect(api.presenceRequests[0].location.latitude).toBeCloseTo(preciseLocation.latitude, 5);
     expect(api.presenceRequests[0].location.longitude).toBeCloseTo(preciseLocation.longitude, 5);
   });
