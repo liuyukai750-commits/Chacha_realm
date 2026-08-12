@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mkdirSync } from "node:fs";
 import {
   completeReadControl,
   enterIsland,
@@ -61,6 +62,90 @@ test.describe("V0 响应式与无障碍门槛", () => {
       scrollWidth: document.documentElement.scrollWidth,
     }));
     expect(expandedLayout.scrollWidth).toBeLessThanOrEqual(expandedLayout.clientWidth + 1);
+  });
+
+  test("HOME-IA: basket is the home content carrier and opening panel is gone", async ({ page }, testInfo) => {
+    await enterIsland(page);
+
+    await expect(page.locator(".opening-card")).toHaveCount(0);
+    const basket = page.locator(".melon-basket");
+    await expect(basket).toBeVisible();
+    await expect(basket).toHaveClass(/is-open/);
+    await expect(page.locator("#basket-content")).not.toHaveAttribute("hidden", "");
+    await expect(basket.getByRole("article")).toHaveCount(12);
+
+    const basketBox = await basket.boundingBox();
+    expect(basketBox, "melon basket must be visible primary home content").not.toBeNull();
+    if ((testInfo.project.use.viewport?.width ?? 0) <= 450) {
+      expect(basketBox.height, "mobile basket should be larger than a compact disclosure").toBeGreaterThan(420);
+      mkdirSync("tests/.artifacts/evidence", { recursive: true });
+      await page.screenshot({
+        path: `tests/.artifacts/evidence/home-basket-${testInfo.project.use.viewport.width}.png`,
+        fullPage: true,
+      });
+    }
+
+    const futureCards = page.locator(".dev-preview-card");
+    await expect(futureCards).toHaveCount(2);
+    await expect(futureCards).toContainText(["今日瓜王", "名人猹·公开事件"]);
+    await expect(futureCards.getByRole("button")).toHaveCount(0);
+    await expect(futureCards.getByRole("link")).toHaveCount(0);
+  });
+
+  test("MOBILE-CONTRAST: acid and yellow controls stay readable at night", async ({ page }, testInfo) => {
+    test.skip(!["chromium-375", "chromium-430"].includes(testInfo.project.name), "mobile color baseline is checked at 375/430px");
+    await page.clock.install({ time: new Date("2026-08-04T22:00:00+08:00") });
+    await enterIsland(page);
+
+    const contrast = async (selectors) => page.evaluate((targets) => {
+      const rgb = (color) => color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0];
+      const luminance = (color) => rgb(color).reduce((sum, channel, index) => {
+        const value = channel / 255;
+        const linear = value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        return sum + linear * [0.2126, 0.7152, 0.0722][index];
+      }, 0);
+      const backgroundFor = (element) => {
+        let current = element;
+        while (current) {
+          const value = getComputedStyle(current).backgroundColor;
+          if (value && !value.endsWith(", 0)") && value !== "transparent") return value;
+          current = current.parentElement;
+        }
+        return "rgb(255, 255, 255)";
+      };
+      return Object.fromEntries(targets.map((selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return [selector, -1];
+        const style = getComputedStyle(element);
+        const foreground = luminance(style.color);
+        const background = luminance(backgroundFor(element));
+        return [selector, (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)];
+      }));
+    }, selectors);
+
+    await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
+    await page.getByRole("button", { name: /埋瓜/ }).first().click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.locator(".spot-choice-list button").first().click();
+
+    const buryContrast = await contrast([
+      ".discovery-scope button.active strong",
+      ".basket-actions .basket-primary",
+      ".bury-mode-picker button.selected strong",
+      ".spot-choice-list button.selected strong",
+      ".bury-submit",
+    ]);
+    for (const [selector, value] of Object.entries(buryContrast)) {
+      expect(value, `${selector} needs at least 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
+    }
+
+    await page.getByRole("button", { name: "关闭" }).click();
+    const dialog = await openMelon(page);
+    await dialog.getByRole("button", { name: /举报/ }).first().click();
+    const reportContrast = await contrast([".report-form>div button", ".report-form label"]);
+    for (const [selector, value] of Object.entries(reportContrast)) {
+      expect(value, `${selector} must be readable in report form`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   test("A11Y-NAME：地标、标题、控件和 id 提供稳定语义", async ({ page }) => {

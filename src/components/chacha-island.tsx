@@ -21,7 +21,6 @@ import {
 import Image from "next/image";
 import type {
   CityId,
-  CityOpeningState,
   CompleteReadResult,
   CreateMelonRequest,
   CreateMelonResult,
@@ -484,7 +483,6 @@ export function ChachaIsland() {
             visitorLocated={model.discovery.visitorType !== "location_unknown"}
             scope={discoveryScope}
             locatingNearby={locatingNearby}
-            opening={activeCity.opening}
             openingMelon={openingMelon}
             onLocate={locate}
             onCityBrowse={() => {
@@ -544,7 +542,7 @@ export function ChachaIsland() {
   );
 }
 
-function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, opening, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onRefresh, readOnly }: {
+function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onRefresh, readOnly }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
   quickSquats: string[];
@@ -556,7 +554,6 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   visitorLocated: boolean;
   scope: DiscoveryScope;
   locatingNearby: boolean;
-  opening: CityOpeningState;
   openingMelon: boolean;
   onLocate: () => void;
   onCityBrowse: () => void;
@@ -566,7 +563,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   readOnly: boolean;
 }) {
   const [topic, setTopic] = useState<SafeTopic | "all">("all");
-  const [basketOpen, setBasketOpen] = useState(false);
+  const [basketOpen, setBasketOpen] = useState(true);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const cityItems = items.filter((melon) => melon.cityId === cityId && (melon.burialKind ?? "public_spot") === "public_spot");
   const nearbyItems = nearbyItemsForScene(items, sceneContext);
@@ -709,7 +706,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
           }) : <div className="basket-empty"><SproutIcon /><strong>这个话题暂时没有瓜</strong><span>换一个话题，或稍后再听一听。</span></div>}
         </div>
       </section>
-      <OpeningCard state={opening} />
+      <DevPreviewCards />
     </>
   );
 }
@@ -727,14 +724,19 @@ function nearbyItemsForScene(
   );
 }
 
-function OpeningCard({ state }: { state: CityOpeningState }) {
-  const items = [["安全瓜", state.safeMelons, 30], ["瓜主", state.distinctAuthors, 25], ["地点", state.distinctSpots, 3], ["话题", state.distinctTopics, 3]] as const;
-  if (state.status === "open") return <section className="opening-card is-open"><span className="utility-label">CITY GATE OPEN</span><h2>这座城的瓜门已经打开</h2><p>今晚的成熟瓜正按距离向外扩散。</p></section>;
+function DevPreviewCards() {
   return (
-    <section className="opening-card" aria-labelledby="opening-title">
-      <header><span className="utility-label">CITY / OPENING</span><strong>{state.status === "countdown" ? "正在倒数开城门" : "继续攒热闹"}</strong></header>
-      <div><h2 id="opening-title">这座城正在攒一场热闹</h2><p>四项都满后，次日 20:00 开城门。</p></div>
-      <ul>{items.map(([label, value, goal]) => <li key={label}><span>{label}</span><div><i style={{ width: `${Math.min(100, value / goal * 100)}%` }} /></div><strong>{value}<small>/{goal}</small></strong></li>)}</ul>
+    <section className="dev-preview-grid" aria-label="待开发的社区栏目">
+      <article className="dev-preview-card">
+        <span className="utility-label">READ ONLY / NEXT</span>
+        <h2>今日瓜王</h2>
+        <p>待开发。上线后只展示前三，按有效吃完、点赞及安全权重综合，不做纯热度冲榜。</p>
+      </article>
+      <article className="dev-preview-card">
+        <span className="utility-label">PUBLIC ONLY / NEXT</span>
+        <h2>名人猹·公开事件</h2>
+        <p>待开发。只讨论公开可核验信息；当前不接接口、不伪造榜单、不显示虚假数据。</p>
+      </article>
     </section>
   );
 }

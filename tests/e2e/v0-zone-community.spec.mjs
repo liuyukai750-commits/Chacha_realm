@@ -138,7 +138,7 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(page.getByTestId("radar-surface").locator(".melon-node")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "瓜区总览：4颗瓜，点开挑选" })).toBeVisible();
     await expandBasket(page);
-    await expect(page.getByRole("article")).toHaveCount(4);
+    await expect(page.locator("#basket-content").getByRole("article")).toHaveCount(4);
     await expect.poll(() => api.discoveryRequests.at(-1)).toMatchObject({
       location: {
         latitude: preciseLocation.latitude,
@@ -195,14 +195,13 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(overview).toBeVisible();
     await overview.click();
     await expect(page.getByRole("button", { name: /瓜篮/ })).toHaveAttribute("aria-expanded", "true");
-    const basket = page.getByRole("region", { name: "瓜篮" });
-    await expect(basket.getByRole("article")).toHaveCount(12);
+    await expect(page.locator("#basket-content").getByRole("article")).toHaveCount(12);
 
     const topicFilter = page.getByRole("group", { name: "按单一话题筛选" });
     await topicFilter.getByRole("button", { name: "职场", exact: true }).click();
     await expect(topicFilter.getByRole("button", { name: "职场", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("3 颗瓜");
-    await expect(basket.getByRole("article")).toHaveCount(3);
+    await expect(page.locator("#basket-content").getByRole("article")).toHaveCount(3);
 
     await topicFilter.getByRole("button", { name: "全部", exact: true }).click();
     const localRow = page.getByRole("article", { name: melon.title, exact: true });
@@ -228,8 +227,8 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(cityScope).toContainText("11 颗公开瓜");
     await expect(page.getByRole("button", { name: "瓜区总览：11颗瓜，点开挑选" })).toBeVisible();
     await page.getByRole("button", { name: "瓜区总览：11颗瓜，点开挑选" }).click();
-    await expect(page.getByRole("region", { name: "瓜篮" }).getByRole("article")).toHaveCount(11);
-    await expect(page.getByRole("article", { name: melon.title, exact: true })).toHaveCount(0);
+    await expect(page.locator("#basket-content").getByRole("article")).toHaveCount(11);
+    await expect(page.locator("#basket-content").getByRole("article", { name: melon.title, exact: true })).toHaveCount(0);
   });
 
   test("REMOTE-READ：远程可读正文、公开评论、轻反应和蹲瓜，但没有评论输入", async ({ page }) => {
