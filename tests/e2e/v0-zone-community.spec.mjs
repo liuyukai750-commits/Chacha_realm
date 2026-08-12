@@ -194,13 +194,14 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(overview).toBeVisible();
     await overview.click();
     await expect(page.getByRole("button", { name: /瓜篮/ })).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("article")).toHaveCount(12);
+    const basket = page.getByRole("region", { name: "瓜篮" });
+    await expect(basket.getByRole("article")).toHaveCount(12);
 
     const topicFilter = page.getByRole("group", { name: "按单一话题筛选" });
     await topicFilter.getByRole("button", { name: "职场", exact: true }).click();
     await expect(topicFilter.getByRole("button", { name: "职场", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("region", { name: "瓜区控制台" })).toContainText("3 颗瓜");
-    await expect(page.getByRole("article")).toHaveCount(3);
+    await expect(basket.getByRole("article")).toHaveCount(3);
 
     await topicFilter.getByRole("button", { name: "全部", exact: true }).click();
     const localRow = page.getByRole("article", { name: melon.title, exact: true });
@@ -226,7 +227,7 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(cityScope).toContainText("11 颗公开瓜");
     await expect(page.getByRole("button", { name: "瓜区总览：11颗瓜，点开挑选" })).toBeVisible();
     await page.getByRole("button", { name: "瓜区总览：11颗瓜，点开挑选" }).click();
-    await expect(page.getByRole("article")).toHaveCount(11);
+    await expect(page.getByRole("region", { name: "瓜篮" }).getByRole("article")).toHaveCount(11);
     await expect(page.getByRole("article", { name: melon.title, exact: true })).toHaveCount(0);
   });
 
@@ -241,11 +242,43 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(dialog.getByText("远方围观模式", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
 
-    await dialog.getByRole("button", { name: /^有汁/ }).click();
-    await dialog.getByRole("button", { name: "蹲瓜", exact: true }).click();
-    await expect.poll(() => api.reactionRequests).toEqual([{ melonId: remote.id, reaction: "juicy" }]);
+    await dialog.getByRole("button", { name: /^点赞/ }).click();
+    await dialog.getByRole("button", { name: /蹲后续/ }).click();
+    await expect.poll(() => api.reactionRequests).toEqual([{ melonId: remote.id, reaction: "like", active: true }]);
     await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: true });
     await expect.poll(() => api.commentGetRequests).toContainEqual({ melonId: remote.id, search: "?limit=20" });
+  });
+
+  test("LIKE-SQUAT-COUNTS：点赞和蹲后续按服务端聚合立即加减并重开保持", async ({ page }) => {
+    const api = await installV0Api(page);
+    await enterIsland(page);
+    const { dialog, remote } = await openRemoteMelon(page);
+    const like = dialog.getByRole("button", { name: /^点赞/ });
+
+    await expect(like).toContainText("3");
+    await like.click();
+    await expect.poll(() => api.reactionRequests).toEqual([{ melonId: remote.id, reaction: "like", active: true }]);
+    await expect(like).toContainText("4");
+
+    await like.click();
+    await expect.poll(() => api.reactionRequests).toEqual([
+      { melonId: remote.id, reaction: "like", active: true },
+      { melonId: remote.id, reaction: "like", active: false },
+    ]);
+    await expect(like).toContainText("3");
+
+    const squat = dialog.getByRole("button", { name: /蹲/ }).first();
+    await squat.click();
+    await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: true });
+    await expect(squat).toContainText("1");
+    await squat.click();
+    await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: false });
+    await expect(squat).toContainText("0");
+
+    await dialog.getByRole("button", { name: "关闭" }).click();
+    const reopened = await openRemoteMelon(page);
+    await expect(reopened.dialog.getByRole("button", { name: /^点赞/ })).toContainText("3");
+    await expect(reopened.dialog.getByRole("button", { name: /蹲/ }).first()).toContainText("0");
   });
 
   test("COMMENTS-GET：评论保持单层，刷新后重新读取 GET fixture，且没有社交入口", async ({ page }) => {

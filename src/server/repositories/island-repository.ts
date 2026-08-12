@@ -24,7 +24,9 @@ import type {
   OwnFieldView,
   PlantFieldResult,
   PublicFieldView,
+  ReactionResult,
   ReactionType,
+  SquatResult,
   SquatShelf,
   VisitorType,
 } from "@/contracts";
@@ -229,7 +231,7 @@ export function completeRead(melonId: string, actorId: string): Promise<Complete
   });
 }
 
-export function setSquat(melonId: string, active: boolean, accessToken: string): Promise<{ active: boolean }> {
+export function setSquat(melonId: string, active: boolean, accessToken: string): Promise<SquatResult> {
   return rpc("set_melon_squat", { p_melon_id: melonId, p_active: active }, accessToken);
 }
 
@@ -241,8 +243,8 @@ export function markSquatAlertSeen(melonId: string, accessToken: string): Promis
   return rpc<{ seen: true }>("mark_squat_alert_seen", { p_melon_id: melonId }, accessToken);
 }
 
-export function setReaction(melonId: string, reaction: ReactionType, accessToken: string): Promise<Record<ReactionType, number>> {
-  return rpc("set_melon_reaction", { p_melon_id: melonId, p_reaction: reaction }, accessToken);
+export function setReaction(melonId: string, reaction: ReactionType, active: boolean, accessToken: string): Promise<ReactionResult> {
+  return rpc("set_melon_reaction", { p_melon_id: melonId, p_reaction: reaction, p_active: active }, accessToken);
 }
 
 export async function getComments(melonId: string, cursorValue: string | null, limit: number): Promise<MelonCommentsPage> {
