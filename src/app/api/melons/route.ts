@@ -1,9 +1,9 @@
 import type { CreateMelonRequest } from "@/contracts";
-import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
+import { readJson, requireSameOrigin, route } from "@/server/api";
 import { createMelon } from "@/server/repositories/island-repository";
 import { validateLocationProof } from "@/server/security/location";
 import { requireActiveSession } from "@/server/supabase/session";
-import { burialKind, cityId, object, revealMode, text, topic, uuid } from "@/server/validation";
+import { burialKind, object, revealMode, text, topic, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +13,8 @@ export async function POST(request: Request) {
     const session = await requireActiveSession();
     const body = object(await readJson(request));
     const kind = burialKind(body.burialKind ?? "public_spot");
-    const parsedCityId = cityId(body.cityId);
-    if (!parsedCityId) throw new ApiProblem(400, "invalid_city", "cityId is required.");
     const base = {
       operationId: uuid(body.operationId, "operationId"),
-      cityId: parsedCityId,
       topic: topic(body.topic),
       title: text(body.title, "title", 60),
       content: text(body.content, "content", 1000),

@@ -45,8 +45,9 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
 
     await expect.poll(() => api.createRequests).toHaveLength(1);
     expect(api.createRequests[0].burialKind).toBe("nearby_area");
+    expect(api.createRequests[0]).not.toHaveProperty("cityId");
     await expect(page.getByRole("status").filter({ hasText: /这颗瓜已经埋好/ })).toBeVisible();
-    await expect(page.getByText(/奖励了 1 颗真瓜籽/)).toBeVisible();
+    await expect(page.locator(".bury-success-panel").getByText(/奖励 1 颗真瓜籽/)).toBeVisible();
     const goToField = page.getByRole("button", { name: "去瓜田种下", exact: true });
     await expect(goToField).toBeVisible();
     await goToField.click();
@@ -138,7 +139,6 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
           body: JSON.stringify({
             operationId,
             burialKind: "nearby_area",
-            cityId: "changsha",
             topic: "daily",
             title,
             content: "这是一段满足长度要求且不会泄露任何真实身份信息的匿名测试故事。",

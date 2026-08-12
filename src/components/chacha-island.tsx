@@ -96,7 +96,7 @@ const seekCopy: Record<SeekState, { label: string; hint: string; notice: string 
 
 type LandmarkKind = "pavilion" | "temple" | "pearl" | "canton" | "skyline" | "meadow";
 type DiscoveryScope = "nearby" | "city";
-type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded">;
+type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded" | "cityId">;
 
 async function refreshOwnFieldAfterCreate(adapter: IslandAdapter): Promise<FieldView> {
   const delays = [0, 600, 1_800];
@@ -247,7 +247,7 @@ export function ChachaIsland() {
       const location = mode === "demo"
         ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString() }
         : await requestLocationProof();
-      const discovery = await islandAdapter.discover({ location, selectedCityId: model.discovery.activeCityId });
+      const discovery = await islandAdapter.discover({ location });
       const nearbyCount = nearbyItemsForScene(discovery.items, discovery.sceneContext).length;
       setModel({ ...model, discovery });
       setDiscoveryScope("nearby");
@@ -308,7 +308,7 @@ export function ChachaIsland() {
     // secondary refresh so a slow discovery request cannot hide a successful
     // publish or its wallet reward on mobile networks.
     setShowBury(false);
-    setBuryFeedback({ id: result.id, status: result.status, trueSeedAwarded: result.trueSeedAwarded });
+    setBuryFeedback({ id: result.id, status: result.status, trueSeedAwarded: result.trueSeedAwarded, cityId: result.cityId });
     setModel((current) => {
       if (!current) return current;
       const field = "wallet" in current.field
@@ -316,11 +316,12 @@ export function ChachaIsland() {
         : current.field;
       return { ...current, field, session: { ...current.session, wallet: result.wallet } };
     });
+    const resultCityName = model?.cities.find((city) => city.id === result.cityId)?.name ?? "真实所在城市";
     setNotice(result.status === "held"
       ? "瓜已收到 · 内容正在安全复核，暂不发放真瓜籽"
       : result.trueSeedAwarded
-      ? "瓜埋好了 · 今日首颗安全原创奖励真瓜籽 +1"
-      : "瓜埋好了 · 今天的首发真瓜籽奖励已经领过");
+      ? `瓜埋好了 · 已归入${resultCityName} · 今日首颗安全原创奖励真瓜籽 +1`
+      : `瓜埋好了 · 已归入${resultCityName} · 今天的首发真瓜籽奖励已经领过`);
 
     void refreshOwnFieldAfterCreate(islandAdapter).then(
       (field) => setModel((current) => current ? {
@@ -329,20 +330,17 @@ export function ChachaIsland() {
         session: { ...current.session, wallet: result.wallet },
       } : current),
       () => setNotice(result.trueSeedAwarded
-        ? "瓜已埋好，真瓜籽 +1 · 瓜田列表暂时没刷新，可点击重试"
-        : "瓜已埋好 · 瓜田列表暂时没刷新，可点击重试"),
+        ? `瓜已埋好，已归入${resultCityName}，真瓜籽 +1 · 瓜田列表暂时没刷新，可点击重试`
+        : `瓜已埋好，已归入${resultCityName} · 瓜田列表暂时没刷新，可点击重试`),
     );
 
-    const selectedCityId = input.cityId ?? model?.discovery.activeCityId;
-    if (selectedCityId) {
-      void islandAdapter.discover({ location, selectedCityId }).then(
-        (discovery) => {
-          setModel((current) => current ? { ...current, discovery } : current);
-          setDiscoveryScope("nearby");
-        },
-        () => undefined,
-      );
-    }
+    void islandAdapter.discover({ location }).then(
+      (discovery) => {
+        setModel((current) => current ? { ...current, discovery } : current);
+        setDiscoveryScope(discovery.visitorType === "local" ? "nearby" : "city");
+      },
+      () => undefined,
+    );
   };
 
   const openOwnedMelon = async (preview: FieldMelonPreview) => {
@@ -465,8 +463,8 @@ export function ChachaIsland() {
             <p>{buryFeedback.status === "held"
               ? "复核通过前不会公开，也不会发放首发真瓜籽。"
               : buryFeedback.trueSeedAwarded
-              ? "今日首颗安全原创奖励了 1 颗真瓜籽，现在可以种进自己的瓜田。"
-              : "它已经进入孵化；今天的首发真瓜籽奖励此前已经领过。"}</p>
+              ? `已按真实位置归入${model.cities.find((city) => city.id === buryFeedback.cityId)?.name ?? "开放城市"}，并奖励 1 颗真瓜籽。`
+              : `已按真实位置归入${model.cities.find((city) => city.id === buryFeedback.cityId)?.name ?? "开放城市"}；今天的首发真瓜籽奖励此前已经领过。`}</p>
           </div>
           <div>
             <button type="button" onClick={async () => { setBuryFeedback(null); await showOwnField(); }}>
@@ -544,7 +542,7 @@ export function ChachaIsland() {
         : <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} onSquatChanged={refreshSquatShelf} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.spot.id]} />)}
       {showCities && <CityPicker model={model} onClose={() => setShowCities(false)} onSelect={selectCity} />}
       {showSquatShelf && <SquatShelfSheet shelf={model.squatShelf} busy={openingMelon} onClose={() => setShowSquatShelf(false)} onOpen={openSquattedMelon} onCancel={quickSquat} />}
-      {showBury && !writesBlocked && <BurySheetV1 key={activeCity.id} cityId={activeCity.id} spots={activeCity.spots} cityName={activeCity.name} demoMode={mode === "demo"} onClose={() => setShowBury(false)} onCreate={createMelon} />}
+      {showBury && !writesBlocked && <BurySheetV1 key={activeCity.id} spots={activeCity.spots} cityName={activeCity.name} demoMode={mode === "demo"} onClose={() => setShowBury(false)} onCreate={createMelon} />}
     </div>
   );
 }
@@ -1181,7 +1179,7 @@ function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootst
     if (title.trim().length < 4) return setError("标题至少写 4 个字，让路过的猹知道发生了什么。" );
     if (content.trim().length < 20) return setError("故事至少写 20 个字，再留一点现场细节。" );
     setBusy(true);
-    try { await onCreate({ operationId: createOperationId(), burialKind: "public_spot", cityId: selectedSpot?.cityId ?? "changsha", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }); }
+    try { await onCreate({ operationId: createOperationId(), burialKind: "public_spot", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }); }
     catch (caught) { setError(messageFrom(caught)); }
     finally { setBusy(false); }
   };

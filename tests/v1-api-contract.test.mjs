@@ -59,5 +59,6 @@ test("首发奖励仍在 create_melon RPC 内完成，HTTP 层不自行修改钱
   ]);
   assert.match(route, /return createMelon\(input, session\.userId\)/);
   assert.doesNotMatch(route, /trueSeedCount|smallSeedCount|seed_count/);
-  assert.match(repository, /serviceRpc<CreateMelonResult>\(\s*"create_melon"/);
+  assert.match(repository, /serviceRpc<Omit<CreateMelonResult, "cityId">>\(\s*"create_melon"/);
+  assert.match(repository, /return \{ \.\.\.result, cityId: spot\.cityId \}/);
 });

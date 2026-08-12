@@ -137,6 +137,7 @@ export interface CreateMelonRequest {
 export interface CreateMelonResult {
   id: string;
   status: "incubating" | "held";
+  cityId: CityId;
   maturesAt?: string;
   trueSeedAwarded: boolean;
   wallet: SeedWallet;

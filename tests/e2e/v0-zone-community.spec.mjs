@@ -145,7 +145,8 @@ test.describe("瓜区承载、筛选与远程围观", () => {
         longitude: preciseLocation.longitude,
       },
     });
-    expect(api.discoveryRequests.at(-1)?.selectedCityId).toBe("changsha");
+    expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
+    expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
 
     await cityButton.click();
     await expect(cityButton).toHaveAttribute("aria-pressed", "true");

@@ -382,7 +382,7 @@ export const demoIslandAdapter: IslandAdapter = {
     session = { ...session, wallet };
     previews.unshift(preview);
     fieldView = { ...fieldView, wallet, melons: [preview, ...fieldView.melons] };
-    const result: CreateMelonResult = { id, status: "incubating", maturesAt: preview.maturesAt, trueSeedAwarded, wallet };
+    const result: CreateMelonResult = { id, status: "incubating", cityId: spot.cityId, maturesAt: preview.maturesAt, trueSeedAwarded, wallet };
     createOperations.set(request.operationId, copy(result));
     return delay<CreateMelonResult>(copy(result));
   },

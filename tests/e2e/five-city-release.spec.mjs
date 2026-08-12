@@ -119,8 +119,10 @@ test.describe("五城同步发布门禁", () => {
       const publicSpot = primarySpotForCity(city.id);
       await submitPublicSpotMelon(page, city.name, publicSpot.name);
       const createPayload = api.createRequests.at(-1);
-      expect(createPayload).toMatchObject({ burialKind: "public_spot", cityId: city.id, spotId: publicSpot.id });
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ selectedCityId: city.id });
+      expect(createPayload).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id });
+      expect(createPayload).not.toHaveProperty("cityId");
+      expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
+      expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
 
       await expandBasket(page);
       const articles = page.getByRole("article");
@@ -141,14 +143,34 @@ test.describe("五城同步发布门禁", () => {
     for (const city of fiveCityMatrix) {
       if (city.id !== "changsha") await switchCity(page, city.name);
       await submitNearbyMelon(page, city.name);
-      expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "nearby_area", cityId: city.id });
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ selectedCityId: city.id });
+      expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "nearby_area" });
+      expect(api.createRequests.at(-1)).not.toHaveProperty("cityId");
+      expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
+      expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
 
       const publicSpot = primarySpotForCity(city.id);
       await submitPublicSpotMelon(page, city.name, publicSpot.name);
-      expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", cityId: city.id, spotId: publicSpot.id });
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ selectedCityId: city.id });
+      expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id });
+      expect(api.createRequests.at(-1)).not.toHaveProperty("cityId");
+      expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
+      expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
     }
+  });
+
+  test("REAL-CITY-P0：长沙人在上海浏览时 nearby 埋瓜归入长沙", async ({ baseURL, context, page }) => {
+    const api = await installV0Api(page, { fiveCities: true, realLocationCityId: "changsha" });
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+    await switchCity(page, "上海");
+
+    await submitNearbyMelon(page, "上海");
+
+    const createPayload = api.createRequests.at(-1);
+    expect(createPayload).toMatchObject({ burialKind: "nearby_area", location: expect.any(Object) });
+    expect(createPayload).not.toHaveProperty("cityId");
+    await expect(page.getByRole("button", { name: /当前城市长沙/ })).toBeVisible();
+    await expect(page.locator(".bury-success-panel").getByText(/归入长沙/)).toBeVisible();
+    expect(api.createdMelons[0]).toMatchObject({ cityId: "changsha", spot: { cityId: "changsha", name: "附近生活圈" } });
   });
 
   test("NEARBY-CITY：五城附近范围只显示生活圈瓜，当前 cityId 不暗跳长沙", async ({ baseURL, context, page }) => {
@@ -158,10 +180,13 @@ test.describe("五城同步发布门禁", () => {
 
     for (const city of fiveCityMatrix) {
       if (city.id !== "changsha") await switchCity(page, city.name);
+      const requestCount = api.discoveryRequests.length;
       await page.getByRole("group", { name: "吃瓜范围" }).getByRole("button", { name: /附近 1km/ }).click();
       await expect(page.getByRole("button", { name: new RegExp(`当前城市${city.name}`) })).toBeVisible();
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ selectedCityId: city.id });
-      expect(api.discoveryRequests.at(-1).selectedCityId).not.toBe(city.id === "changsha" ? "beijing" : "changsha");
+      await expect.poll(() => api.discoveryRequests.length).toBeGreaterThan(requestCount);
+      const nearbyRequest = api.discoveryRequests.slice(requestCount).find((request) => request.location);
+      expect(nearbyRequest).toMatchObject({ location: expect.any(Object) });
+      expect(nearbyRequest).not.toHaveProperty("selectedCityId");
 
       await expandBasket(page);
       const articles = page.getByRole("article");

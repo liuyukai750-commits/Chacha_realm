@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useId, useRef, useState } from "react";
-import type { BurialKind, CityId, CitySummary, CreateMelonRequest, SafeTopic } from "@/contracts";
+import type { BurialKind, CitySummary, CreateMelonRequest, SafeTopic } from "@/contracts";
 import { getSpotScene } from "./city-visuals";
 import { CheckIcon, CloseIcon, LocationIcon, RadarIcon } from "./icons";
 
@@ -14,14 +14,12 @@ const topicName: Record<SafeTopic, string> = {
 };
 
 export function BurySheetV1({
-  cityId,
   spots,
   cityName,
   demoMode,
   onClose,
   onCreate,
 }: {
-  cityId: CityId;
   spots: CitySummary["spots"];
   cityName: string;
   demoMode: boolean;
@@ -58,8 +56,8 @@ export function BurySheetV1({
     setBusy(true);
     try {
       await onCreate(buryMode === "nearby_area"
-        ? { operationId, burialKind: "nearby_area", cityId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }
-        : { operationId, burialKind: "public_spot", cityId, spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
+        ? { operationId, burialKind: "nearby_area", topic, title: title.trim(), content: content.trim(), revealMode: "open" }
+        : { operationId, burialKind: "public_spot", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "这次没有成功，请稍后再试。");
       window.requestAnimationFrame(() => {

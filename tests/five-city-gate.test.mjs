@@ -46,17 +46,19 @@ test("nearby discovery is filtered by service-role RPC and does not expose cell 
   assert.match(repository, /p_nearby_cell_id:\s*visitorNearbyCellId \?\? null/);
   assert.doesNotMatch(repository, /candidate\.nearbyCellId/);
   assert.match(repository, /isDiscoveryItemVisible/);
-  assert.match(repository, /hasLocation:\s*Boolean\(input\.location\)/);
+  assert.match(repository, /hasLocation:\s*Boolean\(usableLocation\)/);
   assert.match(repository, /sceneKind:\s*sceneContext\.kind/);
 });
 
-test("melon create requires explicit cityId and operationId for public and nearby", () => {
-  assert.match(createRoute, /const parsedCityId = cityId\(body\.cityId\)/);
-  assert.match(createRoute, /if \(!parsedCityId\) throw new ApiProblem\(400,\s*"invalid_city"/);
+test("melon create does not trust client cityId for public or nearby burial", () => {
+  assert.doesNotMatch(createRoute, /cityId\(body\.cityId\)/);
+  assert.doesNotMatch(createRoute, /invalid_city", "cityId is required/);
   assert.doesNotMatch(createRoute, /cityId\(body\.cityId\)\s*\?\?\s*"changsha"/);
   assert.match(createRoute, /operationId:\s*uuid\(body\.operationId, "operationId"\)/);
   assert.match(createRoute, /burialKind: "public_spot"[\s\S]*spotId: uuid\(body\.spotId, "spotId"\)/);
-  assert.match(repository, /p_city_id:\s*input\.cityId/);
+  assert.match(repository, /resolveSupportedCityForBurial\(input\.location\)/);
+  assert.match(repository, /p_city_id:\s*resolvedCityId/);
+  assert.match(repository, /p_city_id:\s*spot\.cityId/);
   assert.match(repository, /p_operation_id:\s*input\.operationId/);
 });
 

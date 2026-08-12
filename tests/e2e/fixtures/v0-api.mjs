@@ -311,7 +311,9 @@ export async function installV0Api(page, options = {}) {
 
     if (method === "POST" && path === "/api/discovery") {
       state.discoveryRequests.push(body);
-      const requestedCityId = body?.selectedCityId ?? state.activeCityId;
+      const requestedCityId = body?.location
+        ? options.realLocationCityId ?? body?.selectedCityId ?? state.activeCityId
+        : body?.selectedCityId ?? state.activeCityId;
       if (state.fiveCities) {
         const activeSpot = primarySpotForCity(requestedCityId);
         state.activeCityId = requestedCityId;
@@ -477,11 +479,11 @@ export async function installV0Api(page, options = {}) {
       if (typeof body?.operationId !== "string") {
         return json(route, { error: { code: "INVALID_OPERATION_ID", message: "缺少埋瓜操作编号" } }, 400);
       }
-      if (typeof body?.cityId !== "string") {
-        return json(route, { error: { code: "INVALID_CITY", message: "缺少埋瓜城市" } }, 400);
-      }
       const previousCreateResult = state.createOperations.get(body.operationId);
       if (previousCreateResult) return json(route, structuredClone(previousCreateResult), 201);
+      if (options.unopenedNearbyCity && body.burialKind === "nearby_area") {
+        return json(route, { error: { code: "nearby_city_unavailable", message: "当前生活圈尚未开放" } }, 403);
+      }
       if (state.plantDistanceFailure) {
         return json(
           route,
@@ -495,10 +497,11 @@ export async function installV0Api(page, options = {}) {
         state.originalRewardClaimed = true;
         state.wallet.trueSeedCount += 1;
       }
+      const resolvedCityId = body.burialKind === "nearby_area" ? options.realLocationCityId ?? state.activeCityId : state.activeSpot.cityId;
       const createdSpot = body.burialKind === "nearby_area"
         ? {
-            id: `nearby-area-${body.cityId}`,
-            cityId: body.cityId,
+            id: `nearby-area-${resolvedCityId}`,
+            cityId: resolvedCityId,
             districtId: "nearby-area",
             name: "附近生活圈",
           }
@@ -507,7 +510,7 @@ export async function installV0Api(page, options = {}) {
         id: `melon-new-${state.createdMelons.length + 1}`,
         status,
         topic: body.topic,
-        cityId: body.cityId,
+        cityId: createdSpot.cityId,
         districtId: createdSpot.districtId,
         spot: createdSpot,
         burialKind: body.burialKind,
@@ -527,6 +530,7 @@ export async function installV0Api(page, options = {}) {
       const result = {
         id: createdMelon.id,
         status,
+        cityId: createdMelon.cityId,
         ...(createdMelon.maturesAt ? { maturesAt: createdMelon.maturesAt } : {}),
         trueSeedAwarded,
         wallet: { ...state.wallet },

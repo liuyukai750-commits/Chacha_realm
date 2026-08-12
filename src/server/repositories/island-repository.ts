@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac } from "node:crypto";
 
-import { getPublicSpot } from "@/data/geography";
+import { cities, getPublicSpot } from "@/data/geography";
 import type {
   CityId,
   CitySummary,
@@ -33,7 +33,9 @@ import { decodeCommentCursor, encodeCommentCursor } from "@/server/repositories/
 import { isDiscoveryItemVisible } from "@/server/repositories/discovery-visibility";
 import { isInsidePublicSpotScene } from "@/server/security/discovery-scene";
 import { distanceMeters, toDistanceBand } from "@/server/security/location";
+import { resolveSupportedCityForBurial } from "@/server/security/location-city";
 import { requireSafeSeek } from "@/server/security/seek";
+import { resolveVisitorLocation } from "@/features/discovery/location";
 import { rpc, selectRows, serviceRpc } from "@/server/supabase/http";
 
 interface PublicSpotRow {
@@ -110,12 +112,16 @@ export async function discover(
   accessToken: string,
 ): Promise<DiscoveryResponse> {
   const spots = await publicSpots(accessToken);
-  const nearest = input.location ? nearestSpot(input.location, spots) : null;
-  const visitorType: VisitorType = !input.location ? "location_unknown" : nearest && nearest.distanceM <= 50_000 ? "local" : "outsider";
-  const activeCityId: CityId = input.selectedCityId ?? nearest?.spot.city_id ?? "changsha";
+  const locationResult = resolveVisitorLocation({ location: input.location });
+  const usableLocation = locationResult.kind === "located" ? input.location : undefined;
+  const nearest = usableLocation ? nearestSpot(usableLocation, spots) : null;
+  const visitorType: VisitorType = input.location ? locationResult.visitorType : "location_unknown";
+  const activeCityId: CityId = locationResult.kind === "located"
+    ? locationResult.cityId
+    : input.selectedCityId ?? cities[0]?.id ?? "changsha";
   const activeDistrictId = nearest?.spot.city_id === activeCityId ? nearest.spot.district_id : undefined;
-  const sceneContext = discoverySceneContext(input.location, nearest);
-  const visitorNearbyCellId = input.location && process.env.CHACHA_LOCATION_HMAC_SECRET ? nearbyCellIdForLocation(activeCityId, input.location) : undefined;
+  const sceneContext = discoverySceneContext(usableLocation, nearest);
+  const visitorNearbyCellId = usableLocation && process.env.CHACHA_LOCATION_HMAC_SECRET ? nearbyCellIdForLocation(activeCityId, usableLocation) : undefined;
   const candidates = await serviceRpc<DiscoveryCandidate[]>(
     "get_discovery_candidates_for_visitor",
     { p_city_id: activeCityId, p_nearby_cell_id: visitorNearbyCellId ?? null },
@@ -124,8 +130,8 @@ export async function discover(
   const items = candidates
     .map((candidate) => {
       const candidateBurialKind = candidate.burialKind ?? "public_spot";
-      const distanceM = input.location && candidateBurialKind !== "nearby_area"
-        ? distanceMeters(input.location, { latitude: candidate.spotLatitude, longitude: candidate.spotLongitude })
+      const distanceM = usableLocation && candidateBurialKind !== "nearby_area"
+        ? distanceMeters(usableLocation, { latitude: candidate.spotLatitude, longitude: candidate.spotLongitude })
         : candidateBurialKind === "nearby_area" && candidate.cityId === activeCityId ? 500 : Number.POSITIVE_INFINITY;
       const distanceBand = toDistanceBand(distanceM);
       const preview: MelonPreview = {
@@ -149,7 +155,7 @@ export async function discover(
     })
     .filter((item) => isDiscoveryItemVisible(
       {
-        hasLocation: Boolean(input.location),
+        hasLocation: Boolean(usableLocation),
         sceneKind: sceneContext.kind,
         ...(sceneContext.kind === "public_spot" ? { activeSpotId: sceneContext.spot.id } : {}),
       },
@@ -173,37 +179,35 @@ export async function discover(
 
 export async function createMelon(input: CreateMelonRequest, actorId: string): Promise<CreateMelonResult> {
   if (input.burialKind === "nearby_area") {
-    if (!input.cityId) throw new ApiProblem(400, "invalid_city", "附近生活圈需要有效城市。");
-    return serviceRpc<CreateMelonResult>(
+    const resolvedCityId = resolveSupportedCityForBurial(input.location);
+    const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
       "create_nearby_melon",
       {
         p_actor_id: actorId,
         p_operation_id: input.operationId,
-        p_city_id: input.cityId,
-        p_nearby_cell_id: nearbyCellIdForLocation(input.cityId, input.location),
+        p_city_id: resolvedCityId,
+        p_nearby_cell_id: nearbyCellIdForLocation(resolvedCityId, input.location),
         p_topic: input.topic,
         p_title: input.title,
         p_content: input.content,
         p_reveal_mode: "open",
       },
     );
+    return { ...result, cityId: resolvedCityId };
   }
   if (!input.spotId) throw new ApiProblem(400, "invalid_spot", "公共地点埋瓜需要有效地点。");
-  if (!input.cityId) throw new ApiProblem(400, "invalid_city", "cityId is required.");
   const spot = getPublicSpot(input.spotId);
-  if (!spot || spot.cityId !== input.cityId) {
-    throw new ApiProblem(400, "spot_city_mismatch", "spotId does not belong to cityId.");
-  }
+  if (!spot) throw new ApiProblem(400, "invalid_spot", "该公共地点尚未开放。");
   const evaluated = requireSafeSeek(input.spotId, input.location);
   if (evaluated.seekState !== "found") {
     throw new ApiProblem(403, "outside_spot_radius", "只有定位误差范围完整落在公共地点 500 米内才能埋瓜。 ");
   }
-  return serviceRpc<CreateMelonResult>(
+  const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
     "create_melon",
     {
       p_actor_id: actorId,
       p_operation_id: input.operationId,
-      p_city_id: input.cityId,
+      p_city_id: spot.cityId,
       p_spot_id: input.spotId,
       p_topic: input.topic,
       p_title: input.title,
@@ -211,6 +215,7 @@ export async function createMelon(input: CreateMelonRequest, actorId: string): P
       p_reveal_mode: "open",
     },
   );
+  return { ...result, cityId: spot.cityId };
 }
 
 export async function openMelon(melonId: string, actorId: string): Promise<MelonDetail> {
