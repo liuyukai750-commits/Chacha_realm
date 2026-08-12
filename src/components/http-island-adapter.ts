@@ -14,6 +14,7 @@ import type {
   PlantFieldRequest,
   PlantFieldResult,
   ReactionType,
+  SquatShelf,
   ZonePresenceResult,
 } from "@/contracts";
 import type { IslandAdapter, IslandBootstrap } from "./demo-island-adapter";
@@ -53,11 +54,12 @@ export const httpIslandAdapter: IslandAdapter = {
       requestJson<CitySummary[]>("/api/cities"),
     ]);
     const selectedCityId = cities[0]?.id;
-    const [discovery, field] = await Promise.all([
+    const [discovery, field, squatShelf] = await Promise.all([
       requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(selectedCityId ? { selectedCityId } : {}) }),
       requestJson<FieldView>("/api/fields/me"),
+      requestJson<SquatShelf>("/api/squats"),
     ]);
-    return { session, cities, discovery, field, melonDetails: {} };
+    return { session, cities, discovery, field, melonDetails: {}, squatShelf };
   },
   discover(request) {
     return requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(request) });
@@ -70,6 +72,12 @@ export const httpIslandAdapter: IslandAdapter = {
   },
   setSquat(id, active) {
     return requestJson<{ active: boolean }>(`/api/melons/${encodeURIComponent(id)}/squat`, { method: "POST", body: JSON.stringify({ active }) });
+  },
+  squatShelf() {
+    return requestJson<SquatShelf>("/api/squats");
+  },
+  markSquatSeen(id) {
+    return requestJson<{ seen: true }>(`/api/squats/${encodeURIComponent(id)}/seen`, { method: "POST" });
   },
   react(id, reaction) {
     return requestJson<Record<ReactionType, number>>(`/api/melons/${encodeURIComponent(id)}/reactions`, { method: "POST", body: JSON.stringify({ reaction }) });

@@ -17,6 +17,8 @@
 | `GET /api/melons/:id` | melon id | `OpenedMelon`，含短时阅读凭证 |
 | `POST /api/melons/:id/complete` | `CompleteReadRequest` | `CompleteReadResult` |
 | `POST /api/melons/:id/squat` | `{ active: boolean }` | `{ active: boolean }` |
+| `GET /api/squats` | 无 | `SquatShelf`，按未读成熟、已成熟、孵化中排序 |
+| `POST /api/squats/:id/seen` | melon id | `{ seen: true }` |
 | `POST /api/melons/:id/reactions` | `{ reaction: ReactionType }` | 反应计数 |
 | `POST /api/melons/:id/comments` | `CreateCommentRequest` | `MelonComment` |
 | `GET /api/melons/:id/comments?cursor=&limit=20` | melon id、可选游标 | `MelonCommentsPage` |
@@ -39,6 +41,8 @@
 - `GET /api/fields/:alias` 不返回钱包、经验、精确种植/成熟时间或操作权限；只有 `GET /api/fields/me` 返回 `OwnFieldView`。
 
 评论写入必须携带仍有效的瓜区凭证。凭证绑定匿名会话与公共地点，默认 15 分钟过期，不包含原始经纬度。距离公共地点 1 公里内为 `local`，500 米内为 `found`；远程用户可以读取评论、轻反应和蹲瓜，但不能发表文字评论。
+
+蹲瓜提醒 V1 只提供站内成熟提醒：服务端按数据库时间即时计算瓜是否成熟；用户回到页面、重新聚焦或打开“听瓜”时刷新。已经成熟后才蹲的瓜视为已知状态，不制造未读。`SquatAlertKind` 预留 `follow_up`，但在作者追加后续能力上线前服务端只产生 `mature`，不得伪造系统推送或后续事件。
 
 ## 隐私不变量
 

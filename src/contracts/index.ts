@@ -246,6 +246,20 @@ export interface MelonCommentsPage {
   nextCursor?: string;
 }
 
+export type SquatAlertKind = "mature" | "follow_up";
+
+export interface SquatShelfItem {
+  melon: MelonPreview;
+  squattedAt: string;
+  alertKind: SquatAlertKind | null;
+  unread: boolean;
+}
+
+export interface SquatShelf {
+  unreadCount: number;
+  items: SquatShelfItem[];
+}
+
 export interface VerifyZonePresenceRequest {
   spotId: SpotId;
   location: LocationProof;

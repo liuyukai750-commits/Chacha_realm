@@ -25,6 +25,7 @@ import type {
   PlantFieldResult,
   PublicFieldView,
   ReactionType,
+  SquatShelf,
   VisitorType,
 } from "@/contracts";
 import { ApiProblem } from "@/server/api";
@@ -230,6 +231,14 @@ export function completeRead(melonId: string, actorId: string): Promise<Complete
 
 export function setSquat(melonId: string, active: boolean, accessToken: string): Promise<{ active: boolean }> {
   return rpc("set_melon_squat", { p_melon_id: melonId, p_active: active }, accessToken);
+}
+
+export function getSquatShelf(accessToken: string): Promise<SquatShelf> {
+  return rpc<SquatShelf>("get_squat_shelf", {}, accessToken);
+}
+
+export function markSquatAlertSeen(melonId: string, accessToken: string): Promise<{ seen: true }> {
+  return rpc<{ seen: true }>("mark_squat_alert_seen", { p_melon_id: melonId }, accessToken);
 }
 
 export function setReaction(melonId: string, reaction: ReactionType, accessToken: string): Promise<Record<ReactionType, number>> {

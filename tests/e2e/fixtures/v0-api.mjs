@@ -260,6 +260,7 @@ export async function installV0Api(page, options = {}) {
     presenceAttempt: 0,
     commentFailure: options.commentFailure ?? null,
     commentFailureUsed: false,
+    squats: new Map(),
   };
 
   await page.route("**/api/**", async (route) => {
@@ -294,6 +295,18 @@ export async function installV0Api(page, options = {}) {
           distinctTopics: 3,
         },
       }]);
+    }
+
+    if (method === "GET" && path === "/api/squats") {
+      const items = Array.from(state.squats.values());
+      return json(route, { unreadCount: items.filter((item) => item.unread).length, items });
+    }
+
+    const seenSquatId = path.match(/^\/api\/squats\/([^/]+)\/seen$/)?.[1];
+    if (method === "POST" && seenSquatId) {
+      const current = state.squats.get(seenSquatId);
+      if (current) state.squats.set(seenSquatId, { ...current, unread: false, alertKind: null });
+      return json(route, { seen: true });
     }
 
     if (method === "POST" && path === "/api/discovery") {
@@ -390,12 +403,16 @@ export async function installV0Api(page, options = {}) {
 
     if (method === "POST" && path === `/api/melons/${melon.id}/squat`) {
       state.squatRequests.push(body);
+      if (body?.active) state.squats.set(melon.id, { melon, squattedAt: fixedNow, alertKind: null, unread: false });
+      else state.squats.delete(melon.id);
       return json(route, { active: Boolean(body?.active) });
     }
 
     const squatMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/squat`);
     if (method === "POST" && squatMelon) {
       state.squatRequests.push({ melonId: squatMelon.id, ...body });
+      if (body?.active) state.squats.set(squatMelon.id, { melon: squatMelon, squattedAt: fixedNow, alertKind: null, unread: false });
+      else state.squats.delete(squatMelon.id);
       return json(route, { active: Boolean(body?.active) });
     }
 

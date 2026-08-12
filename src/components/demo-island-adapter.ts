@@ -23,6 +23,7 @@ import type {
   PlantFieldResult,
   ReactionType,
   SeekState,
+  SquatShelf,
   VerifyZonePresenceRequest,
   ZonePresenceResult,
 } from "@/contracts";
@@ -34,6 +35,7 @@ export interface IslandBootstrap {
   discovery: DiscoveryResponse;
   field: FieldView;
   melonDetails: Record<string, MelonDetail>;
+  squatShelf: SquatShelf;
 }
 
 export interface IslandAdapter {
@@ -42,6 +44,8 @@ export interface IslandAdapter {
   openMelon(id: string, presenceToken?: string): Promise<OpenedMelon>;
   completeRead(id: string, request: CompleteReadRequest): Promise<CompleteReadResult>;
   setSquat(id: string, active: boolean): Promise<{ active: boolean }>;
+  squatShelf(): Promise<SquatShelf>;
+  markSquatSeen(id: string): Promise<{ seen: true }>;
   react(id: string, reaction: ReactionType): Promise<Record<ReactionType, number>>;
   comments(id: string, presenceToken?: string): Promise<MelonCommentsPage>;
   verifyZonePresence(request: VerifyZonePresenceRequest): Promise<ZonePresenceResult>;
@@ -163,6 +167,9 @@ const seekAttempts = new Map<string, number>();
 const plantOperations = new Map<string, PlantFieldResult>();
 const createOperations = new Map<string, CreateMelonResult>();
 let lastDemoScene: DiscoverySceneContext | null = null;
+const demoSquats = new Map<string, { squattedAt: string; matureSeen: boolean }>([
+  ["m-002", { squattedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), matureSeen: true }],
+]);
 
 const delay = async <T>(value: T, ms = 120): Promise<T> => new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
 const copy = <T>(value: T): T => typeof structuredClone === "function"
@@ -210,10 +217,26 @@ function discoveryFor(cityId: CityId, located: boolean): DiscoveryResponse {
   };
 }
 
+function demoSquatShelf(): SquatShelf {
+  const items = Array.from(demoSquats.entries()).flatMap(([id, state]) => {
+    const source = previews.find((melon) => melon.id === id);
+    if (!source) return [];
+    const mature = source.status === "mature" || Boolean(source.maturesAt && Date.parse(source.maturesAt) <= Date.now());
+    const melon: MelonPreview = mature
+      ? { ...source, status: "mature", ...(details[id]?.title ? { title: details[id].title } : {}) }
+      : source;
+    const unread = mature && !state.matureSeen;
+    return [{ melon, squattedAt: state.squattedAt, alertKind: unread ? "mature" as const : null, unread }];
+  }).sort((left, right) => Number(right.unread) - Number(left.unread)
+    || Number(right.melon.status === "mature") - Number(left.melon.status === "mature")
+    || Date.parse(left.melon.maturesAt ?? left.squattedAt) - Date.parse(right.melon.maturesAt ?? right.squattedAt));
+  return { unreadCount: items.filter((item) => item.unread).length, items };
+}
+
 export const demoIslandAdapter: IslandAdapter = {
   async bootstrap() {
     refreshDemoField();
-    return delay(copy({ session, cities, discovery: discoveryFor("changsha", false), field: fieldView, melonDetails: details }));
+    return delay(copy({ session, cities, discovery: discoveryFor("changsha", false), field: fieldView, melonDetails: details, squatShelf: demoSquatShelf() }));
   },
   async discover(request) {
     return delay(copy(discoveryFor(request.selectedCityId ?? "changsha", Boolean(request.location))));
@@ -256,7 +279,23 @@ export const demoIslandAdapter: IslandAdapter = {
   },
   async setSquat(id, active) {
     if (details[id]) details[id] = { ...details[id], squatted: active };
+    if (active) {
+      const source = previews.find((melon) => melon.id === id);
+      const alreadyMature = source?.status === "mature" || Boolean(source?.maturesAt && Date.parse(source.maturesAt) <= Date.now());
+      demoSquats.set(id, { squattedAt: new Date().toISOString(), matureSeen: alreadyMature });
+    } else {
+      demoSquats.delete(id);
+    }
     return delay({ active });
+  },
+  async squatShelf() {
+    return delay(copy(demoSquatShelf()));
+  },
+  async markSquatSeen(id) {
+    const squat = demoSquats.get(id);
+    if (!squat) throw new Error("这颗瓜已经不在蹲瓜架里了。" );
+    demoSquats.set(id, { ...squat, matureSeen: true });
+    return delay({ seen: true as const });
   },
   async react(id, reaction) {
     const melon = details[id];
