@@ -13,7 +13,8 @@ import type {
   OpenedMelon,
   PlantFieldRequest,
   PlantFieldResult,
-  ReactionType,
+  ReactionResult,
+  SquatResult,
   SquatShelf,
   ZonePresenceResult,
 } from "@/contracts";
@@ -71,7 +72,7 @@ export const httpIslandAdapter: IslandAdapter = {
     return requestJson<CompleteReadResult>(`/api/melons/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify(input) });
   },
   setSquat(id, active) {
-    return requestJson<{ active: boolean }>(`/api/melons/${encodeURIComponent(id)}/squat`, { method: "POST", body: JSON.stringify({ active }) });
+    return requestJson<SquatResult>(`/api/melons/${encodeURIComponent(id)}/squat`, { method: "POST", body: JSON.stringify({ active }) });
   },
   squatShelf() {
     return requestJson<SquatShelf>("/api/squats");
@@ -79,8 +80,8 @@ export const httpIslandAdapter: IslandAdapter = {
   markSquatSeen(id) {
     return requestJson<{ seen: true }>(`/api/squats/${encodeURIComponent(id)}/seen`, { method: "POST" });
   },
-  react(id, reaction) {
-    return requestJson<Record<ReactionType, number>>(`/api/melons/${encodeURIComponent(id)}/reactions`, { method: "POST", body: JSON.stringify({ reaction }) });
+  react(id, reaction, active) {
+    return requestJson<ReactionResult>(`/api/melons/${encodeURIComponent(id)}/reactions`, { method: "POST", body: JSON.stringify({ reaction, active }) });
   },
   comments(id, presenceToken) {
     return requestJson<MelonCommentsPage>(`/api/melons/${encodeURIComponent(id)}/comments?limit=20`, presenceToken ? { headers: { "x-chacha-presence-token": presenceToken } } : undefined);

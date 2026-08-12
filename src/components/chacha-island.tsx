@@ -81,10 +81,7 @@ const distanceName: Record<DistanceBand, string> = {
 };
 
 const reactionMeta: Array<[ReactionType, string, string]> = [
-  ["juicy", "有汁", "◒"],
-  ["wild", "离谱", "≋"],
-  ["hug", "抱抱", "⌒"],
-  ["follow_up", "蹲后续", "…"],
+  ["like", "点赞", "♡"],
 ];
 
 const seekCopy: Record<SeekState, { label: string; hint: string; notice: string }> = {
@@ -964,8 +961,9 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [squatted, setSquatted] = useState(opened.melon.squatted);
+  const [squatCount, setSquatCount] = useState(opened.melon.squatCount ?? 0);
   const [reactions, setReactions] = useState(opened.melon.reactions);
-  const [reacted, setReacted] = useState<ReactionType[]>([]);
+  const [liked, setLiked] = useState(Boolean(opened.melon.liked));
 
   useEffect(() => {
     const start = window.performance.now();
@@ -991,13 +989,14 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   const toggleSquat = async () => {
     const result = await adapter.setSquat(opened.melon.id, !squatted);
     setSquatted(result.active);
+    setSquatCount(result.squatCount);
     await onSquatChanged();
   };
 
   const react = async (reaction: ReactionType) => {
-    if (reacted.includes(reaction)) return;
-    setReactions(await adapter.react(opened.melon.id, reaction));
-    setReacted((current) => [...current, reaction]);
+    const result = await adapter.react(opened.melon.id, reaction, !liked);
+    setLiked(result.active);
+    setReactions(result.reactions);
   };
 
   return (
@@ -1005,7 +1004,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
       <article className="melon-reader">
         <StealthCue title="扒开草丛" copy="叶影替你挡住路过的视线，正文仍保持清楚可读。" />
         <PlaceScene spot={opened.melon.spot} stealth />
-        <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span>{!readOnly && <button onClick={toggleSquat} aria-pressed={squatted}>{squatted ? <CheckIcon /> : <SproutIcon />}{squatted ? "取消蹲瓜" : "蹲瓜"}</button>}</div>
+        <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span>{!readOnly && <button onClick={toggleSquat} aria-pressed={squatted}>{squatted ? <CheckIcon /> : <SproutIcon />}{squatted ? "取消蹲后续" : "蹲后续"}<small>{squatCount}</small></button>}</div>
         <div className="reader-links"><a href={`/fields/${encodeURIComponent(opened.melon.alias)}`} onClick={(event) => { event.preventDefault(); onViewField(opened.melon.alias); }}>查看 {opened.melon.alias} 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
         <ReportControl adapter={adapter} targetType="melon" targetId={opened.melon.id} label="举报这颗瓜" />
         <div className="peel-story" style={peelStyle}>
@@ -1018,7 +1017,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
           <button className={finished ? `finish-button finished ${completionResult?.smallSeedAwarded ? "seed-launch" : ""}` : "finish-button"} aria-label="完成吃瓜" onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> {completionResult ? readRewardLabel(completionResult) : "已吃完"}</> : busy ? "正在留籽…" : "完成吃瓜"}</button>
           {error && <p className="form-error" role="alert">{error}</p>}
         </div>
-        {!readOnly && <div className="reaction-row" aria-label="轻反应">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={reacted.includes(key)} aria-label={`${label}，当前 ${reactions[key]} 次${reacted.includes(key) ? "，已留下" : ""}`}><span aria-hidden="true">{reacted.includes(key) ? "✓" : glyph}</span>{label}<small>{reactions[key]}</small></button>)}</div>}
+        {!readOnly && <div className="reaction-row" aria-label="轻反应">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} aria-pressed={liked} aria-label={`${label}，当前 ${reactions[key] ?? 0} 次${liked ? "，已点赞" : ""}`}><span aria-hidden="true">{liked ? "✓" : glyph}</span>{label}<small>{reactions[key] ?? 0}</small></button>)}</div>}
         {readOnly && <p className="readonly-note">当前匿名身份只能阅读，不能轻反应、蹲瓜或评论。申诉入口即将开放。</p>}
         <InlineComments adapter={adapter} melon={opened.melon} onSeek={onSeek} readOnly={readOnly} initialPresence={initialPresence} />
       </article>

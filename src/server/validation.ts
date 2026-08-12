@@ -4,7 +4,7 @@ import { ApiProblem } from "@/server/api";
 
 const cityIds = new Set<CityId>(["changsha", "beijing", "shanghai", "guangzhou", "shenzhen"]);
 const topics = new Set<SafeTopic>(["daily", "work", "relationship", "food", "neighborhood"]);
-const reactions = new Set<ReactionType>(["juicy", "wild", "hug", "follow_up"]);
+const reactions = new Set<ReactionType>(["like"]);
 const revealModes = new Set<MelonRevealMode>(["open", "seek_locked"]);
 const burialKinds = new Set<BurialKind>(["nearby_area", "public_spot"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

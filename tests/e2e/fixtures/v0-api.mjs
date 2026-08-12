@@ -106,7 +106,9 @@ export const melon = {
   content: "我回了一个刚准备睡，他秒回说那正好，现在我和广场的路灯一样精神。",
   createdAt: "2026-08-04T08:00:00.000Z",
   squatted: false,
-  reactions: { juicy: 2, wild: 1, hug: 0, follow_up: 0 },
+  squatCount: 0,
+  liked: false,
+  reactions: { like: 3 },
 };
 
 const topicCycle = ["work", "daily", "relationship", "food", "neighborhood"];
@@ -261,6 +263,7 @@ export async function installV0Api(page, options = {}) {
     commentFailure: options.commentFailure ?? null,
     commentFailureUsed: false,
     squats: new Map(),
+    likes: new Set(options.likes ?? []),
   };
 
   await page.route("**/api/**", async (route) => {
@@ -367,6 +370,11 @@ export async function installV0Api(page, options = {}) {
           districtId: state.activeSpot.districtId,
           spot: state.activeSpot,
           completedReads: requestedMelon.id === melon.id ? state.completedReads : requestedMelon.completedReads,
+          liked: state.likes.has(requestedMelon.id),
+          squatCount: state.squats.has(requestedMelon.id) ? 1 : requestedMelon.squatCount ?? 0,
+          reactions: {
+            like: (requestedMelon.reactions.like ?? 0) + (state.likes.has(requestedMelon.id) ? 1 : 0),
+          },
         },
         readToken: requestedMelon.id === melon.id ? "short-lived-read-token" : `read-token-${requestedMelon.id}`,
         completableAt: "2026-08-04T12:00:05.000Z",
@@ -407,7 +415,7 @@ export async function installV0Api(page, options = {}) {
       state.squatRequests.push(body);
       if (body?.active) state.squats.set(melon.id, { melon, squattedAt: fixedNow, alertKind: null, unread: false });
       else state.squats.delete(melon.id);
-      return json(route, { active: Boolean(body?.active) });
+      return json(route, { active: Boolean(body?.active), squatCount: state.squats.has(melon.id) ? 1 : 0 });
     }
 
     const squatMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/squat`);
@@ -415,15 +423,20 @@ export async function installV0Api(page, options = {}) {
       state.squatRequests.push({ melonId: squatMelon.id, ...body });
       if (body?.active) state.squats.set(squatMelon.id, { melon: squatMelon, squattedAt: fixedNow, alertKind: null, unread: false });
       else state.squats.delete(squatMelon.id);
-      return json(route, { active: Boolean(body?.active) });
+      return json(route, { active: Boolean(body?.active), squatCount: state.squats.has(squatMelon.id) ? 1 : 0 });
     }
 
     const reactionMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/reactions`);
     if (method === "POST" && reactionMelon) {
       state.reactionRequests.push({ melonId: reactionMelon.id, ...body });
+      if (body?.reaction === "like" && body?.active) state.likes.add(reactionMelon.id);
+      if (body?.reaction === "like" && body?.active === false) state.likes.delete(reactionMelon.id);
+      const baseLike = reactionMelon.reactions.like ?? 0;
       return json(route, {
-        ...reactionMelon.reactions,
-        [body?.reaction]: (reactionMelon.reactions[body?.reaction] ?? 0) + 1,
+        active: state.likes.has(reactionMelon.id),
+        reactions: {
+          like: baseLike + (state.likes.has(reactionMelon.id) ? 1 : 0),
+        },
       });
     }
 
@@ -524,7 +537,9 @@ export async function installV0Api(page, options = {}) {
         content: body.content,
         createdAt: fixedNow,
         squatted: false,
-        reactions: { juicy: 0, wild: 0, hug: 0, follow_up: 0 },
+        squatCount: 0,
+        liked: false,
+        reactions: { like: 0 },
       };
       if (status === "incubating" || status === "mature") state.createdMelons.unshift(createdMelon);
       const result = {

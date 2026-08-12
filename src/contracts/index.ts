@@ -8,7 +8,9 @@ export type MelonStatus = "incubating" | "mature" | "archived" | "held" | "remov
 export type DistanceBand = "within_1km" | "within_3km" | "within_8km" | "within_20km" | "remote";
 export type SafeTopic = "daily" | "work" | "relationship" | "food" | "neighborhood";
 export type MelonRevealMode = "open" | "seek_locked";
-export type ReactionType = "juicy" | "wild" | "hug" | "follow_up";
+export type LegacyReactionType = "juicy" | "wild" | "hug" | "follow_up";
+export type ReactionType = "like";
+export type ReactionCounts = Partial<Record<ReactionType | LegacyReactionType, number>>;
 export type FieldPlantStage = "seedling" | "growing" | "mature";
 export type FieldPlotIndex = 0 | 1 | 2;
 export type FieldSlotIndex = 0 | 1 | 2;
@@ -102,7 +104,9 @@ export interface MelonDetail extends Omit<MelonPreview, "status"> {
   content: string;
   createdAt: string;
   squatted: boolean;
-  reactions: Record<ReactionType, number>;
+  squatCount?: number;
+  liked?: boolean;
+  reactions: ReactionCounts;
 }
 
 export interface FieldMelonPreview extends Omit<MelonPreview, "status"> {
@@ -160,6 +164,16 @@ export interface CompleteReadResult {
   wallet: SeedWallet;
   authorExperienceAwarded: number;
   completedReads: number;
+}
+
+export interface ReactionResult {
+  active: boolean;
+  reactions: ReactionCounts;
+}
+
+export interface SquatResult {
+  active: boolean;
+  squatCount: number;
 }
 
 export interface PublicFieldPlant {

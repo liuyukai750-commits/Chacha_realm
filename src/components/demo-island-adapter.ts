@@ -21,7 +21,9 @@ import type {
   OwnFieldView,
   PlantFieldRequest,
   PlantFieldResult,
+  ReactionResult,
   ReactionType,
+  SquatResult,
   SeekState,
   SquatShelf,
   VerifyZonePresenceRequest,
@@ -43,10 +45,10 @@ export interface IslandAdapter {
   discover(request: DiscoveryRequest): Promise<DiscoveryResponse>;
   openMelon(id: string, presenceToken?: string): Promise<OpenedMelon>;
   completeRead(id: string, request: CompleteReadRequest): Promise<CompleteReadResult>;
-  setSquat(id: string, active: boolean): Promise<{ active: boolean }>;
+  setSquat(id: string, active: boolean): Promise<SquatResult>;
   squatShelf(): Promise<SquatShelf>;
   markSquatSeen(id: string): Promise<{ seen: true }>;
-  react(id: string, reaction: ReactionType): Promise<Record<ReactionType, number>>;
+  react(id: string, reaction: ReactionType, active: boolean): Promise<ReactionResult>;
   comments(id: string, presenceToken?: string): Promise<MelonCommentsPage>;
   verifyZonePresence(request: VerifyZonePresenceRequest): Promise<ZonePresenceResult>;
   comment(id: string, content: string, presenceToken: string): Promise<MelonComment>;
@@ -171,6 +173,21 @@ const demoSquats = new Map<string, { squattedAt: string; matureSeen: boolean }>(
   ["m-002", { squattedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), matureSeen: true }],
 ]);
 
+function likeCount(melon: MelonDetail): number {
+  return (melon.reactions.like ?? 0)
+    + (melon.reactions.juicy ?? 0)
+    + (melon.reactions.wild ?? 0)
+    + (melon.reactions.hug ?? 0);
+}
+
+function publicReactionState(melon: MelonDetail) {
+  return { like: likeCount(melon) };
+}
+
+function squatCount(id: string): number {
+  return demoSquats.has(id) ? 1 : 0;
+}
+
 const delay = async <T>(value: T, ms = 120): Promise<T> => new Promise((resolve) => window.setTimeout(() => resolve(value), ms));
 const copy = <T>(value: T): T => typeof structuredClone === "function"
   ? structuredClone(value)
@@ -244,10 +261,16 @@ export const demoIslandAdapter: IslandAdapter = {
   async openMelon(id) {
     const melon = details[id];
     if (!melon) throw new Error("这颗瓜还没有成熟。稍后再来听听。" );
+    const openedMelon = {
+      ...melon,
+      liked: Boolean(melon.liked),
+      squatCount: squatCount(id),
+      reactions: publicReactionState(melon),
+    };
     const readToken = `demo-read-${id}-${Date.now()}`;
     const completableAt = Date.now() + 5000;
     readTokens.set(readToken, { melonId: id, completableAt });
-    return delay(copy({ melon, readToken, completableAt: new Date(completableAt).toISOString() }));
+    return delay(copy({ melon: openedMelon, readToken, completableAt: new Date(completableAt).toISOString() }));
   },
   async completeRead(id, request) {
     refreshDailyRewards();
@@ -286,7 +309,7 @@ export const demoIslandAdapter: IslandAdapter = {
     } else {
       demoSquats.delete(id);
     }
-    return delay({ active });
+    return delay({ active, squatCount: squatCount(id) });
   },
   async squatShelf() {
     return delay(copy(demoSquatShelf()));
@@ -297,11 +320,16 @@ export const demoIslandAdapter: IslandAdapter = {
     demoSquats.set(id, { ...squat, matureSeen: true });
     return delay({ seen: true as const });
   },
-  async react(id, reaction) {
+  async react(id, reaction, active) {
     const melon = details[id];
     if (!melon) throw new Error("没有找到这颗瓜。" );
-    melon.reactions = { ...melon.reactions, [reaction]: melon.reactions[reaction] + 1 };
-    return delay(copy(melon.reactions));
+    if (reaction !== "like") throw new Error("Unsupported reaction.");
+    const legacyCount = (melon.reactions.juicy ?? 0) + (melon.reactions.wild ?? 0) + (melon.reactions.hug ?? 0);
+    const currentLike = likeCount(melon);
+    const nextLike = Math.max(0, currentLike + (active && !melon.liked ? 1 : !active && melon.liked ? -1 : 0));
+    melon.liked = active;
+    melon.reactions = { like: Math.max(0, nextLike - legacyCount), juicy: melon.reactions.juicy, wild: melon.reactions.wild, hug: melon.reactions.hug };
+    return delay(copy({ active, reactions: publicReactionState(melon) }));
   },
   async comments(id) {
     return delay(copy({ items: commentStore[id] ?? [] }));
