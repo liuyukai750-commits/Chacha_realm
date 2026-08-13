@@ -275,6 +275,67 @@ export async function installV0Api(page, options = {}) {
     const method = request.method();
     const body = request.postDataJSON?.() ?? null;
 
+    if (method === "POST" && path === "/api/bootstrap") {
+      const cities = state.fiveCities ? fiveCityMatrix : [{
+        id: "changsha",
+        name: "长沙",
+        districts: [{ id: "furong", name: "芙蓉区" }],
+        spots: [state.activeSpot],
+        opening: {
+          cityId: "changsha",
+          status: "open",
+          safeMelons: 30,
+          distinctAuthors: 25,
+          distinctSpots: 3,
+          distinctTopics: 3,
+        },
+      }];
+      const activeSpot = state.fiveCities ? primarySpotForCity(state.activeCityId) : state.activeSpot;
+      const items = state.fiveCities
+        ? cityMelons(state.activeCityId, activeSpot, options)
+        : discoveryMelons.map((item, index) => ({
+          id: item.id,
+          status: options.includeIncubating && index === 1 ? "incubating" : item.status,
+          burialKind: options.includeNearbyAreaInCity && index === 0 ? "nearby_area" : "public_spot",
+          topic: item.topic,
+          cityId: activeSpot.cityId,
+          districtId: activeSpot.districtId,
+          spot: activeSpot,
+          distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
+          completedReads: item.id === melon.id ? state.completedReads : item.completedReads,
+          title: options.includeIncubating && index === 1 ? "还在长的后续瓜" : item.title,
+          commentCount: publicComments.length,
+          isRemote: item.isRemote,
+          revealMode: item.revealMode,
+          ...(options.includeIncubating && index === 1 ? { maturesAt: "2026-08-04T14:00:00.000Z" } : {}),
+        }));
+      state.discoveryRequests.push({ selectedCityId: state.activeCityId });
+      state.fieldRequests.push({ at: Date.now() });
+      const squatItems = Array.from(state.squats.values());
+      return json(route, {
+        session: {
+          alias: "巡城小猹 101",
+          animal: "猹",
+          wallet: { ...state.wallet },
+          experience: { ...state.experience },
+        },
+        cities,
+        discovery: {
+          visitorType: "location_unknown",
+          activeCityId: state.activeCityId,
+          sceneContext: { kind: "city_overview" },
+          items,
+          localEmpty: false,
+        },
+        field: ownField(state),
+        melonDetails: {},
+        squatShelf: {
+          unreadCount: squatItems.filter((item) => item.unread).length,
+          items: squatItems,
+        },
+      });
+    }
+
     if (method === "POST" && path === "/api/session/anonymous") {
       return json(route, {
         alias: "巡城小猹 101",

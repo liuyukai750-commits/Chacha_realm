@@ -585,7 +585,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
   const showingNearbyArea = effectiveSceneKind === "nearby_area";
   const cityVisual = getCityVisual(cityId);
   const sceneImage = showingNearbyArea
-    ? dayPhase === "day" ? "/scenes/nearby-neighborhood-day-v1.png" : "/scenes/nearby-neighborhood-night-v1.png"
+    ? dayPhase === "day" ? "/scenes/nearby-neighborhood-day-v1.webp" : "/scenes/nearby-neighborhood-night-v1.webp"
     : cityVisual.sceneImages[dayPhase];
   const sceneLabel = showingNearbyArea
     ? "普通生活街区瓜域场景：附近 1 公里，但尚未进入公共地标范围"

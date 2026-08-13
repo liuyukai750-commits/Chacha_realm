@@ -20,20 +20,35 @@ export function apiError(problem: ApiProblem): NextResponse<ApiError> {
   );
 }
 
-export async function route<T>(work: () => Promise<T>): Promise<NextResponse<T | ApiError>> {
+function applyHeaders(response: NextResponse, responseHeaders?: () => HeadersInit): void {
+  if (!responseHeaders) return;
+  const headers = new Headers(responseHeaders());
+  headers.forEach((value, key) => response.headers.set(key, value));
+}
+
+export async function route<T>(
+  work: () => Promise<T>,
+  responseHeaders?: () => HeadersInit,
+): Promise<NextResponse<T | ApiError>> {
   try {
-    return NextResponse.json(await work());
+    const response = NextResponse.json(await work());
+    applyHeaders(response, responseHeaders);
+    return response;
   } catch (error) {
     if (error instanceof ApiProblem) {
       // Log only the status and stable error code. Request bodies, content,
       // tokens and one-time coordinates must never enter application logs.
       console.warn("[api] request rejected", { status: error.status, code: error.code });
-      return apiError(error);
+      const response = apiError(error);
+      applyHeaders(response, responseHeaders);
+      return response;
     }
     console.error("[api] internal error", {
       name: error instanceof Error ? error.name : "UnknownError",
     });
-    return apiError(new ApiProblem(500, "internal_error", "服务暂时开小差了，请稍后再试。"));
+    const response = apiError(new ApiProblem(500, "internal_error", "服务暂时开小差了，请稍后再试。"));
+    applyHeaders(response, responseHeaders);
+    return response;
   }
 }
 

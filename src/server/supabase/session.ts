@@ -34,6 +34,11 @@ export interface ServerSession {
   accessToken: string;
 }
 
+export interface AnonymousSessionBundle {
+  serverSession: ServerSession;
+  publicSession: AnonymousSession;
+}
+
 function cookieOptions(maxAge: number) {
   return {
     httpOnly: true,
@@ -107,7 +112,7 @@ export async function requireActiveSession(): Promise<ServerSession> {
   return session;
 }
 
-export async function createOrResumeAnonymousSession(): Promise<AnonymousSession> {
+export async function createOrResumeAnonymousSessionBundle(): Promise<AnonymousSessionBundle> {
   let session = await currentSession(true);
   if (!session) {
     const created = await supabaseFetch<AuthSessionResponse>("/auth/v1/signup", {
@@ -122,10 +127,17 @@ export async function createOrResumeAnonymousSession(): Promise<AnonymousSession
   }
   const profile = await profileFor(session);
   return {
-    alias: profile.alias,
-    animal: profile.animal,
-    wallet: profile.wallet,
-    experience: profile.experience,
-    accountStatus: profile.accountStatus ?? "active",
+    serverSession: session,
+    publicSession: {
+      alias: profile.alias,
+      animal: profile.animal,
+      wallet: profile.wallet,
+      experience: profile.experience,
+      accountStatus: profile.accountStatus ?? "active",
+    },
   };
+}
+
+export async function createOrResumeAnonymousSession(): Promise<AnonymousSession> {
+  return (await createOrResumeAnonymousSessionBundle()).publicSession;
 }

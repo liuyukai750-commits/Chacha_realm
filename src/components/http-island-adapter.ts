@@ -1,7 +1,5 @@
 import type {
-  AnonymousSession,
   ApiError,
-  CitySummary,
   CompleteReadResult,
   CreateMelonResult,
   CreateReportRequest,
@@ -50,17 +48,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const httpIslandAdapter: IslandAdapter = {
   async bootstrap(): Promise<IslandBootstrap> {
-    const [session, cities] = await Promise.all([
-      requestJson<AnonymousSession>("/api/session/anonymous", { method: "POST" }),
-      requestJson<CitySummary[]>("/api/cities"),
-    ]);
-    const selectedCityId = cities[0]?.id;
-    const [discovery, field, squatShelf] = await Promise.all([
-      requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(selectedCityId ? { selectedCityId } : {}) }),
-      requestJson<FieldView>("/api/fields/me"),
-      requestJson<SquatShelf>("/api/squats"),
-    ]);
-    return { session, cities, discovery, field, melonDetails: {}, squatShelf };
+    return requestJson<IslandBootstrap>("/api/bootstrap", { method: "POST" });
   },
   discover(request) {
     return requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(request) });

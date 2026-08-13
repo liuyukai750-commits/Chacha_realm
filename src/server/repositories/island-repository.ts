@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import { unstable_cache } from "next/cache";
 
 import { cities, getPublicSpot } from "@/data/geography";
 import type {
@@ -105,8 +106,17 @@ function discoverySceneContext(
   };
 }
 
-export async function getCities(): Promise<CitySummary[]> {
+async function fetchCities(): Promise<CitySummary[]> {
   return rpc<CitySummary[]>("get_city_catalog", {});
+}
+
+const getCachedCities = unstable_cache(fetchCities, ["chacha-city-catalog-v1"], {
+  revalidate: 60,
+  tags: ["chacha-city-catalog"],
+});
+
+export async function getCities(): Promise<CitySummary[]> {
+  return getCachedCities();
 }
 
 export async function discover(

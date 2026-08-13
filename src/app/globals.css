@@ -301,8 +301,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .stealth-cue{border:1px solid rgba(175,242,219,.17);border-radius:14px;background:#153e3c;box-shadow:0 12px 24px rgba(12,42,43,.13)}
 .stealth-cue.is-bury{background:#243b38}.stealth-cue>span i{border:1px solid #123c3a}
 
-.place-scene{height:144px;border:1px solid rgba(211,238,231,.2);border-radius:14px;background:url('/scenes/changsha-wuyi-day.png') center 76%/160% auto no-repeat;box-shadow:0 12px 28px rgba(10,43,46,.16)}
-.sunny-shell[data-day-phase="night"] .place-scene{background-image:linear-gradient(rgba(6,27,30,.08),rgba(6,27,30,.28)),url('/scenes/changsha-wuyi-night.png')}
+.place-scene{height:144px;border:1px solid rgba(211,238,231,.2);border-radius:14px;background:url('/scenes/changsha-wuyi-day.webp') center 76%/160% auto no-repeat;box-shadow:0 12px 28px rgba(10,43,46,.16)}
+.sunny-shell[data-day-phase="night"] .place-scene{background-image:linear-gradient(rgba(6,27,30,.08),rgba(6,27,30,.28)),url('/scenes/changsha-wuyi-night.webp')}
 .place-scene.is-compact{height:110px;border-radius:12px}.place-scene.is-stealth{height:150px;border:1px solid rgba(211,238,231,.2);box-shadow:0 14px 28px rgba(7,33,35,.18)}
 .place-scene>.scene-sky,.place-scene>.scene-buildings,.place-scene>.scene-prop,.place-scene>.scene-ground{display:none}
 .scene-caption{max-width:76%;left:10px;bottom:9px;padding:6px 8px;border:1px solid rgba(228,247,240,.22);border-radius:9px;background:rgba(8,35,38,.78);box-shadow:0 8px 20px rgba(4,28,30,.18);color:#f4fffb;backdrop-filter:blur(10px)}
@@ -319,16 +319,16 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 
 /* 城市切换缩略图与主舞台使用同一城市语义，避免五城同脸。 */
 .city-list .city-island{width:76px;height:58px;overflow:hidden;border:1px solid rgba(211,238,231,.22);border-radius:11px;background-position:center;background-size:cover;background-repeat:no-repeat;box-shadow:0 8px 18px rgba(10,42,44,.14)}
-.city-list .landmark-tianxin-orange-isle{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/changsha-wuyi-day.png')}
-.city-list .landmark-temple-of-heaven{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/beijing-temple-of-heaven-day-v1.png')}
-.city-list .landmark-oriental-pearl{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/shanghai-oriental-pearl-day-v1.png')}
-.city-list .landmark-canton-tower{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/guangzhou-canton-tower-day-v1.png')}
-.city-list .landmark-shenzhen-skyline{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/shenzhen-bay-day-v1.png')}
-.sunny-shell[data-day-phase="night"] .city-list .landmark-tianxin-orange-isle{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/changsha-wuyi-night.png')}
-.sunny-shell[data-day-phase="night"] .city-list .landmark-temple-of-heaven{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/beijing-temple-of-heaven-night-v1.png')}
-.sunny-shell[data-day-phase="night"] .city-list .landmark-oriental-pearl{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/shanghai-oriental-pearl-night-v1.png')}
-.sunny-shell[data-day-phase="night"] .city-list .landmark-canton-tower{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/guangzhou-canton-tower-night-v1.png')}
-.sunny-shell[data-day-phase="night"] .city-list .landmark-shenzhen-skyline{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/shenzhen-bay-night-v1.png')}
+.city-list .landmark-tianxin-orange-isle{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/changsha-wuyi-day.webp')}
+.city-list .landmark-temple-of-heaven{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/beijing-temple-of-heaven-day-v1.webp')}
+.city-list .landmark-oriental-pearl{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/shanghai-oriental-pearl-day-v1.webp')}
+.city-list .landmark-canton-tower{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/guangzhou-canton-tower-day-v1.webp')}
+.city-list .landmark-shenzhen-skyline{background-image:linear-gradient(rgba(8,34,37,.06),rgba(8,34,37,.28)),url('/scenes/shenzhen-bay-day-v1.webp')}
+.sunny-shell[data-day-phase="night"] .city-list .landmark-tianxin-orange-isle{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/changsha-wuyi-night.webp')}
+.sunny-shell[data-day-phase="night"] .city-list .landmark-temple-of-heaven{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/beijing-temple-of-heaven-night-v1.webp')}
+.sunny-shell[data-day-phase="night"] .city-list .landmark-oriental-pearl{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/shanghai-oriental-pearl-night-v1.webp')}
+.sunny-shell[data-day-phase="night"] .city-list .landmark-canton-tower{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/guangzhou-canton-tower-night-v1.webp')}
+.sunny-shell[data-day-phase="night"] .city-list .landmark-shenzhen-skyline{background-image:linear-gradient(rgba(8,34,37,.04),rgba(8,34,37,.32)),url('/scenes/shenzhen-bay-night-v1.webp')}
 .city-list .city-island .island-grass,.city-list .city-island .landmark-glyph{display:none}
 
 /* 加载和错误状态沿用城市信号语言，不再出现粗描边农场图形。 */
@@ -613,8 +613,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .field-ledger{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:0 0 12px}
 .field-ledger>div{min-width:0;padding:10px 9px;border:1px solid rgba(30,74,69,.18);border-radius:13px;background:rgba(255,255,255,.72);box-shadow:0 8px 20px rgba(24,67,62,.08)}
 .field-ledger span,.field-ledger strong{display:block}.field-ledger span{color:var(--ink-soft);font-size:11px}.field-ledger strong{margin-top:3px;font:850 18px/1 var(--data)}.field-ledger small{margin-left:2px;color:var(--ink-soft);font-size:10px}
-.field-illustration.field-v1{height:auto;aspect-ratio:1.37;background:linear-gradient(180deg,rgba(255,244,204,.01),rgba(71,42,14,.06)),url('/scenes/melon-field-empty-day-v2.png') center/cover no-repeat!important;isolation:isolate}
-.sunny-shell[data-day-phase="night"] .field-illustration.field-v1{background:linear-gradient(180deg,rgba(11,28,63,.01),rgba(26,31,24,.07)),url('/scenes/melon-field-empty-night-v2.png') center/cover no-repeat!important}
+.field-illustration.field-v1{height:auto;aspect-ratio:1.37;background:linear-gradient(180deg,rgba(255,244,204,.01),rgba(71,42,14,.06)),url('/scenes/melon-field-empty-day-v2.webp') center/cover no-repeat!important;isolation:isolate}
+.sunny-shell[data-day-phase="night"] .field-illustration.field-v1{background:linear-gradient(180deg,rgba(11,28,63,.01),rgba(26,31,24,.07)),url('/scenes/melon-field-empty-night-v2.webp') center/cover no-repeat!important}
 .field-plot-hotspot{position:absolute;z-index:3;min-width:88px;min-height:60px;padding:8px;border:1px dashed rgba(236,255,220,.58);border-radius:48%;background:rgba(12,64,44,.12);color:#fff;display:flex;align-items:flex-start;justify-content:space-between;gap:5px;cursor:pointer;transition:background .2s ease,box-shadow .2s ease,transform .2s ease}
 .field-plot-hotspot>span{padding:3px 5px;border-radius:7px;background:rgba(9,42,32,.65);font-size:10px;font-weight:800;backdrop-filter:blur(5px)}.field-plot-hotspot>strong{min-width:31px;padding:3px 4px;border-radius:999px;background:rgba(236,255,216,.9);color:#183c34;font:850 10px var(--data)}
 .field-plot-hotspot.plot-1{left:5%;top:40%;width:41%;height:36%;transform:rotate(-5deg)}.field-plot-hotspot.plot-2{right:4%;top:26%;width:45%;height:35%;transform:rotate(4deg)}.field-plot-hotspot.plot-3{right:5%;bottom:3%;width:58%;height:42%;transform:rotate(-2deg)}
