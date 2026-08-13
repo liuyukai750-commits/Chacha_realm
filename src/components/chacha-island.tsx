@@ -128,11 +128,6 @@ export function ChachaIsland() {
   const [islandAdapter, setIslandAdapter] = useState<IslandAdapter>(httpIslandAdapter);
   const [mode, setMode] = useState<"live" | "demo">("live");
   const [dayPhase, setDayPhase] = useState<"day" | "night">("day");
-  const [phasePreference, setPhasePreference] = useState<"auto" | "day" | "night">(() => {
-    if (typeof window === "undefined") return "auto";
-    const saved = window.localStorage.getItem("chacha-phase-preference");
-    return saved === "day" || saved === "night" ? saved : "auto";
-  });
   const [model, setModel] = useState<IslandBootstrap | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -154,21 +149,17 @@ export function ChachaIsland() {
 
   useLayoutEffect(() => {
     const syncDayPhase = () => {
-      if (phasePreference !== "auto") return setDayPhase(phasePreference);
-      const localHour = new Date().getHours();
-      setDayPhase(localHour >= 6 && localHour < 18 ? "day" : "night");
+      const beijingHour = Number(new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Shanghai",
+        hour: "2-digit",
+        hour12: false,
+      }).format(new Date()));
+      setDayPhase(beijingHour >= 6 && beijingHour < 18 ? "day" : "night");
     };
     syncDayPhase();
-    if (phasePreference !== "auto") return;
     const timer = window.setInterval(syncDayPhase, 60_000);
     return () => window.clearInterval(timer);
-  }, [phasePreference]);
-
-  const toggleDayPhase = () => {
-    const next = dayPhase === "day" ? "night" : "day";
-    window.localStorage.setItem("chacha-phase-preference", next);
-    setPhasePreference(next);
-  };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -442,9 +433,6 @@ export function ChachaIsland() {
         <div className="topbar-actions">
           <button className="city-switch" onClick={() => setShowCities(true)} aria-label={`当前城市${activeCity.name}，切换城市`}>
             <LocationIcon /><span>{activeCity.name}</span><ChevronIcon />
-          </button>
-          <button className="phase-mode-toggle" onClick={toggleDayPhase} aria-label={`当前${dayPhase === "day" ? "日间" : "夜间"}模式，切换到${dayPhase === "day" ? "夜间" : "日间"}模式`} title="切换日夜">
-            <span aria-hidden="true">{dayPhase === "day" ? "日" : "夜"}</span>
           </button>
           <span className="seed-count" aria-label={`拥有 ${model.session.wallet.trueSeedCount} 粒真瓜籽`}><SeedIcon />{model.session.wallet.trueSeedCount}</span>
         </div>

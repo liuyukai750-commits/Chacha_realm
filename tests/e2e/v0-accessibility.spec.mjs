@@ -336,18 +336,22 @@ test.describe("V0 响应式与无障碍门槛", () => {
     }
   });
 
-  test("PHASE-TOGGLE：日夜模式可手动切换并在刷新后保留", async ({ page }) => {
+  test("PHASE-AUTO：日夜只按北京时间自动切换且没有手动入口", async ({ page }) => {
     await page.clock.install({ time: new Date("2026-08-04T10:00:00+08:00") });
     await enterIsland(page);
 
     const shell = page.locator(".sunny-shell");
     await expect(shell).toHaveAttribute("data-day-phase", "day");
-    await page.getByRole("button", { name: "当前日间模式，切换到夜间模式" }).click();
+    await expect(page.getByRole("combobox", { name: /昼夜模式/ })).toHaveCount(0);
+    await page.clock.setFixedTime(new Date("2026-08-04T20:00:00+08:00"));
+    await page.clock.runFor(60_000);
     await expect(shell).toHaveAttribute("data-day-phase", "night");
 
+    await page.clock.setFixedTime(new Date("2026-08-05T10:00:00+08:00"));
+    await page.clock.runFor(60_000);
+    await expect(shell).toHaveAttribute("data-day-phase", "day");
     await page.reload();
-    await expect(page.getByRole("button", { name: "当前夜间模式，切换到日间模式" })).toBeVisible();
-    await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
+    await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "day");
   });
 
   test("A11Y-KEYBOARD：瓜详情对话框圈定焦点并把焦点还给触发器", async ({ page }) => {

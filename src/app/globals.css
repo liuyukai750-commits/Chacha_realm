@@ -369,11 +369,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   font-size:var(--type-body);
   line-height:1.55;
 }
-.phase-mode-toggle{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border:1px solid rgba(17,53,54,.18);border-radius:12px;background:rgba(255,255,255,.72);color:var(--ink);box-shadow:0 4px 12px rgba(17,53,54,.08);cursor:pointer}
-.phase-mode-toggle span{font-size:12px;font-weight:850;letter-spacing:.04em}
 .sunny-shell[data-day-phase="night"]{--ink:#f1fbf7;--ink-soft:#c2d4d0;--paper:#203a3b;--cream:#1b3435;--line:rgba(220,242,236,.2);background:linear-gradient(180deg,#17343b 0 46%,#1d3b3d 74%,#28413d 100%)}
 .sunny-shell[data-day-phase="night"] .topbar{background:rgba(20,48,50,.9);border-color:rgba(223,244,237,.16)}
-.sunny-shell[data-day-phase="night"] .city-switch,.sunny-shell[data-day-phase="night"] .phase-mode-toggle{background:rgba(255,255,255,.09);border-color:rgba(224,245,238,.2)}
+.sunny-shell[data-day-phase="night"] .city-switch{background:rgba(255,255,255,.09);border-color:rgba(224,245,238,.2);color:#f6fbff}
 .sunny-shell[data-day-phase="night"] .live-notice{background:rgba(32,67,66,.88);border-color:rgba(224,244,238,.18)}
 .sunny-shell[data-day-phase="night"] .zone-console{background:rgba(31,62,62,.96);border-color:rgba(226,246,240,.2);box-shadow:0 20px 44px rgba(0,0,0,.16)}
 .sunny-shell[data-day-phase="night"] .zone-switcher button,.sunny-shell[data-day-phase="night"] .topic-filter button{background:rgba(255,255,255,.08);border-color:rgba(226,246,240,.2);color:#d9e9e5}
@@ -416,7 +414,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 @media(max-width:430px){
   .sunny-shell{--type-display:clamp(36px,10.3vw,40px);--type-section:21px}
   .topbar{gap:7px}.topbar-actions{gap:5px}.city-switch{padding-inline:6px}.seed-count{padding-inline:8px}
-  .brand-avatar{width:44px;height:44px}.brand strong{font-size:16px}.brand small{display:block;font-size:7px;letter-spacing:.04em}.phase-mode-toggle{width:44px;flex-basis:44px}
+  .brand-avatar{width:44px;height:44px}.brand strong{font-size:16px}.brand small{display:block;font-size:7px;letter-spacing:.04em}
   .node-label{max-width:118px}.scene-quick-actions{bottom:92px}
 }
 
@@ -442,8 +440,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .sunny-shell[data-day-phase="night"] .city-switch{color:#f6fbff}
 .sunny-shell[data-day-phase="night"] .brand small,
 .sunny-shell[data-day-phase="night"] .city-switch svg:last-child{color:#c9dce8}
-.sunny-shell[data-day-phase="night"] .city-switch,
-.sunny-shell[data-day-phase="night"] .phase-mode-toggle{background:rgba(167,203,226,.11);border-color:rgba(215,235,247,.23)}
+.sunny-shell[data-day-phase="night"] .city-switch{background:rgba(167,203,226,.11);border-color:rgba(215,235,247,.23)}
 .sunny-shell[data-day-phase="night"] .seed-count{background:#e6ff76;color:#173535;border-color:transparent}
 .sunny-shell[data-day-phase="night"] .seed-count svg{color:#326b4f}
 .sunny-shell[data-day-phase="night"] .read-clock strong,

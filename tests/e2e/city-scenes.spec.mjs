@@ -99,7 +99,8 @@ test.describe("五城场景与附近生活圈验收", () => {
     }
     expect(daySources.size, "五城日间场景必须使用五个不同资源").toBe(cityScenes.length);
 
-    await page.getByRole("button", { name: "当前日间模式，切换到夜间模式" }).click();
+    await page.clock.setFixedTime(new Date("2026-08-10T20:00:00+08:00"));
+    await page.clock.runFor(60_000);
     await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
 
     const nightSources = new Set();
@@ -116,7 +117,8 @@ test.describe("五城场景与附近生活圈验收", () => {
 
     for (const phase of ["day", "night"]) {
       if (phase === "night") {
-        await page.getByRole("button", { name: "当前日间模式，切换到夜间模式" }).click();
+        await page.clock.setFixedTime(new Date("2026-08-10T20:00:00+08:00"));
+        await page.clock.runFor(60_000);
       }
       for (const expected of cityScenes) {
         await switchCity(page, expected.city);
@@ -149,7 +151,8 @@ test.describe("五城场景与附近生活圈验收", () => {
       await expect(stage).toHaveAttribute("data-scene-context", "city_overview");
     }
 
-    await page.getByRole("button", { name: "当前日间模式，切换到夜间模式" }).click();
+    await page.clock.setFixedTime(new Date("2026-08-10T20:00:00+08:00"));
+    await page.clock.runFor(60_000);
     await page.getByRole("group", { name: "吃瓜范围" }).getByRole("button", { name: /模拟附近 1km/ }).click();
     await expectSceneLoaded(page, /nearby-neighborhood-night-v1/);
   });
