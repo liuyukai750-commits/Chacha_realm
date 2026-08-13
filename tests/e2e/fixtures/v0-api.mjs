@@ -478,6 +478,9 @@ export async function installV0Api(page, options = {}) {
     }
 
     if (method === "POST" && path === `/api/melons/${melon.id}/squat`) {
+      if (options.squatWriteDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.squatWriteDelayMs));
+      }
       state.squatRequests.push(body);
       if (body?.active) state.squats.set(melon.id, { melon, squattedAt: fixedNow, alertKind: null, unread: false });
       else state.squats.delete(melon.id);
@@ -486,6 +489,9 @@ export async function installV0Api(page, options = {}) {
 
     const squatMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/squat`);
     if (method === "POST" && squatMelon) {
+      if (options.squatWriteDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.squatWriteDelayMs));
+      }
       state.squatRequests.push({ melonId: squatMelon.id, ...body });
       if (body?.active) state.squats.set(squatMelon.id, { melon: squatMelon, squattedAt: fixedNow, alertKind: null, unread: false });
       else state.squats.delete(squatMelon.id);

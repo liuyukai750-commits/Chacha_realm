@@ -378,21 +378,20 @@ export function ChachaIsland() {
     if (squatBusyIds.includes(id)) return;
     const active = !(model?.squatShelf.items.some((item) => item.melon.id === id) ?? quickSquats.includes(id));
     setSquatBusyIds((current) => [...new Set([...current, id])]);
-    let writeFinished = false;
+    applySquatLocally(id, active);
     try {
       const result = await islandAdapter.setSquat(id, active);
-      writeFinished = true;
-      applySquatLocally(id, result.active);
+      if (result.active !== active) applySquatLocally(id, result.active);
       setNotice(result.active ? "已放进蹲瓜架 · 成熟后会在听瓜入口亮起提醒" : "已经从蹲瓜架移除");
-      setSquatBusyIds((current) => current.filter((value) => value !== id));
       void islandAdapter.squatShelf().then((squatShelf) => {
         setModel((current) => current ? { ...current, squatShelf } : current);
         setQuickSquats(squatShelf.items.map((item) => item.melon.id));
       }, () => undefined);
     } catch (error) {
+      applySquatLocally(id, !active);
       setNotice(messageFrom(error));
     } finally {
-      if (!writeFinished) setSquatBusyIds((current) => current.filter((value) => value !== id));
+      setSquatBusyIds((current) => current.filter((value) => value !== id));
     }
   };
 
@@ -735,8 +734,8 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
               <div className="basket-actions">
                 {melon.status === "mature" ? <>
                   <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
-                  {!readOnly && <button onClick={() => onSquat(melon.id)} disabled={squatBusy} aria-pressed={squatted}>{squatBusy ? "正在更新" : squatted ? "取消蹲瓜" : "蹲瓜"}</button>}
-                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly || squatBusy} aria-pressed={squatted}>{readOnly ? "只读" : squatBusy ? "正在更新" : squatted ? "取消蹲瓜" : "蹲瓜"}</button>}
+                  {!readOnly && <button onClick={() => onSquat(melon.id)} disabled={squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={`${squatted ? "取消" : "添加"}蹲瓜`}>{squatted ? "已蹲瓜" : "蹲瓜"}</button>}
+                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly || squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={readOnly ? "只读" : `${squatted ? "取消" : "添加"}蹲瓜`}>{readOnly ? "只读" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
               </div>
             </article>;
           }) : <div className="basket-empty"><SproutIcon /><strong>这个话题暂时没有瓜</strong><span>换一个话题，或稍后再听一听。</span></div>}
@@ -1089,7 +1088,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
           <button className={finished ? `finish-button finished ${completionResult?.smallSeedAwarded ? "seed-launch" : ""}` : "finish-button"} aria-label="完成吃瓜" onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> {completionResult ? readRewardLabel(completionResult) : "已吃完"}</> : busy ? "正在留籽…" : "完成吃瓜"}</button>
           {error && <p className="form-error" role="alert">{error}</p>}
         </div>
-        {!readOnly && <div className="reader-interactions"><div className="reaction-row" aria-label="点赞与蹲后续">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={Boolean(interactionBusy)} aria-pressed={liked} aria-label={`${liked ? "取消点赞" : label}，当前 ${reactions[key] ?? 0} 次`}><span aria-hidden="true">{liked ? "✓" : glyph}</span>{interactionBusy === "like" ? "正在更新" : liked ? "取消点赞" : label}<small>{reactions[key] ?? 0}</small></button>)}<button onClick={toggleSquat} disabled={Boolean(interactionBusy)} aria-pressed={squatted} aria-label={`${squatted ? "取消蹲后续" : "蹲后续"}，当前 ${squatCount} 人`}><span aria-hidden="true">{squatted ? "✓" : "⌛"}</span>{interactionBusy === "squat" ? "正在更新" : squatted ? "取消蹲后续" : "蹲后续"}<small>{squatCount}</small></button></div>{interactionError && <p className="form-error interaction-error" role="alert">{interactionError}</p>}</div>}
+        {!readOnly && <div className="reader-interactions"><div className="reaction-row" aria-label="点赞与蹲后续">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={Boolean(interactionBusy)} aria-busy={interactionBusy === "like"} aria-pressed={liked} aria-label={`${liked ? "取消点赞" : label}，当前 ${reactions[key] ?? 0} 次`}><span aria-hidden="true">{glyph}</span>{liked ? "已点赞" : label}<small>{reactions[key] ?? 0}</small></button>)}<button onClick={toggleSquat} disabled={Boolean(interactionBusy)} aria-busy={interactionBusy === "squat"} aria-pressed={squatted} aria-label={`${squatted ? "取消蹲后续" : "蹲后续"}，当前 ${squatCount} 人`}><span aria-hidden="true">⌛</span>{squatted ? "已蹲后续" : "蹲后续"}<small>{squatCount}</small></button></div>{interactionError && <p className="form-error interaction-error" role="alert">{interactionError}</p>}</div>}
         {readOnly && <p className="readonly-note">当前匿名身份只能阅读，不能轻反应、蹲瓜或评论。申诉入口即将开放。</p>}
         <InlineComments adapter={adapter} melon={opened.melon} onSeek={onSeek} readOnly={readOnly} initialPresence={initialPresence} />
       </article>

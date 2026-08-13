@@ -253,12 +253,15 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await enterIsland(page);
     const { dialog, remote } = await openRemoteMelon(page);
     const like = dialog.locator(".reaction-row button").first();
+    const likeBackground = await like.evaluate((element) => getComputedStyle(element).backgroundColor);
 
     await expect(like).toContainText("3");
     await like.click();
     await expect.poll(() => api.reactionRequests).toEqual([{ melonId: remote.id, reaction: "like", active: true }]);
     await expect(like).toContainText("4");
-    await expect(like).toContainText("取消点赞");
+    await expect(like).toContainText("已点赞");
+    await expect(like).not.toContainText("正在更新");
+    await expect(like).toHaveCSS("background-color", likeBackground);
     await expect(like).toHaveAttribute("aria-pressed", "true");
 
     await like.click();
@@ -271,10 +274,13 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await expect(like).toHaveAttribute("aria-pressed", "false");
 
     const squat = dialog.getByRole("button", { name: /蹲/ }).first();
+    const squatBackground = await squat.evaluate((element) => getComputedStyle(element).backgroundColor);
     await squat.click();
     await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: true });
     await expect(squat).toContainText("1");
-    await expect(squat).toContainText("取消蹲后续");
+    await expect(squat).toContainText("已蹲后续");
+    await expect(squat).not.toContainText("正在更新");
+    await expect(squat).toHaveCSS("background-color", squatBackground);
     await expect(squat).toHaveAttribute("aria-pressed", "true");
     await squat.click();
     await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: false });
