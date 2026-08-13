@@ -177,6 +177,22 @@ test.describe("V0 核心循环", () => {
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
   });
 
+  test("SQUAT-SHELF：瓜篮按钮蹲瓜后立即进入我的蹲瓜架", async ({ page }) => {
+    const api = await installV0Api(page);
+    await enterIsland(page);
+
+    const basket = page.getByRole("region", { name: "瓜篮" });
+    const row = basket.getByRole("article", { name: melon.title });
+    const squat = row.getByRole("button", { name: "蹲瓜", exact: true });
+    await squat.click();
+
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    await expect(row.getByRole("button", { name: "已蹲瓜", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    await expect(page.getByRole("heading", { name: "我的蹲瓜架" })).toBeVisible();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible();
+  });
+
   test("PLANT-DISTANCE：距离失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, { plantDistanceFailure: true });
     await allowLocation(context, baseURL);

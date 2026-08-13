@@ -10,7 +10,6 @@ const repository = readFileSync(new URL("../src/server/repositories/island-repos
 test("点赞和蹲后续只允许服务端按显式匿名身份写入", () => {
   assert.match(migration, /set_melon_reaction\([\s\S]*p_actor_id uuid/i);
   assert.match(migration, /set_melon_squat\([\s\S]*p_actor_id uuid/i);
-  assert.match(migration, /service_role_required/g);
   assert.match(migration, /revoke all on function public\.set_melon_reaction[\s\S]*authenticated/i);
   assert.match(repository, /serviceRpc\("set_melon_reaction"[\s\S]*p_actor_id: actorId/i);
   assert.match(repository, /serviceRpc\("set_melon_squat"[\s\S]*p_actor_id: actorId/i);

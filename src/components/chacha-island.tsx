@@ -136,6 +136,7 @@ export function ChachaIsland() {
   const [openedAsOwner, setOpenedAsOwner] = useState(false);
   const [viewedField, setViewedField] = useState<FieldView | null>(null);
   const [quickSquats, setQuickSquats] = useState<string[]>([]);
+  const [squatBusyIds, setSquatBusyIds] = useState<string[]>([]);
   const [zonePresence, setZonePresence] = useState<Record<string, ZonePresenceResult>>({});
   const [openingMelon, setOpeningMelon] = useState(false);
   const [locatingNearby, setLocatingNearby] = useState(false);
@@ -345,15 +346,25 @@ export function ChachaIsland() {
 
   const quickSquat = async (id: string) => {
     if (writesBlocked) return setNotice("当前匿名身份已被封禁，只能阅读公开内容。申诉入口即将开放。");
+    if (squatBusyIds.includes(id)) return;
     const active = !(model?.squatShelf.items.some((item) => item.melon.id === id) ?? quickSquats.includes(id));
+    setSquatBusyIds((current) => [...new Set([...current, id])]);
     try {
       const result = await islandAdapter.setSquat(id, active);
       setQuickSquats((current) => result.active ? [...new Set([...current, id])] : current.filter((value) => value !== id));
-      const squatShelf = await islandAdapter.squatShelf();
-      setModel((current) => current ? { ...current, squatShelf } : current);
-      setQuickSquats(squatShelf.items.map((item) => item.melon.id));
       setNotice(result.active ? "已放进蹲瓜架 · 成熟后会在听瓜入口亮起提醒" : "已经从蹲瓜架移除");
-    } catch (error) { setNotice(messageFrom(error)); }
+      try {
+        const squatShelf = await islandAdapter.squatShelf();
+        setModel((current) => current ? { ...current, squatShelf } : current);
+        setQuickSquats(squatShelf.items.map((item) => item.melon.id));
+      } catch {
+        setNotice(result.active ? "已蹲瓜，瓜篮正在同步；重新打开“听瓜”即可刷新。" : "已取消蹲瓜，瓜篮正在同步。");
+      }
+    } catch (error) {
+      setNotice(messageFrom(error));
+    } finally {
+      setSquatBusyIds((current) => current.filter((value) => value !== id));
+    }
   };
 
   const refreshSquatShelf = async () => {
@@ -463,6 +474,7 @@ export function ChachaIsland() {
             items={model.discovery.items}
             details={model.melonDetails}
             quickSquats={quickSquats}
+            squatBusyIds={squatBusyIds}
             cityId={activeCity.id}
             cityName={activeCity.name}
             dayPhase={dayPhase}
@@ -530,10 +542,11 @@ export function ChachaIsland() {
   );
 }
 
-function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onRefresh, readOnly }: {
+function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onRefresh, readOnly }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
   quickSquats: string[];
+  squatBusyIds: string[];
   cityId: CityId;
   cityName: string;
   dayPhase: "day" | "night";
@@ -675,6 +688,7 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
           {filteredItems.length ? filteredItems.map((melon) => {
             const detail = details[melon.id];
             const squatted = quickSquats.includes(melon.id);
+            const squatBusy = squatBusyIds.includes(melon.id);
             const scene = getSpotScene(melon.spot);
             const displayTitle = detail?.title ?? melon.title ?? (melon.status === "mature" ? `一颗成熟的${topicName[melon.topic]}瓜` : `${topicName[melon.topic]}孵化瓜`);
             return <article className={`basket-row ${melon.status}`} key={melon.id} aria-label={displayTitle}>
@@ -687,8 +701,8 @@ function RadarView({ items, details, quickSquats, cityId, cityName, dayPhase, de
               <div className="basket-actions">
                 {melon.status === "mature" ? <>
                   <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
-                  {!readOnly && <button onClick={() => onSquat(melon.id)} aria-pressed={squatted}>{squatted ? "已蹲瓜" : "蹲瓜"}</button>}
-                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly} aria-pressed={squatted}>{readOnly ? "只读" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
+                  {!readOnly && <button onClick={() => onSquat(melon.id)} disabled={squatBusy} aria-pressed={squatted}>{squatBusy ? "正在蹲瓜" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
+                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly || squatBusy} aria-pressed={squatted}>{readOnly ? "只读" : squatBusy ? "正在蹲瓜" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
               </div>
             </article>;
           }) : <div className="basket-empty"><SproutIcon /><strong>这个话题暂时没有瓜</strong><span>换一个话题，或稍后再听一听。</span></div>}
