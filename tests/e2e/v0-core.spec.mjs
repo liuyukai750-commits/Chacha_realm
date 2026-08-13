@@ -145,6 +145,10 @@ test.describe("V0 核心循环", () => {
     await expect.poll(() => api.completeRequests).toEqual([{ readToken: "short-lived-read-token" }]);
     await expect(page.getByRole("status").filter({ hasText: /真瓜籽.*\+1|自动.*真瓜籽|五.*变成/ }).first()).toBeVisible();
     await expect(page.getByText(/真瓜籽\s*1|1\s*颗真瓜籽/).first()).toBeVisible();
+
+    await dialog.getByRole("button", { name: /关闭/ }).click();
+    await page.getByRole("navigation").getByRole("button", { name: "瓜田", exact: true }).click();
+    await expect(page.getByRole("region", { name: /我的瓜田/ }).getByText(/真瓜籽[^\d]*1|1[^\d]*真瓜籽/).first()).toBeVisible();
   });
 
   test("READ-REPEAT：服务端判定重复阅读时不重复奖励", async ({ page }) => {

@@ -275,14 +275,16 @@ export function ChachaIsland() {
     }
   };
 
-  const finishRead = async (result: CompleteReadResult) => {
-    if (!model) return;
-    const field = "wallet" in model.field ? { ...model.field, wallet: result.wallet } : model.field;
-    setModel({ ...model, session: { ...model.session, wallet: result.wallet }, field });
+  const finishRead = (result: CompleteReadResult) => {
+    setModel((current) => {
+      if (!current) return current;
+      const field = "wallet" in current.field ? { ...current.field, wallet: result.wallet } : current.field;
+      return { ...current, session: { ...current.session, wallet: result.wallet }, field };
+    });
     setNotice(!result.counted
       ? "这颗瓜已经吃过 · 本次不重复奖励"
       : result.autoConverted
-      ? "五粒小瓜籽聚在一起 · 真瓜籽 +1"
+      ? "五粒小瓜籽聚在一起 · 真瓜籽 +1，去瓜田选择土地种下"
       : result.smallSeedAwarded ? "这颗瓜吃完了 · 小瓜籽 +1" : "阅读已记下 · 今天不再发小瓜籽");
   };
 

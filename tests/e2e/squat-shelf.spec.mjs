@@ -16,6 +16,13 @@ test("听瓜入口打开蹲瓜架，成熟瓜可直达正文和评论", async ({
   await listen.click();
   await expect(page.getByRole("heading", { name: "我的蹲瓜架" })).toBeVisible();
   await expect(page.getByText("刚成熟", { exact: true })).toBeVisible();
+  const matureBadge = page.locator(".squat-shelf>header>span");
+  const badgeColors = await matureBadge.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, color: style.color };
+  });
+  expect(badgeColors.background).not.toBe("rgb(230, 255, 118)");
+  expect(badgeColors.color).toBe("rgb(23, 59, 55)");
   await page.getByRole("button", { name: new RegExp(`刚成熟.*${melon.title}`) }).click();
   await expect(page.getByRole("dialog")).toContainText(melon.content);
 });
