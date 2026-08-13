@@ -16,3 +16,9 @@ test("new Supabase secret key is never sent as bearer", () => {
   assert.match(source, /secretKeySource === "legacy_service_role"/);
   assert.doesNotMatch(source, /secretKeySource === "secret"[\s\S]*Authorization:\s*`Bearer \$\{config\.secretKey\}`/);
 });
+
+test("Supabase failures log only the request scope, status and stable code", () => {
+  assert.match(source, /console\.warn\("\[supabase\] request rejected", \{[\s\S]*scope,[\s\S]*status,[\s\S]*code:/);
+  assert.match(source, /logSupabaseRejection\(`rpc:\$\{name\}`/);
+  assert.doesNotMatch(source, /console\.warn\([^\n]*body/);
+});

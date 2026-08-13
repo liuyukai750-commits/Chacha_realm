@@ -58,6 +58,15 @@ function mapSupabaseError(status: number, body: unknown): ApiProblem {
   return unavailable();
 }
 
+function logSupabaseRejection(scope: string, status: number, body: unknown): void {
+  const error = (body && typeof body === "object" ? body : {}) as SupabaseErrorBody;
+  console.warn("[supabase] request rejected", {
+    scope,
+    status,
+    code: error.code ?? error.error_code ?? "unknown",
+  });
+}
+
 export async function supabaseFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -77,7 +86,10 @@ export async function supabaseFetch<T>(
     throw unavailable();
   }
   const body = await responseBody(response);
-  if (!response.ok) throw mapSupabaseError(response.status, body);
+  if (!response.ok) {
+    logSupabaseRejection(path, response.status, body);
+    throw mapSupabaseError(response.status, body);
+  }
   return body as T;
 }
 
@@ -105,7 +117,10 @@ export async function serviceRpc<T>(name: string, input: Record<string, unknown>
     throw unavailable();
   }
   const body = await responseBody(response);
-  if (!response.ok) throw mapSupabaseError(response.status, body);
+  if (!response.ok) {
+    logSupabaseRejection(`rpc:${name}`, response.status, body);
+    throw mapSupabaseError(response.status, body);
+  }
   return body as T;
 }
 
