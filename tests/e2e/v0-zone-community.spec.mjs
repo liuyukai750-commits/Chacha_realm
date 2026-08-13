@@ -252,12 +252,14 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     const api = await installV0Api(page);
     await enterIsland(page);
     const { dialog, remote } = await openRemoteMelon(page);
-    const like = dialog.getByRole("button", { name: /^点赞/ });
+    const like = dialog.locator(".reaction-row button").first();
 
     await expect(like).toContainText("3");
     await like.click();
     await expect.poll(() => api.reactionRequests).toEqual([{ melonId: remote.id, reaction: "like", active: true }]);
     await expect(like).toContainText("4");
+    await expect(like).toContainText("取消点赞");
+    await expect(like).toHaveAttribute("aria-pressed", "true");
 
     await like.click();
     await expect.poll(() => api.reactionRequests).toEqual([
@@ -265,14 +267,20 @@ test.describe("瓜区承载、筛选与远程围观", () => {
       { melonId: remote.id, reaction: "like", active: false },
     ]);
     await expect(like).toContainText("3");
+    await expect(like).toContainText("点赞");
+    await expect(like).toHaveAttribute("aria-pressed", "false");
 
     const squat = dialog.getByRole("button", { name: /蹲/ }).first();
     await squat.click();
     await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: true });
     await expect(squat).toContainText("1");
+    await expect(squat).toContainText("取消蹲后续");
+    await expect(squat).toHaveAttribute("aria-pressed", "true");
     await squat.click();
     await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: false });
     await expect(squat).toContainText("0");
+    await expect(squat).toContainText("蹲后续");
+    await expect(squat).toHaveAttribute("aria-pressed", "false");
 
     await dialog.getByRole("button", { name: "关闭" }).click();
     const reopened = await openRemoteMelon(page);
@@ -284,7 +292,7 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await installV0Api(page, { reactionFailure: { once: true, message: "点赞暂时失败，请重试" } });
     await enterIsland(page);
     const { dialog } = await openRemoteMelon(page);
-    const like = dialog.getByRole("button", { name: /^点赞/ });
+    const like = dialog.locator(".reaction-row button").first();
     const before = await like.locator("small").textContent();
     await like.click();
     await expect(dialog.getByRole("alert")).toContainText("点赞暂时失败，请重试");

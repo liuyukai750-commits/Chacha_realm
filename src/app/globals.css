@@ -446,6 +446,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .sunny-shell[data-day-phase="night"] .read-clock strong,
 .sunny-shell[data-day-phase="night"] .read-clock small{color:#f4fbff}
 .sunny-shell[data-day-phase="night"] .read-clock small{color:#d5e5ee}
+.sunny-shell[data-day-phase="night"] .read-clock>span{color:#173535}
+.sunny-shell[data-day-phase="night"] .finish-button.finished{background:#e6ff76;color:#173535;border-color:#efffc2}
 .sunny-shell[data-day-phase="night"] .reader-interactions .reaction-row button{background:#244c5d;color:#f4fbff;border-color:#b7d4e2}
 .sunny-shell[data-day-phase="night"] .reader-interactions .reaction-row button[aria-pressed="true"]{background:#d9f58b;color:#173535;border-color:#efffc2}
 .sunny-shell[data-day-phase="night"] .reader-interactions .reaction-row small{color:#d5e5ee}
@@ -483,6 +485,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .sunny-shell[data-day-phase="night"] .basket-copy>span{color:#a8dcea}
 .sunny-shell[data-day-phase="night"] .basket-copy p{color:#c8d9e5}
 .sunny-shell[data-day-phase="night"] .basket-actions button:not(.basket-primary){color:#eef8fd;border-color:rgba(213,233,246,.28)}
+.sunny-shell[data-day-phase="night"] .basket-actions button[aria-pressed="true"]{background:#e6ff76;color:#173535;border-color:#efffc2}
 
 .sunny-shell[data-day-phase="night"] .field-progress{background:#214555;color:#f5fbff;border-color:#89aebf!important}
 .sunny-shell[data-day-phase="night"] .field-progress header span,

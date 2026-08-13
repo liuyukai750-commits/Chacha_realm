@@ -142,6 +142,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
     await page.getByRole("button", { name: "关闭" }).click();
     const dialog = await openMelon(page);
     const readerContrast = await contrast([
+      ".read-clock>span",
       ".read-clock strong",
       ".read-clock small",
       ".comment-gate-copy strong",
@@ -150,6 +151,15 @@ test.describe("V0 响应式与无障碍门槛", () => {
     ]);
     for (const [selector, value] of Object.entries(readerContrast)) {
       expect(value, `${selector} must remain readable in the night reader`).toBeGreaterThanOrEqual(4.5);
+    }
+    const like = dialog.getByRole("button", { name: /^点赞/ });
+    await like.click();
+    const activeInteractionContrast = await contrast([
+      ".reaction-row button[aria-pressed='true']",
+      ".reaction-row button[aria-pressed='true'] small",
+    ]);
+    for (const [selector, value] of Object.entries(activeInteractionContrast)) {
+      expect(value, `${selector} must remain readable while selected`).toBeGreaterThanOrEqual(4.5);
     }
     await dialog.getByRole("button", { name: /举报/ }).first().click();
     const reportContrast = await contrast([".report-form>div button", ".report-form label"]);

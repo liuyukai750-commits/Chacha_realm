@@ -187,10 +187,15 @@ test.describe("V0 核心循环", () => {
     await squat.click();
 
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
-    await expect(row.getByRole("button", { name: "已蹲瓜", exact: true })).toBeVisible();
+    const cancel = row.getByRole("button", { name: "取消蹲瓜", exact: true });
+    await expect(cancel).toBeVisible();
+    await expect(cancel).toHaveAttribute("aria-pressed", "true");
+    await cancel.click();
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
+    await expect(row.getByRole("button", { name: "蹲瓜", exact: true })).toHaveAttribute("aria-pressed", "false");
     await page.getByRole("button", { name: /听瓜/ }).click();
     await expect(page.getByRole("heading", { name: "我的蹲瓜架" })).toBeVisible();
-    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toHaveCount(0);
   });
 
   test("SQUAT-NO-HANG：瓜篮后台刷新很慢时写入成功仍立即结束忙碌态", async ({ page }) => {
@@ -201,7 +206,7 @@ test.describe("V0 核心循环", () => {
     await row.getByRole("button", { name: "蹲瓜", exact: true }).click();
 
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
-    await expect(row.getByRole("button", { name: "已蹲瓜", exact: true })).toBeVisible({ timeout: 1_000 });
+    await expect(row.getByRole("button", { name: "取消蹲瓜", exact: true })).toBeVisible({ timeout: 1_000 });
     await page.getByRole("button", { name: /听瓜/ }).click();
     await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
   });
