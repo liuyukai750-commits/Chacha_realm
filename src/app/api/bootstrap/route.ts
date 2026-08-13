@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       return timed("discovery", () => discover(
         selectedCityId ? { selectedCityId } : {},
         serverSession.accessToken,
+        serverSession.userId,
       ));
     });
     const [cities, discovery, field, squatShelf] = await Promise.all([

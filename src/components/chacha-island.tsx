@@ -12,6 +12,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type ReactNode,
+  type TouchEvent,
   useEffect,
   useId,
   useLayoutEffect,
@@ -275,17 +276,61 @@ export function ChachaIsland() {
     }
   };
 
-  const finishRead = (result: CompleteReadResult) => {
+  const finishRead = (melonId: string, result: CompleteReadResult) => {
     setModel((current) => {
       if (!current) return current;
       const field = "wallet" in current.field ? { ...current.field, wallet: result.wallet } : current.field;
-      return { ...current, session: { ...current.session, wallet: result.wallet }, field };
+      return {
+        ...current,
+        session: { ...current.session, wallet: result.wallet },
+        field,
+        discovery: {
+          ...current.discovery,
+          items: current.discovery.items.filter((melon) => melon.id !== melonId),
+        },
+      };
     });
     setNotice(!result.counted
       ? "这颗瓜已经吃过 · 本次不重复奖励"
       : result.autoConverted
       ? "五粒小瓜籽聚在一起 · 真瓜籽 +1，去瓜田选择土地种下"
       : result.smallSeedAwarded ? "这颗瓜吃完了 · 小瓜籽 +1" : "阅读已记下 · 今天不再发小瓜籽");
+  };
+
+  const dismissBasketMelon = async (melon: MelonPreview) => {
+    setModel((current) => current ? {
+      ...current,
+      discovery: { ...current.discovery, items: current.discovery.items.filter((item) => item.id !== melon.id) },
+    } : current);
+    try {
+      await islandAdapter.dismissFromBasket(melon.id, true);
+      setNotice("已从瓜篮移出 · 如果蹲过，这颗瓜仍会留在蹲瓜架");
+    } catch (error) {
+      setModel((current) => current && !current.discovery.items.some((item) => item.id === melon.id) ? {
+        ...current,
+        discovery: { ...current.discovery, items: [melon, ...current.discovery.items] },
+      } : current);
+      setNotice(messageFrom(error));
+    }
+  };
+
+  const deleteOwnedMelon = async (melon: FieldMelonPreview) => {
+    try {
+      await islandAdapter.deleteOwnMelon(melon.id);
+      setModel((current) => {
+        if (!current) return current;
+        const field = { ...current.field, melons: current.field.melons.filter((item) => item.id !== melon.id) };
+        return {
+          ...current,
+          field,
+          discovery: { ...current.discovery, items: current.discovery.items.filter((item) => item.id !== melon.id) },
+        };
+      });
+      setNotice("这颗瓜已删除 · 之前获得的瓜籽不会被收回");
+    } catch (error) {
+      setNotice(messageFrom(error));
+      throw error;
+    }
   };
 
   const createMelon = async (input: Omit<CreateMelonRequest, "location">) => {
@@ -459,7 +504,11 @@ export function ChachaIsland() {
     setTab("field");
     try {
       const field = await islandAdapter.field();
-      setModel((current) => current ? { ...current, field } : current);
+      setModel((current) => current ? {
+        ...current,
+        field,
+        session: "wallet" in field ? { ...current.session, wallet: field.wallet } : current.session,
+      } : current);
     } catch (error) {
       setNotice(messageFrom(error));
     }
@@ -526,6 +575,7 @@ export function ChachaIsland() {
             }}
             onOpen={openMelon}
             onSquat={quickSquat}
+            onDismiss={dismissBasketMelon}
             onRefresh={async () => {
               if (discoveryScope === "nearby") return locate();
               const discovery = await islandAdapter.discover({ selectedCityId: model.discovery.activeCityId });
@@ -540,6 +590,7 @@ export function ChachaIsland() {
             isOwn={!viewedField}
             onBury={() => setShowBury(true)}
             onOpen={openOwnedMelon}
+            onDelete={deleteOwnedMelon}
             onPlant={async (plotIndex, operationId) => {
               const result = await islandAdapter.plant({ plotIndex, operationId });
               setModel((current) => current ? { ...current, field: result.field, session: { ...current.session, wallet: result.wallet } } : current);
@@ -577,7 +628,79 @@ export function ChachaIsland() {
   );
 }
 
-function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onRefresh, readOnly }: {
+function SwipeActionRow({ children, actionLabel, actionAriaLabel, onAction, destructive = false }: {
+  children: ReactNode;
+  actionLabel: string;
+  actionAriaLabel: string;
+  onAction: () => Promise<void>;
+  destructive?: boolean;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const suppressContentClickUntil = useRef(0);
+
+  const start = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+  const end = (event: TouchEvent<HTMLDivElement>) => {
+    const origin = touchStart.current;
+    const touch = event.changedTouches[0];
+    touchStart.current = null;
+    if (!origin || !touch) return;
+    const dx = touch.clientX - origin.x;
+    const dy = touch.clientY - origin.y;
+    if (Math.abs(dx) < 36 || Math.abs(dx) <= Math.abs(dy)) return;
+    suppressContentClickUntil.current = Date.now() + 450;
+    setRevealed(dx < 0);
+    setFailed(false);
+  };
+  const perform = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      await onAction();
+      setRevealed(false);
+    } catch {
+      setFailed(true);
+      setRevealed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <div className={`swipe-action-row ${revealed ? "is-revealed" : ""}`} onTouchStart={start} onTouchEnd={end}>
+    <div
+      className="swipe-action-content"
+      onClickCapture={(event) => {
+        if (Date.now() < suppressContentClickUntil.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        if (revealed) {
+          event.preventDefault();
+          event.stopPropagation();
+          setRevealed(false);
+        }
+      }}
+    >{children}</div>
+    <button
+      type="button"
+      className={`swipe-row-action ${destructive ? "is-destructive" : ""}`}
+      onClick={() => void perform()}
+      onFocus={() => setRevealed(true)}
+      disabled={busy}
+      aria-label={actionAriaLabel}
+    >{busy ? "处理中" : failed ? "重试" : actionLabel}</button>
+  </div>;
+}
+
+function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onDismiss, onRefresh, readOnly }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
   quickSquats: string[];
@@ -595,6 +718,7 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
   onCityBrowse: () => void;
   onOpen: (melon: MelonPreview, presenceToken?: string) => void;
   onSquat: (id: string) => void;
+  onDismiss: (melon: MelonPreview) => Promise<void>;
   onRefresh: () => void;
   readOnly: boolean;
 }) {
@@ -726,7 +850,8 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
             const squatBusy = squatBusyIds.includes(melon.id);
             const scene = getSpotScene(melon.spot);
             const displayTitle = detail?.title ?? melon.title ?? (melon.status === "mature" ? `一颗成熟的${topicName[melon.topic]}瓜` : `${topicName[melon.topic]}孵化瓜`);
-            return <article className={`basket-row ${melon.status}`} key={melon.id} aria-label={displayTitle}>
+            return <SwipeActionRow key={melon.id} actionLabel="不看了" actionAriaLabel={`从瓜篮移出${displayTitle}`} onAction={() => onDismiss(melon)}>
+            <article className={`basket-row ${melon.status}`} aria-label={displayTitle}>
               <span className="basket-fruit" aria-hidden="true"><i /></span>
               <div className="basket-copy">
                 <span>{topicName[melon.topic]}瓜 / {scene.displayName}</span>
@@ -739,7 +864,8 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
                   {!readOnly && <button onClick={() => onSquat(melon.id)} disabled={squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={`${squatted ? "取消" : "添加"}蹲瓜`}>{squatted ? "已蹲瓜" : "蹲瓜"}</button>}
                 </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly || squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={readOnly ? "只读" : `${squatted ? "取消" : "添加"}蹲瓜`}>{readOnly ? "只读" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
               </div>
-            </article>;
+            </article>
+            </SwipeActionRow>;
           }) : <div className="basket-empty"><SproutIcon /><strong>这个话题暂时没有瓜</strong><span>换一个话题，或稍后再听一听。</span></div>}
         </div>
       </section>
@@ -778,11 +904,12 @@ function DevPreviewCards() {
   );
 }
 
-function MyField({ field, isOwn, onBury, onOpen, onPlant, onRefresh, onHarvest, onHarvested }: {
+function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, onHarvest, onHarvested }: {
   field: FieldView;
   isOwn: boolean;
   onBury: () => void;
   onOpen: (preview: FieldMelonPreview) => Promise<void>;
+  onDelete: (preview: FieldMelonPreview) => Promise<void>;
   onPlant: (plotIndex: FieldPlotIndex, operationId: string) => Promise<OwnFieldView>;
   onRefresh: () => Promise<OwnFieldView>;
   onHarvest: () => Promise<HarvestFieldResult>;
@@ -917,7 +1044,10 @@ function MyField({ field, isOwn, onBury, onOpen, onPlant, onRefresh, onHarvest, 
       <section className="my-melons" aria-labelledby="my-melons-title">
         <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />再埋一个故事</button>}</header>
         {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => isOwn
-          ? <button type="button" className="field-melon-card" key={melon.id} onClick={() => void onOpen(melon)} aria-label={`查看${topicName[melon.topic]}瓜的正文和评论`}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "held" ? "安全复核中 · 点击查看原文" : melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟 · 点击查看` : "已经成熟 · 查看评论"}</small></div><ChevronIcon /></button>
+          ? <SwipeActionRow key={melon.id} actionLabel="删除" actionAriaLabel={`删除${topicName[melon.topic]}瓜`} destructive onAction={async () => {
+              if (!window.confirm("删除后，其他人将不能再看到这颗瓜；已获得的瓜籽不会收回。确定删除吗？")) return;
+              await onDelete(melon);
+            }}><button type="button" className="field-melon-card" onClick={() => void onOpen(melon)} aria-label={`查看${topicName[melon.topic]}瓜的正文和评论`}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "held" ? "安全复核中 · 点击查看原文" : melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟 · 点击查看` : "已经成熟 · 查看评论"}</small></div><ChevronIcon /></button></SwipeActionRow>
           : <article key={melon.id}><span className="plot-melon" aria-hidden="true"/><div><strong>{topicName[melon.topic]}瓜</strong><p>{getSpotScene(melon.spot).displayName}</p><small>{melon.status === "incubating" ? `${formatCountdown(melon.maturesAt)} 后成熟` : "已经成熟"}</small></div></article>)}</div> : isOwn ? <button className="empty-plot" onClick={onBury}><SproutIcon /><strong>这里还没有埋过故事</strong><span>可以埋在附近生活圈或公共地点</span></button> : <div className="empty-plot is-static"><SproutIcon /><strong>这里还没有公开的瓜</strong><span>过阵子再来串门</span></div>}
       </section>
     </section>
@@ -993,7 +1123,7 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
   </Sheet>;
 }
 
-function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (melonId: string) => Promise<ZonePresenceResult>; onSquatChanged: (melonId: string, active: boolean) => void; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
+function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (melonId: string, result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (melonId: string) => Promise<ZonePresenceResult>; onSquatChanged: (melonId: string, active: boolean) => void; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
   const [elapsed, setElapsed] = useState(0);
   const [finished, setFinished] = useState(false);
   const [completionResult, setCompletionResult] = useState<CompleteReadResult | null>(null);
@@ -1022,7 +1152,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
       const result = await adapter.completeRead(opened.melon.id, { readToken: opened.readToken });
       setFinished(true);
       setCompletionResult(result);
-      onFinished(result);
+      onFinished(opened.melon.id, result);
     } catch (caught) { setError(messageFrom(caught)); }
     finally { setBusy(false); }
   };

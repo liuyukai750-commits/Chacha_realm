@@ -3,10 +3,12 @@ import type {
   CompleteReadResult,
   CreateMelonResult,
   CreateReportRequest,
+  DeleteOwnMelonResult,
   DiscoveryResponse,
   FieldView,
   HarvestFieldResult,
   MelonComment,
+  MelonBasketDismissResult,
   MelonCommentsPage,
   OpenedMelon,
   PlantFieldRequest,
@@ -71,6 +73,12 @@ export const httpIslandAdapter: IslandAdapter = {
   },
   completeRead(id, input) {
     return requestJson<CompleteReadResult>(`/api/melons/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify(input) });
+  },
+  dismissFromBasket(id, hidden) {
+    return requestJson<MelonBasketDismissResult>(`/api/melons/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: JSON.stringify({ hidden }) });
+  },
+  deleteOwnMelon(id) {
+    return requestJson<DeleteOwnMelonResult>(`/api/melons/${encodeURIComponent(id)}`, { method: "DELETE" });
   },
   setSquat(id, active) {
     return requestJson<SquatResult>(`/api/melons/${encodeURIComponent(id)}/squat`, { method: "POST", body: JSON.stringify({ active }) });

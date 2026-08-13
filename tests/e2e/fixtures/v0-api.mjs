@@ -240,6 +240,8 @@ export async function installV0Api(page, options = {}) {
     presenceRequests: [],
     reactionRequests: [],
     squatRequests: [],
+    basketDismissRequests: [],
+    deletedMelons: [],
     wallet: { ...initialWallet },
     experience: { ...initialExperience },
     plants: structuredClone(options.plants ?? []),
@@ -475,6 +477,19 @@ export async function installV0Api(page, options = {}) {
         authorExperienceAwarded: counted ? 1 : 0,
         completedReads: state.completedReads,
       });
+    }
+
+    const dismissedMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/dismiss`);
+    if (method === "POST" && dismissedMelon) {
+      state.basketDismissRequests.push({ melonId: dismissedMelon.id, ...body });
+      return json(route, { hidden: Boolean(body?.hidden) });
+    }
+
+    const deletedMelon = state.createdMelons.find((item) => path === `/api/melons/${item.id}`);
+    if (method === "DELETE" && deletedMelon) {
+      state.deletedMelons.push(deletedMelon.id);
+      state.createdMelons = state.createdMelons.filter((item) => item.id !== deletedMelon.id);
+      return json(route, { deleted: true });
     }
 
     if (method === "POST" && path === `/api/melons/${melon.id}/squat`) {

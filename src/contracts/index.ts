@@ -176,6 +176,14 @@ export interface SquatResult {
   squatCount: number;
 }
 
+export interface MelonBasketDismissResult {
+  hidden: boolean;
+}
+
+export interface DeleteOwnMelonResult {
+  deleted: true;
+}
+
 export interface PublicFieldPlant {
   plotIndex: FieldPlotIndex;
   slotIndex: FieldSlotIndex;

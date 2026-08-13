@@ -7,6 +7,7 @@ import type {
   CreateReportRequest,
   CreateMelonRequest,
   CreateMelonResult,
+  DeleteOwnMelonResult,
   DiscoveryRequest,
   DiscoveryResponse,
   DiscoverySceneContext,
@@ -14,6 +15,7 @@ import type {
   FieldView,
   HarvestFieldResult,
   MelonComment,
+  MelonBasketDismissResult,
   MelonCommentsPage,
   MelonDetail,
   MelonPreview,
@@ -45,6 +47,8 @@ export interface IslandAdapter {
   discover(request: DiscoveryRequest): Promise<DiscoveryResponse>;
   openMelon(id: string, presenceToken?: string): Promise<OpenedMelon>;
   completeRead(id: string, request: CompleteReadRequest): Promise<CompleteReadResult>;
+  dismissFromBasket(id: string, hidden: boolean): Promise<MelonBasketDismissResult>;
+  deleteOwnMelon(id: string): Promise<DeleteOwnMelonResult>;
   setSquat(id: string, active: boolean): Promise<SquatResult>;
   squatShelf(): Promise<SquatShelf>;
   markSquatSeen(id: string): Promise<{ seen: true }>;
@@ -172,6 +176,7 @@ let lastDemoScene: DiscoverySceneContext | null = null;
 const demoSquats = new Map<string, { squattedAt: string; matureSeen: boolean }>([
   ["m-002", { squattedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(), matureSeen: true }],
 ]);
+const demoBasketDismissals = new Set<string>();
 
 function likeCount(melon: MelonDetail): number {
   return (melon.reactions.like ?? 0)
@@ -253,10 +258,16 @@ function demoSquatShelf(): SquatShelf {
 export const demoIslandAdapter: IslandAdapter = {
   async bootstrap() {
     refreshDemoField();
-    return delay(copy({ session, cities, discovery: discoveryFor("changsha", false), field: fieldView, melonDetails: details, squatShelf: demoSquatShelf() }));
+    const discovery = discoveryFor("changsha", false);
+    discovery.items = discovery.items.filter((melon) => !completed.has(melon.id) && !demoBasketDismissals.has(melon.id));
+    discovery.localEmpty = discovery.items.length === 0;
+    return delay(copy({ session, cities, discovery, field: fieldView, melonDetails: details, squatShelf: demoSquatShelf() }));
   },
   async discover(request) {
-    return delay(copy(discoveryFor(request.selectedCityId ?? "changsha", Boolean(request.location))));
+    const discovery = discoveryFor(request.selectedCityId ?? "changsha", Boolean(request.location));
+    discovery.items = discovery.items.filter((melon) => !completed.has(melon.id) && !demoBasketDismissals.has(melon.id));
+    discovery.localEmpty = discovery.items.length === 0;
+    return delay(copy(discovery));
   },
   async openMelon(id) {
     const melon = details[id];
@@ -299,6 +310,20 @@ export const demoIslandAdapter: IslandAdapter = {
       return delay({ counted, smallSeedAwarded, autoConverted, wallet: session.wallet, authorExperienceAwarded, completedReads: (details[id]?.completedReads ?? 0) + 1 });
     }
     return delay({ counted, smallSeedAwarded, autoConverted, wallet: session.wallet, authorExperienceAwarded: 0, completedReads: details[id]?.completedReads ?? 0 });
+  },
+  async dismissFromBasket(id, hidden) {
+    if (hidden) demoBasketDismissals.add(id);
+    else demoBasketDismissals.delete(id);
+    return delay({ hidden });
+  },
+  async deleteOwnMelon(id) {
+    const index = fieldView.melons.findIndex((melon) => melon.id === id);
+    if (index < 0) throw new Error("这颗瓜已经不在你的瓜田里了。" );
+    fieldView = { ...fieldView, melons: fieldView.melons.filter((melon) => melon.id !== id) };
+    const previewIndex = previews.findIndex((melon) => melon.id === id);
+    if (previewIndex >= 0) previews.splice(previewIndex, 1);
+    delete details[id];
+    return delay({ deleted: true as const });
   },
   async setSquat(id, active) {
     if (details[id]) details[id] = { ...details[id], squatted: active };

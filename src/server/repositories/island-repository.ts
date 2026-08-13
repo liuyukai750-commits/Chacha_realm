@@ -122,6 +122,7 @@ export async function getCities(): Promise<CitySummary[]> {
 export async function discover(
   input: DiscoveryRequest,
   accessToken: string,
+  actorId: string,
 ): Promise<DiscoveryResponse> {
   const spots = await publicSpots(accessToken);
   const locationResult = resolveVisitorLocation({ location: input.location });
@@ -134,12 +135,17 @@ export async function discover(
   const activeDistrictId = nearest?.spot.city_id === activeCityId ? nearest.spot.district_id : undefined;
   const sceneContext = discoverySceneContext(usableLocation, nearest);
   const visitorNearbyCellId = usableLocation && process.env.CHACHA_LOCATION_HMAC_SECRET ? nearbyCellIdForLocation(activeCityId, usableLocation) : undefined;
-  const candidates = await serviceRpc<DiscoveryCandidate[]>(
-    "get_discovery_candidates_for_visitor",
-    { p_city_id: activeCityId, p_nearby_cell_id: visitorNearbyCellId ?? null },
-  );
+  const [candidates, basketExclusions] = await Promise.all([
+    serviceRpc<DiscoveryCandidate[]>(
+      "get_discovery_candidates_for_visitor",
+      { p_city_id: activeCityId, p_nearby_cell_id: visitorNearbyCellId ?? null },
+    ),
+    serviceRpc<string[]>("get_melon_basket_exclusions", { p_actor_id: actorId }),
+  ]);
+  const excludedIds = new Set(basketExclusions);
 
   const items = candidates
+    .filter((candidate) => !excludedIds.has(candidate.id))
     .map((candidate) => {
       const candidateBurialKind = candidate.burialKind ?? "public_spot";
       const distanceM = usableLocation && candidateBurialKind !== "nearby_area"
@@ -260,6 +266,21 @@ export function markSquatAlertSeen(melonId: string, accessToken: string): Promis
 
 export function setReaction(melonId: string, reaction: ReactionType, active: boolean, actorId: string): Promise<ReactionResult> {
   return serviceRpc("set_melon_reaction", { p_actor_id: actorId, p_melon_id: melonId, p_reaction: reaction, p_active: active });
+}
+
+export function setMelonBasketDismissal(melonId: string, hidden: boolean, actorId: string) {
+  return serviceRpc<{ hidden: boolean }>("set_melon_basket_dismissal", {
+    p_actor_id: actorId,
+    p_melon_id: melonId,
+    p_hidden: hidden,
+  });
+}
+
+export function deleteOwnMelon(melonId: string, actorId: string) {
+  return serviceRpc<{ deleted: true }>("delete_own_melon", {
+    p_actor_id: actorId,
+    p_melon_id: melonId,
+  });
 }
 
 export interface MelonPresenceTarget {
