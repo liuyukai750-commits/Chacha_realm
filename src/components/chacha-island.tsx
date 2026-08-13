@@ -344,26 +344,55 @@ export function ChachaIsland() {
     }
   };
 
+  const applySquatLocally = (id: string, active: boolean) => {
+    setQuickSquats((current) => active ? [...new Set([...current, id])] : current.filter((value) => value !== id));
+    setModel((current) => {
+      if (!current) return current;
+      const existingItems = current.squatShelf.items;
+      if (!active) {
+        return {
+          ...current,
+          squatShelf: {
+            unreadCount: existingItems.some((item) => item.melon.id === id && item.unread)
+              ? Math.max(0, current.squatShelf.unreadCount - 1)
+              : current.squatShelf.unreadCount,
+            items: existingItems.filter((item) => item.melon.id !== id),
+          },
+        };
+      }
+      if (existingItems.some((item) => item.melon.id === id)) return current;
+      const melon = current.discovery.items.find((item) => item.id === id);
+      if (!melon) return current;
+      return {
+        ...current,
+        squatShelf: {
+          ...current.squatShelf,
+          items: [{ melon, squattedAt: new Date().toISOString(), alertKind: null, unread: false }, ...existingItems],
+        },
+      };
+    });
+  };
+
   const quickSquat = async (id: string) => {
     if (writesBlocked) return setNotice("当前匿名身份已被封禁，只能阅读公开内容。申诉入口即将开放。");
     if (squatBusyIds.includes(id)) return;
     const active = !(model?.squatShelf.items.some((item) => item.melon.id === id) ?? quickSquats.includes(id));
     setSquatBusyIds((current) => [...new Set([...current, id])]);
+    let writeFinished = false;
     try {
       const result = await islandAdapter.setSquat(id, active);
-      setQuickSquats((current) => result.active ? [...new Set([...current, id])] : current.filter((value) => value !== id));
+      writeFinished = true;
+      applySquatLocally(id, result.active);
       setNotice(result.active ? "已放进蹲瓜架 · 成熟后会在听瓜入口亮起提醒" : "已经从蹲瓜架移除");
-      try {
-        const squatShelf = await islandAdapter.squatShelf();
+      setSquatBusyIds((current) => current.filter((value) => value !== id));
+      void islandAdapter.squatShelf().then((squatShelf) => {
         setModel((current) => current ? { ...current, squatShelf } : current);
         setQuickSquats(squatShelf.items.map((item) => item.melon.id));
-      } catch {
-        setNotice(result.active ? "已蹲瓜，瓜篮正在同步；重新打开“听瓜”即可刷新。" : "已取消蹲瓜，瓜篮正在同步。");
-      }
+      }, () => undefined);
     } catch (error) {
       setNotice(messageFrom(error));
     } finally {
-      setSquatBusyIds((current) => current.filter((value) => value !== id));
+      if (!writeFinished) setSquatBusyIds((current) => current.filter((value) => value !== id));
     }
   };
 
@@ -375,6 +404,11 @@ export function ChachaIsland() {
     } catch (error) {
       setNotice(messageFrom(error));
     }
+  };
+
+  const syncReaderSquat = (id: string, active: boolean) => {
+    applySquatLocally(id, active);
+    void refreshSquatShelf();
   };
 
   const openSquattedMelon = async (item: SquatShelfItem) => {
@@ -534,7 +568,7 @@ export function ChachaIsland() {
 
       {opened && (openedAsOwner
         ? <OwnerMelonReader adapter={islandAdapter} opened={opened} onClose={() => { setOpened(null); setOpenedAsOwner(false); }} />
-        : <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} onSquatChanged={refreshSquatShelf} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.id]} />)}
+        : <MelonReader adapter={islandAdapter} opened={opened} onClose={() => setOpened(null)} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} onSquatChanged={syncReaderSquat} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.id]} />)}
       {showCities && <CityPicker model={model} onClose={() => setShowCities(false)} onSelect={selectCity} />}
       {showSquatShelf && <SquatShelfSheet shelf={model.squatShelf} busy={openingMelon} onClose={() => setShowSquatShelf(false)} onOpen={openSquattedMelon} onCancel={quickSquat} />}
       {showBury && !writesBlocked && <BurySheetV1 key={activeCity.id} spots={activeCity.spots} cityName={activeCity.name} demoMode={mode === "demo"} onClose={() => setShowBury(false)} onCreate={createMelon} />}
@@ -958,7 +992,7 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
   </Sheet>;
 }
 
-function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (melonId: string) => Promise<ZonePresenceResult>; onSquatChanged: () => Promise<void>; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
+function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (melonId: string) => Promise<ZonePresenceResult>; onSquatChanged: (melonId: string, active: boolean) => void; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
   const [elapsed, setElapsed] = useState(0);
   const [finished, setFinished] = useState(false);
   const [completionResult, setCompletionResult] = useState<CompleteReadResult | null>(null);
@@ -1005,7 +1039,7 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
       const result = await adapter.setSquat(opened.melon.id, nextActive);
       setSquatted(result.active);
       setSquatCount(result.squatCount);
-      void onSquatChanged();
+      onSquatChanged(opened.melon.id, result.active);
     } catch (caught) {
       setSquatted(priorActive);
       setSquatCount(priorCount);

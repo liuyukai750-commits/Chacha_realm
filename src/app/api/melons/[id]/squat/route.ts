@@ -1,18 +1,22 @@
 import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
 import { setSquat } from "@/server/repositories/island-repository";
-import { requireActiveSession } from "@/server/supabase/session";
+import { requireSession } from "@/server/supabase/session";
 import { object, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const startedAt = Date.now();
   return route(async () => {
+    console.info("[api/melons/squat] started");
     requireSameOrigin(request);
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
-    const session = await requireActiveSession();
+    const session = await requireSession();
     const body = object(await readJson(request));
     if (typeof body.active !== "boolean") throw new ApiProblem(400, "invalid_request", "active 必须是布尔值。 ");
-    return setSquat(id, body.active, session.userId);
+    const result = await setSquat(id, body.active, session.userId);
+    console.info("[api/melons/squat] completed", { durationMs: Date.now() - startedAt });
+    return result;
   });
 }

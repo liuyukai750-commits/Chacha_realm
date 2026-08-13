@@ -31,12 +31,25 @@ export function isExplicitServiceUnavailable(error: unknown): error is IslandHtt
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body !== undefined;
-  const response = await fetch(path, {
-    ...init,
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: hasBody ? { "content-type": "application/json" } : init?.headers,
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: init?.signal ?? controller.signal,
+      headers: hasBody ? { "content-type": "application/json" } : init?.headers,
+    });
+  } catch {
+    if (!init?.signal && controller.signal.aborted) {
+      throw new IslandHttpError(408, "request_timeout", "街上的信号有点慢，本次操作没有确认成功，请重试。");
+    }
+    throw new IslandHttpError(503, "network_error", "网络连接中断了，请检查信号后重试。");
+  } finally {
+    window.clearTimeout(timeout);
+  }
   const payload = await response.json().catch(() => null) as T | ApiError | null;
   if (!response.ok) {
     const problem = payload && typeof payload === "object" && "error" in payload ? (payload as ApiError).error : null;

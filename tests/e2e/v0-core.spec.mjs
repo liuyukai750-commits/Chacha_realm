@@ -193,6 +193,33 @@ test.describe("V0 核心循环", () => {
     await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible();
   });
 
+  test("SQUAT-NO-HANG：瓜篮后台刷新很慢时写入成功仍立即结束忙碌态", async ({ page }) => {
+    const api = await installV0Api(page, { squatShelfDelayMs: 2_000 });
+    await enterIsland(page);
+
+    const row = page.getByRole("region", { name: "瓜篮" }).getByRole("article", { name: melon.title });
+    await row.getByRole("button", { name: "蹲瓜", exact: true }).click();
+
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    await expect(row.getByRole("button", { name: "已蹲瓜", exact: true })).toBeVisible({ timeout: 1_000 });
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
+  });
+
+  test("SQUAT-READER-NO-HANG：详情页蹲后续立即同步到瓜篮", async ({ page }) => {
+    const api = await installV0Api(page, { squatShelfDelayMs: 2_000 });
+    await enterIsland(page);
+    const dialog = await openMelon(page);
+
+    await (await squatControl(dialog, false)).click();
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    await expect(await squatControl(dialog, true)).toBeVisible({ timeout: 1_000 });
+    await dialog.getByRole("button", { name: /关闭/ }).click();
+
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
+  });
+
   test("PLANT-DISTANCE：距离失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, { plantDistanceFailure: true });
     await allowLocation(context, baseURL);

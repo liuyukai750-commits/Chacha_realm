@@ -364,6 +364,9 @@ export async function installV0Api(page, options = {}) {
     }
 
     if (method === "GET" && path === "/api/squats") {
+      if (options.squatShelfDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.squatShelfDelayMs));
+      }
       const items = Array.from(state.squats.values());
       return json(route, { unreadCount: items.filter((item) => item.unread).length, items });
     }

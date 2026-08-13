@@ -15,7 +15,7 @@ test("reaction contract only accepts V1 like writes with explicit target active 
   assert.match(contracts, /export type ReactionType = "like"/);
   assert.match(validation, /new Set<ReactionType>\(\["like"\]\)/);
   assert.match(route, /typeof body\.active !== "boolean"/);
-  assert.match(route, /setReaction\(id, reaction\(body\.reaction\), body\.active, session\.accessToken\)/);
+  assert.match(route, /setReaction\(id, reaction\(body\.reaction\), body\.active, session\.userId\)/);
   assert.match(repository, /"set_melon_reaction"[\s\S]*p_active:\s*active/);
 });
 
