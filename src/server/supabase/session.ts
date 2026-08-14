@@ -12,9 +12,10 @@ const REFRESH_COOKIE = "chacha_rt";
 interface AuthUser {
   id: string;
   is_anonymous?: boolean;
+  phone?: string;
 }
 
-interface AuthSessionResponse {
+export interface AuthSessionResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;
@@ -24,6 +25,11 @@ interface AuthSessionResponse {
 interface ProfileDto {
   alias: string;
   animal: string;
+  authKind?: "anonymous" | "phone";
+  displayName?: string | null;
+  publicId?: string;
+  maskedPhone?: string | null;
+  onboardingComplete?: boolean;
   wallet: AnonymousSession["wallet"];
   experience: AnonymousSession["experience"];
   accountStatus?: "active" | "banned";
@@ -32,6 +38,7 @@ interface ProfileDto {
 export interface ServerSession {
   userId: string;
   accessToken: string;
+  isAnonymous: boolean;
 }
 
 export interface AnonymousSessionBundle {
@@ -49,10 +56,16 @@ function cookieOptions(maxAge: number) {
   };
 }
 
-async function saveSession(session: AuthSessionResponse): Promise<void> {
+export async function saveAuthSession(session: AuthSessionResponse): Promise<void> {
   const store = await cookies();
   store.set(ACCESS_COOKIE, session.access_token, cookieOptions(Math.max(60, session.expires_in)));
   store.set(REFRESH_COOKIE, session.refresh_token, cookieOptions(30 * 24 * 60 * 60));
+}
+
+export async function clearAuthSession(): Promise<void> {
+  const store = await cookies();
+  store.delete(ACCESS_COOKIE);
+  store.delete(REFRESH_COOKIE);
 }
 
 async function validateAccessToken(accessToken: string): Promise<AuthUser> {
@@ -73,8 +86,8 @@ async function currentSession(allowRefresh: boolean): Promise<ServerSession | nu
   if (accessToken) {
     try {
       const user = await validateAccessToken(accessToken);
-      if (!user.id || user.is_anonymous === false) throw new ApiProblem(401, "unauthorized", "匿名会话无效。 ");
-      return { userId: user.id, accessToken };
+      if (!user.id) throw new ApiProblem(401, "unauthorized", "登录状态无效。");
+      return { userId: user.id, accessToken, isAnonymous: user.is_anonymous === true };
     } catch (error) {
       if (!(error instanceof ApiProblem) || error.status !== 401) throw error;
     }
@@ -82,8 +95,13 @@ async function currentSession(allowRefresh: boolean): Promise<ServerSession | nu
   if (allowRefresh && refreshToken) {
     try {
       const refreshed = await refreshSession(refreshToken);
-      await saveSession(refreshed);
-      return { userId: refreshed.user.id, accessToken: refreshed.access_token };
+      if (!refreshed.user?.id) throw new ApiProblem(401, "unauthorized", "登录状态无效。");
+      await saveAuthSession(refreshed);
+      return {
+        userId: refreshed.user.id,
+        accessToken: refreshed.access_token,
+        isAnonymous: refreshed.user.is_anonymous === true,
+      };
     } catch (error) {
       if (!(error instanceof ApiProblem) || error.status !== 401) throw error;
     }
@@ -91,9 +109,13 @@ async function currentSession(allowRefresh: boolean): Promise<ServerSession | nu
   return null;
 }
 
+export function getOptionalSession(): Promise<ServerSession | null> {
+  return currentSession(true);
+}
+
 export async function requireSession(): Promise<ServerSession> {
   const session = await currentSession(true);
-  if (!session) throw new ApiProblem(401, "unauthorized", "请先建立匿名会话。 ");
+  if (!session) throw new ApiProblem(401, "unauthorized", "请先登录猹猹街。");
   return session;
 }
 
@@ -103,39 +125,40 @@ async function profileFor(session: ServerSession): Promise<ProfileDto> {
   return profile;
 }
 
+export async function publicSessionFor(session: ServerSession): Promise<AnonymousSession> {
+  const profile = await profileFor(session);
+  return {
+    alias: profile.alias,
+    animal: profile.animal,
+    // The validated Auth user is the source of truth. A just-upgraded access
+    // token can still carry a stale `is_anonymous` JWT claim briefly.
+    authKind: session.isAnonymous ? "anonymous" : "phone",
+    ...(profile.displayName ? { displayName: profile.displayName } : {}),
+    ...(profile.publicId ? { publicId: profile.publicId } : {}),
+    ...(profile.maskedPhone ? { maskedPhone: profile.maskedPhone } : {}),
+    onboardingComplete: profile.onboardingComplete ?? false,
+    wallet: profile.wallet,
+    experience: profile.experience,
+    accountStatus: profile.accountStatus ?? "active",
+  };
+}
+
 export async function requireActiveSession(): Promise<ServerSession> {
   const session = await requireSession();
   const profile = await profileFor(session);
   if (profile.accountStatus === "banned") {
-    throw new ApiProblem(403, "account_banned", "该匿名身份已被暂停写入；举报不会自动触发永久封禁。 ");
+    throw new ApiProblem(403, "account_banned", "该匿名身份已被暂停写入。");
   }
   return session;
 }
 
+/**
+ * Compatibility export for the existing bootstrap route. It intentionally no
+ * longer creates a new anonymous user; only an existing legacy session resumes.
+ */
 export async function createOrResumeAnonymousSessionBundle(): Promise<AnonymousSessionBundle> {
-  let session = await currentSession(true);
-  if (!session) {
-    const created = await supabaseFetch<AuthSessionResponse>("/auth/v1/signup", {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-    if (!created.access_token || !created.refresh_token || !created.user?.id || created.user.is_anonymous === false) {
-      throw unavailable();
-    }
-    await saveSession(created);
-    session = { userId: created.user.id, accessToken: created.access_token };
-  }
-  const profile = await profileFor(session);
-  return {
-    serverSession: session,
-    publicSession: {
-      alias: profile.alias,
-      animal: profile.animal,
-      wallet: profile.wallet,
-      experience: profile.experience,
-      accountStatus: profile.accountStatus ?? "active",
-    },
-  };
+  const session = await requireSession();
+  return { serverSession: session, publicSession: await publicSessionFor(session) };
 }
 
 export async function createOrResumeAnonymousSession(): Promise<AnonymousSession> {

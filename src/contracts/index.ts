@@ -18,6 +18,9 @@ export type ZonePresence = "unknown" | "remote" | "local";
 export type SeekState = "outside" | "near" | "inside_zone" | "found";
 export type AccountStatus = "active" | "banned";
 export type BurialKind = "nearby_area" | "public_spot";
+export type AuthKind = "anonymous" | "phone";
+export type PhoneAuthFlow = "sign_in" | "upgrade";
+export type AnimalIdentity = "猹" | "水豚" | "狐狸" | "熊猫" | "青蛙" | "仓鼠";
 
 export interface Coordinates {
   latitude: number;
@@ -34,6 +37,11 @@ export interface LocationProof extends Coordinates {
 export interface AnonymousSession {
   alias: string;
   animal: string;
+  authKind?: AuthKind;
+  displayName?: string;
+  publicId?: string;
+  maskedPhone?: string;
+  onboardingComplete?: boolean;
   wallet: SeedWallet;
   experience: ExperienceSummary;
   accountStatus?: AccountStatus;
@@ -100,6 +108,8 @@ export interface MelonPreview {
 export interface MelonDetail extends Omit<MelonPreview, "status"> {
   status: "incubating" | "mature" | "held";
   alias: string;
+  displayName?: string;
+  publicId?: string;
   title: string;
   content: string;
   createdAt: string;
@@ -176,6 +186,67 @@ export interface SquatResult {
   squatCount: number;
 }
 
+export interface PhoneOtpRequest {
+  phone: string;
+  acceptedTerms: true;
+  captchaToken?: string;
+}
+
+export interface PhoneOtpRequestResult {
+  sent: true;
+  retryAfterSeconds: 60;
+  flow: PhoneAuthFlow;
+}
+
+export interface PhoneOtpVerifyRequest {
+  phone: string;
+  code: string;
+}
+
+export interface PhoneOtpVerifyResult {
+  session: AnonymousSession;
+  needsProfile: boolean;
+  requiresAccountSwitchConfirmation?: boolean;
+  switchProfile?: AccountSwitchPreview;
+}
+
+export interface AccountSwitchPreview {
+  animal: string;
+  displayName?: string;
+  publicId?: string;
+}
+
+export interface ConfirmPhoneAccountSwitchRequest {
+  confirm: boolean;
+}
+
+export interface ConfirmPhoneAccountSwitchResult {
+  switched: boolean;
+  session: AnonymousSession;
+  needsProfile: boolean;
+}
+
+export interface CompleteProfileRequest {
+  animal: AnimalIdentity;
+  displayName: string;
+}
+
+export interface CompleteProfileResult {
+  session: AnonymousSession;
+}
+
+export interface LogoutResult {
+  loggedOut: true;
+}
+
+export interface DeleteAccountRequest {
+  confirmation: "DELETE";
+}
+
+export interface DeleteAccountResult {
+  deleted: true;
+}
+
 export interface MelonBasketDismissResult {
   hidden: boolean;
 }
@@ -205,6 +276,8 @@ export interface FieldPlot<TPlant extends PublicFieldPlant = PublicFieldPlant> {
 export interface PublicFieldView {
   alias: string;
   animal: string;
+  displayName?: string;
+  publicId?: string;
   plots: FieldPlot[];
   plantedCount: number;
   matureCount: number;
@@ -260,6 +333,8 @@ export interface MelonComment {
   id: string;
   melonId: string;
   alias: string;
+  displayName?: string;
+  publicId?: string;
   content: string;
   createdAt: string;
 }

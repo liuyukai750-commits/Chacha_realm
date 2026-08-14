@@ -1,0 +1,78 @@
+.page {
+  min-height: 100dvh;
+  padding: max(28px, env(safe-area-inset-top)) 18px max(48px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 88% 4%, rgba(255, 212, 92, .55) 0 54px, transparent 56px),
+    linear-gradient(180deg, #dff5ff 0, #f8f4df 100%);
+  color: #173b37;
+}
+
+.article {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: clamp(22px, 5vw, 44px);
+  border: 2px solid #173b37;
+  border-radius: 28px;
+  background: rgba(255, 254, 248, .94);
+  box-shadow: 7px 7px 0 rgba(23, 59, 55, .2);
+}
+
+.back {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: #21694d;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.eyebrow {
+  margin: 18px 0 5px;
+  color: #2c6f54;
+  font: 900 12px/1.4 "SFMono-Regular", "Cascadia Mono", monospace;
+  letter-spacing: .12em;
+}
+
+.article h1 {
+  margin: 0;
+  font: 900 clamp(32px, 9vw, 52px)/1.05 "Arial Rounded MT Bold", "PingFang SC", "Microsoft YaHei", sans-serif;
+  letter-spacing: -.05em;
+}
+
+.status {
+  margin: 20px 0;
+  padding: 13px 15px;
+  border: 2px solid #173b37;
+  border-radius: 16px;
+  background: #eef4d7;
+  color: #315b51;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.article h2 {
+  margin: 28px 0 9px;
+  font-size: 20px;
+}
+
+.article p,
+.article li {
+  color: #405f59;
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+.article ul {
+  padding-left: 1.25em;
+}
+
+.article a {
+  color: #21694d;
+  font-weight: 800;
+}
+
+@media (max-width: 430px) {
+  .page { padding-inline: 12px; }
+  .article { border-radius: 22px; }
+  .article p, .article li { font-size: 14px; }
+}

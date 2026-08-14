@@ -856,7 +856,7 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
               <div className="basket-copy">
                 <span>{topicName[melon.topic]}瓜 / {scene.displayName}</span>
                 <h3>{melon.status === "mature" ? displayTitle : `正在孵化，${formatCountdown(melon.maturesAt)} 后成熟`}</h3>
-                <p>{melon.status === "mature" ? `${detail?.alias ?? "匿名小动物"} / ${distanceName[melon.distanceBand]} / ${melon.commentCount ?? 0} 条评论` : "蹲后续不会打扰它成熟"}</p>
+                <p>{melon.status === "mature" ? `${detail?.displayName ?? detail?.alias ?? "匿名小动物"} / ${distanceName[melon.distanceBand]} / ${melon.commentCount ?? 0} 条评论` : "蹲后续不会打扰它成熟"}</p>
               </div>
               <div className="basket-actions">
                 {melon.status === "mature" ? <>
@@ -915,6 +915,7 @@ function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, o
   onHarvest: () => Promise<HarvestFieldResult>;
   onHarvested: (result: HarvestFieldResult) => void;
 }) {
+  const fieldOwnerName = field.displayName ?? field.alias;
   const [selectedPlot, setSelectedPlot] = useState<FieldPlotIndex | null>(null);
   const [plantOperationId, setPlantOperationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -974,9 +975,9 @@ function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, o
   };
 
   return (
-    <section className="field-view" aria-labelledby="field-title" aria-label={isOwn ? "我的瓜田" : `${field.alias}的瓜田`}>
+    <section className="field-view" aria-labelledby="field-title" aria-label={isOwn ? "我的瓜田" : `${fieldOwnerName}的瓜田`}>
       <p className="utility-label"><SproutIcon /> {isOwn ? "MY THREE PATCHES" : "VISITING PATCH"}</p>
-      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>九个坑，慢慢长。</em></> : <>{field.alias} <em>的瓜田</em></>}</h1>
+      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>九个坑，慢慢长。</em></> : <>{fieldOwnerName} <em>的瓜田</em></>}</h1>
 
       {ownField && <div className="field-ledger" aria-label="瓜田资产">
         <div><span>田里</span><strong>{field.plantedCount}<small>/9</small></strong></div>
@@ -1042,7 +1043,7 @@ function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, o
       {error && <p className="form-error field-error" role="alert">{error}</p>}
 
       <section className="my-melons" aria-labelledby="my-melons-title">
-        <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${field.alias} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />再埋一个故事</button>}</header>
+        <header><div><h2 id="my-melons-title">{isOwn ? "我埋下的瓜" : `${fieldOwnerName} 埋下的瓜`}</h2></div>{isOwn && <button onClick={onBury}><PlusIcon />再埋一个故事</button>}</header>
         {field.melons.length ? <div className="field-plots">{field.melons.map((melon) => isOwn
           ? <SwipeActionRow key={melon.id} actionLabel="删除" actionAriaLabel={`删除${topicName[melon.topic]}瓜`} destructive onAction={async () => {
               if (!window.confirm("删除后，其他人将不能再看到这颗瓜；已获得的瓜籽不会收回。确定删除吗？")) return;
@@ -1116,7 +1117,7 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
       <div className="owner-melon-stats" aria-label="这颗瓜的数据"><span>吃完 <strong>{opened.melon.completedReads ?? 0}</strong> 只猹</span>{reactionMeta.map(([key, label]) => <span key={key}>{label} <strong>{opened.melon.reactions[key]}</strong></span>)}</div>
       <section className="comments owner-comments" aria-labelledby="owner-comments-title">
         <header><div><span>公开回声</span><h3 id="owner-comments-title">吃瓜猹的评论</h3></div><strong>{comments.length}</strong></header>
-        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
+        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </section>
     </article>
@@ -1124,6 +1125,8 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
 }
 
 function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek, onSquatChanged, readOnly, initialPresence }: { adapter: IslandAdapter; opened: OpenedMelon; onClose: () => void; onFinished: (melonId: string, result: CompleteReadResult) => void; onViewField: (alias: string) => void; onSeek: (melonId: string) => Promise<ZonePresenceResult>; onSquatChanged: (melonId: string, active: boolean) => void; readOnly: boolean; initialPresence?: ZonePresenceResult }) {
+  const authorName = opened.melon.displayName ?? opened.melon.alias;
+  const fieldLookup = opened.melon.publicId ?? opened.melon.alias;
   const [elapsed, setElapsed] = useState(0);
   const [finished, setFinished] = useState(false);
   const [completionResult, setCompletionResult] = useState<CompleteReadResult | null>(null);
@@ -1203,15 +1206,15 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   };
 
   return (
-    <Sheet title={opened.melon.title} subtitle={`${getSpotScene(opened.melon.spot).displayName} · ${opened.melon.alias}`} onClose={onClose} wide stealth>
+    <Sheet title={opened.melon.title} subtitle={`${getSpotScene(opened.melon.spot).displayName} · ${authorName}`} onClose={onClose} wide stealth>
       <article className="melon-reader">
         <StealthCue title="扒开草丛" copy="叶影替你挡住路过的视线，正文仍保持清楚可读。" />
         <PlaceScene spot={opened.melon.spot} stealth />
         <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span></div>
-        <div className="reader-links"><a href={`/fields/${encodeURIComponent(opened.melon.alias)}`} onClick={(event) => { event.preventDefault(); onViewField(opened.melon.alias); }}>查看 {opened.melon.alias} 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
+        <div className="reader-links"><a href={`/fields/${encodeURIComponent(fieldLookup)}`} onClick={(event) => { event.preventDefault(); onViewField(fieldLookup); }}>查看 {authorName} 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
         <ReportControl adapter={adapter} targetType="melon" targetId={opened.melon.id} label="举报这颗瓜" />
         <div className="peel-story" style={peelStyle}>
-          <div className="story-paper"><p>{opened.melon.content}</p><footer>来自 {opened.melon.alias}</footer></div>
+          <div className="story-paper"><p>{opened.melon.content}</p><footer>来自 {authorName}</footer></div>
           <div className="melon-peel" aria-hidden="true"><i /><i /><i /><span>{ready ? "瓜瓤见底了" : "慢慢剥开…"}</span></div>
         </div>
         <div className="read-finish">
@@ -1291,7 +1294,7 @@ function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: {
   const canComment = presence?.presence === "local" && Boolean(presence.presenceToken);
   return <section className="comments inline-comments" aria-labelledby="comments-title">
     <header><div><span>公开回声</span><h3 id="comments-title">评论</h3></div><strong>{comments.length}</strong></header>
-    {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
+    {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
     <div className={`comment-gate ${canComment ? "is-local" : ""}`}>
       <div className="comment-gate-copy"><LocationIcon /><p><strong>{readOnly ? "当前为只读状态" : canComment ? "现场凭证已点亮" : "远方围观模式"}</strong><small>{readOnly ? "仍可阅读全部公开评论。申诉入口即将开放。" : canComment ? "可以留下 140 字以内的平铺评论。" : "可读全部评论、轻反应和蹲瓜，不显示评论输入框。"}</small></p></div>
       {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "正在验证" : presence ? "重新验证位置" : "验证现场评论资格"}</button>}
