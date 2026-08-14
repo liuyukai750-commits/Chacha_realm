@@ -22,7 +22,7 @@ test("浏览器请求超时会恢复为可重试错误，而不是永久等待",
 
 test("蹲瓜写入成功立即结束忙碌态，瓜篮只在后台校准", async () => {
   const component = await source("src/components/chacha-island.tsx");
-  assert.match(component, /writeFinished = true[\s\S]*setSquatBusyIds/);
+  assert.match(component, /await islandAdapter\.setSquat\(id, active\)[\s\S]*finally \{[\s\S]*setSquatBusyIds/);
   assert.match(component, /void islandAdapter\.squatShelf\(\)\.then/);
   assert.match(component, /items: \[\{ melon, squattedAt: new Date\(\)\.toISOString\(\)/);
   assert.match(component, /onSquatChanged\(opened\.melon\.id, result\.active\)/);

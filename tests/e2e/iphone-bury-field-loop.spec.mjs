@@ -168,11 +168,9 @@ test.describe("iPhone 深色弹层可读性（WebKit/视口自动化仅为模拟
   test("NIGHT-CONTRAST：城市切换与埋瓜弹层的字号、选中态和禁用态可辨", async ({ page }) => {
     const viewportWidth = page.viewportSize()?.width;
     test.skip(![375, 430, 450].includes(viewportWidth), "这条视觉门禁只覆盖明确列出的手机视口");
+    await page.clock.install({ time: new Date("2026-08-04T22:00:00+08:00") });
     await installV0Api(page, { fiveCities: true });
     await enterIsland(page);
-
-    const switchToNight = page.getByRole("button", { name: /切换到夜间模式/ });
-    if (await switchToNight.isVisible().catch(() => false)) await switchToNight.click();
     await expect(page.locator(".sunny-shell")).toHaveAttribute("data-day-phase", "night");
 
     await page.getByRole("button", { name: /当前城市.*切换城市/ }).click();

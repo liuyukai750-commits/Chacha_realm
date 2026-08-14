@@ -41,7 +41,7 @@ async function removePlatformCapabilities(page, capabilities) {
 }
 
 async function expandBasket(page) {
-  const handle = page.getByRole("button", { name: /瓜篮/ });
+  const handle = page.getByRole("button", { name: /^瓜篮(?:\s|$)/ });
   await expect(handle).toBeVisible();
   if (await handle.getAttribute("aria-expanded") !== "true") await handle.click();
   await expect(handle).toHaveAttribute("aria-expanded", "true");
@@ -193,7 +193,7 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     const overview = page.getByRole("button", { name: "瓜区总览：12颗瓜，点开挑选" });
     await expect(overview).toBeVisible();
     await overview.click();
-    await expect(page.getByRole("button", { name: /瓜篮/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("button", { name: /^瓜篮(?:\s|$)/ })).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator("#basket-content").getByRole("article")).toHaveCount(12);
 
     const topicFilter = page.getByRole("group", { name: "按单一话题筛选" });

@@ -447,7 +447,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .sunny-shell[data-day-phase="night"] .read-clock strong,
 .sunny-shell[data-day-phase="night"] .read-clock small{color:#f4fbff}
 .sunny-shell[data-day-phase="night"] .read-clock small{color:#d5e5ee}
-.sunny-shell[data-day-phase="night"] .read-clock>span{color:#173535}
+.sunny-shell[data-day-phase="night"] .read-clock>span{background-color:#e6ff76;color:#173535}
 .sunny-shell[data-day-phase="night"] .finish-button.finished{background:#e6ff76;color:#173535;border-color:#efffc2}
 .sunny-shell[data-day-phase="night"] .reader-interactions .reaction-row button{background:#244c5d;color:#f4fbff;border-color:#b7d4e2}
 .sunny-shell[data-day-phase="night"] .reader-interactions .reaction-row button[aria-pressed="true"]{background:#244c5d;color:#f4fbff;border-color:#b7d4e2}

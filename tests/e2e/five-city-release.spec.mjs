@@ -92,7 +92,7 @@ async function submitPublicSpotMelon(page, cityName, spotName) {
 }
 
 async function expandBasket(page) {
-  const handle = page.getByRole("button", { name: /瓜篮/ });
+  const handle = page.getByRole("button", { name: /^瓜篮(?:\s|$)/ });
   await expect(handle).toBeVisible();
   if (await handle.getAttribute("aria-expanded") !== "true") await handle.click();
   await expect(handle).toHaveAttribute("aria-expanded", "true");
@@ -125,7 +125,7 @@ test.describe("五城同步发布门禁", () => {
       expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
 
       await expandBasket(page);
-      const articles = page.getByRole("article");
+      const articles = page.locator(".melon-basket").getByRole("article");
       const articleCount = await articles.count();
       expect(articleCount, `${city.name} 发现结果应有本城或远方瓜`).toBeGreaterThan(0);
       for (let index = 0; index < articleCount; index += 1) {
@@ -189,7 +189,7 @@ test.describe("五城同步发布门禁", () => {
       expect(nearbyRequest).not.toHaveProperty("selectedCityId");
 
       await expandBasket(page);
-      const articles = page.getByRole("article");
+      const articles = page.locator(".melon-basket").getByRole("article");
       await expect(articles).toHaveCount(4);
       for (let index = 0; index < 4; index += 1) {
         const text = await articles.nth(index).innerText();

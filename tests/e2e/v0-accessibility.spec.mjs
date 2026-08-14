@@ -45,7 +45,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
         ...await page.getByRole("navigation").getByRole("button").all(),
         overview,
         page.getByRole("button", { name: /开启附近1公里|刷新附近1公里/ }),
-        page.getByRole("button", { name: /瓜篮/ }),
+        page.getByRole("button", { name: /^瓜篮(?:\s|$)/ }),
         ...await page.getByRole("group", { name: "按单一话题筛选" }).getByRole("button").all(),
       ];
       for (const target of criticalTargets) {
@@ -56,7 +56,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
       }
     }
 
-    await page.getByRole("button", { name: /瓜篮/ }).click();
+    await page.getByRole("button", { name: /^瓜篮(?:\s|$)/ }).click();
     const expandedLayout = await page.evaluate(() => ({
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -369,7 +369,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
     const overview = melonTrigger(page);
     await overview.focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: /瓜篮/ })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("button", { name: /^瓜篮(?:\s|$)/ })).toHaveAttribute("aria-expanded", "true");
     const trigger = page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "直接吃", exact: true });
     await trigger.focus();
     await page.keyboard.press("Enter");
