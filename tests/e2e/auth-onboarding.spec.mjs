@@ -73,6 +73,23 @@ test.describe("猹号密码登录与身份流程", () => {
     expect(auth.deleteCalls).toEqual([{ confirmation: "DELETE" }]);
   });
 
+  test("主理人街牌只在被授予的账号上出现且保持清晰可读", async ({ page }) => {
+    const stewardProfile = { ...permanentProfile, displayName: "猹猹国王", identityBadge: "steward" };
+    await installV0Api(page);
+    await installAuthApi(page, { session: { authenticated: true, anonymous: false, needsProfile: false, profile: stewardProfile } });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /打开我的账号/ }).click();
+    const badge = page.getByLabel("猹猹街主理人");
+    await expect(page.getByRole("heading", { name: "猹猹国王" })).toBeVisible();
+    await expect(badge).toHaveText("主理人");
+    const metrics = await badge.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { height: node.getBoundingClientRect().height, color: style.color, background: style.backgroundColor };
+    });
+    expect(metrics.height).toBeGreaterThanOrEqual(20);
+    expect(metrics.color).not.toBe(metrics.background);
+  });
+
   test("375/430 登录卡无横向溢出且主要触控目标不少于 44px", async ({ page }) => {
     await openLogin(page);
     const metrics = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));

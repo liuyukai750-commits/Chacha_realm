@@ -19,6 +19,7 @@ export type SeekState = "outside" | "near" | "inside_zone" | "found";
 export type AccountStatus = "active" | "banned";
 export type BurialKind = "nearby_area" | "public_spot";
 export type AuthKind = "anonymous" | "password" | "phone";
+export type IdentityBadge = "steward";
 export type PhoneAuthFlow = "sign_in" | "upgrade";
 export type AnimalIdentity = "猹" | "水豚" | "狐狸" | "熊猫" | "青蛙" | "仓鼠";
 
@@ -67,6 +68,7 @@ export interface AnonymousSession {
   authKind?: AuthKind;
   displayName?: string;
   publicId?: string;
+  identityBadge?: IdentityBadge;
   maskedPhone?: string;
   onboardingComplete?: boolean;
   wallet: SeedWallet;
@@ -137,6 +139,7 @@ export interface MelonDetail extends Omit<MelonPreview, "status"> {
   alias: string;
   displayName?: string;
   publicId?: string;
+  identityBadge?: IdentityBadge;
   title: string;
   content: string;
   createdAt: string;
@@ -305,6 +308,7 @@ export interface PublicFieldView {
   animal: string;
   displayName?: string;
   publicId?: string;
+  identityBadge?: IdentityBadge;
   plots: FieldPlot[];
   plantedCount: number;
   matureCount: number;
@@ -362,6 +366,7 @@ export interface MelonComment {
   alias: string;
   displayName?: string;
   publicId?: string;
+  identityBadge?: IdentityBadge;
   content: string;
   createdAt: string;
 }

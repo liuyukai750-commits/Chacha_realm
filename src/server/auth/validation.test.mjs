@@ -28,6 +28,7 @@ test("nickname is NFKC-normalized, short and identity-safe", () => {
   assert.equal(displayName("Ａ猹12"), "A猹12");
   assert.throws(() => displayName("七个字昵称太长了"), { code: "invalid_display_name" });
   assert.throws(() => displayName("官方猹"), { code: "display_name_held" });
+  assert.throws(() => displayName("猹猹国王"), { code: "display_name_reserved" });
   assert.throws(() => displayName("猹 猹"), { code: "invalid_display_name" });
 });
 

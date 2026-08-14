@@ -50,6 +50,7 @@ import { demoIslandAdapter, type IslandAdapter, type IslandBootstrap } from "./d
 import { httpIslandAdapter } from "./http-island-adapter";
 import { BurySheetV1 } from "./bury-sheet-v1";
 import { getCityVisual, getSpotScene } from "./city-visuals";
+import { IdentityBadge } from "./identity-badge";
 import {
   CheckIcon,
   ChevronIcon,
@@ -977,7 +978,7 @@ function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, o
   return (
     <section className="field-view" aria-labelledby="field-title" aria-label={isOwn ? "我的瓜田" : `${fieldOwnerName}的瓜田`}>
       <p className="utility-label"><SproutIcon /> {isOwn ? "MY THREE PATCHES" : "VISITING PATCH"}</p>
-      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>九个坑，慢慢长。</em></> : <>{fieldOwnerName} <em>的瓜田</em></>}</h1>
+      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>九个坑，慢慢长。</em></> : <>{fieldOwnerName} <IdentityBadge badge={field.identityBadge} /> <em>的瓜田</em></>}</h1>
 
       {ownField && <div className="field-ledger" aria-label="瓜田资产">
         <div><span>田里</span><strong>{field.plantedCount}<small>/9</small></strong></div>
@@ -1117,7 +1118,7 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
       <div className="owner-melon-stats" aria-label="这颗瓜的数据"><span>吃完 <strong>{opened.melon.completedReads ?? 0}</strong> 只猹</span>{reactionMeta.map(([key, label]) => <span key={key}>{label} <strong>{opened.melon.reactions[key]}</strong></span>)}</div>
       <section className="comments owner-comments" aria-labelledby="owner-comments-title">
         <header><div><span>公开回声</span><h3 id="owner-comments-title">吃瓜猹的评论</h3></div><strong>{comments.length}</strong></header>
-        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
+        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias} <IdentityBadge badge={item.identityBadge} /></strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </section>
     </article>
@@ -1211,10 +1212,10 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
         <StealthCue title="扒开草丛" copy="叶影替你挡住路过的视线，正文仍保持清楚可读。" />
         <PlaceScene spot={opened.melon.spot} stealth />
         <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span></div>
-        <div className="reader-links"><a href={`/fields/${encodeURIComponent(fieldLookup)}`} onClick={(event) => { event.preventDefault(); onViewField(fieldLookup); }}>查看 {authorName} 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
+        <div className="reader-links"><a href={`/fields/${encodeURIComponent(fieldLookup)}`} onClick={(event) => { event.preventDefault(); onViewField(fieldLookup); }}>查看 {authorName} <IdentityBadge badge={opened.melon.identityBadge} /> 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
         <ReportControl adapter={adapter} targetType="melon" targetId={opened.melon.id} label="举报这颗瓜" />
         <div className="peel-story" style={peelStyle}>
-          <div className="story-paper"><p>{opened.melon.content}</p><footer>来自 {authorName}</footer></div>
+          <div className="story-paper"><p>{opened.melon.content}</p><footer>来自 {authorName} <IdentityBadge badge={opened.melon.identityBadge} /></footer></div>
           <div className="melon-peel" aria-hidden="true"><i /><i /><i /><span>{ready ? "瓜瓤见底了" : "慢慢剥开…"}</span></div>
         </div>
         <div className="read-finish">
@@ -1294,7 +1295,7 @@ function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: {
   const canComment = presence?.presence === "local" && Boolean(presence.presenceToken);
   return <section className="comments inline-comments" aria-labelledby="comments-title">
     <header><div><span>公开回声</span><h3 id="comments-title">评论</h3></div><strong>{comments.length}</strong></header>
-    {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias}</strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
+    {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias} <IdentityBadge badge={item.identityBadge} /></strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
     <div className={`comment-gate ${canComment ? "is-local" : ""}`}>
       <div className="comment-gate-copy"><LocationIcon /><p><strong>{readOnly ? "当前为只读状态" : canComment ? "现场凭证已点亮" : "远方围观模式"}</strong><small>{readOnly ? "仍可阅读全部公开评论。申诉入口即将开放。" : canComment ? "可以留下 140 字以内的平铺评论。" : "可读全部评论、轻反应和蹲瓜，不显示评论输入框。"}</small></p></div>
       {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "正在验证" : presence ? "重新验证位置" : "验证现场评论资格"}</button>}

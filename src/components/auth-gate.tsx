@@ -4,6 +4,7 @@ import Image from "next/image";
 import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import styles from "./auth-gate.module.css";
+import { IdentityBadge } from "./identity-badge";
 
 type AnimalCode = "猹" | "水豚" | "狐狸" | "熊猫" | "青蛙" | "仓鼠";
 type AuthStep = "welcome" | "register" | "login" | "recover" | "reveal";
@@ -13,6 +14,7 @@ interface AuthProfile {
   publicId: string;
   animal: AnimalCode;
   accountStatus?: "active" | "banned";
+  identityBadge?: "steward";
 }
 
 interface AuthState {
@@ -115,6 +117,7 @@ function normalizeSession(payload: unknown): AuthState {
     publicId: String(value.publicId),
     animal: animals.some((item) => item.code === value.animal) ? value.animal as AnimalCode : "猹" as const,
     accountStatus: value.accountStatus === "banned" ? "banned" as const : "active" as const,
+    identityBadge: value.identityBadge === "steward" ? "steward" as const : undefined,
   } : undefined;
   const authKind = value.authKind as AuthState["authKind"];
   const authenticated = value.status === "authenticated" || authKind === "password" || authKind === "phone" || Boolean(profile);
@@ -341,7 +344,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
           {step === "reveal" && session?.profile && (
             <div className={styles.reveal} role="status" aria-live="polite">
               <p>你的匿名街牌</p><AnimalAvatar animal={session.profile.animal} size="large" />
-              <h1 id="auth-title">{session.profile.displayName}</h1><strong>{session.profile.publicId}</strong>
+              <h1 id="auth-title">{session.profile.displayName}</h1><IdentityBadge badge={session.profile.identityBadge} /><strong>{session.profile.publicId}</strong>
               {notice && <p className={styles.revealNotice}>{notice}</p>}
               <div className={styles.recoveryTicket}><span>只显示这一次 · 恢复码</span><b>{issuedRecoveryCode}</b><small>忘记密码时，它是找回瓜田的唯一凭证。请截图或离线保存，不要发给别人。</small></div>
               <label className={styles.savedCheck}><input type="checkbox" checked={savedRecovery} onChange={(event) => setSavedRecovery(event.target.checked)} /><span>我已经保存好猹号和恢复码</span></label>
@@ -358,7 +361,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
     {accountOpen && <div className={styles.accountBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAccountOpen(false); }}>
       <section className={styles.accountSheet} role="dialog" aria-modal="true" aria-labelledby="account-title">
         <div className={styles.sheetHandle} aria-hidden="true" /><button className={styles.closeAccount} aria-label="关闭账号面板" onClick={() => setAccountOpen(false)}>×</button>
-        <header><AnimalAvatar animal={session.profile.animal} size="large" /><div><p>我的匿名街牌</p><h2 id="account-title">{session.profile.displayName}</h2><strong>{session.profile.publicId}</strong></div></header>
+        <header><AnimalAvatar animal={session.profile.animal} size="large" /><div><p>我的匿名街牌</p><div className={styles.accountIdentity}><h2 id="account-title">{session.profile.displayName}</h2><IdentityBadge badge={session.profile.identityBadge} /></div><strong>{session.profile.publicId}</strong></div></header>
         <dl><div><dt>动物身份</dt><dd>{session.profile.animal}</dd></div><div><dt>登录方式</dt><dd>猹号 + 密码</dd></div><div><dt>账号状态</dt><dd>{session.profile.accountStatus === "banned" ? "只读" : "正常"}</dd></div></dl>
         {error && <p className={styles.formError} role="alert">{error}</p>}
         <button className={styles.logoutAction} disabled={busy} onClick={() => void logout()}>退出登录</button>

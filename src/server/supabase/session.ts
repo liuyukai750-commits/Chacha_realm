@@ -28,6 +28,7 @@ interface ProfileDto {
   authKind?: "anonymous" | "password" | "phone";
   displayName?: string | null;
   publicId?: string;
+  identityBadge?: AnonymousSession["identityBadge"];
   maskedPhone?: string | null;
   onboardingComplete?: boolean;
   wallet: AnonymousSession["wallet"];
@@ -135,6 +136,7 @@ export async function publicSessionFor(session: ServerSession): Promise<Anonymou
     authKind: session.isAnonymous ? "anonymous" : profile.authKind ?? "password",
     ...(profile.displayName ? { displayName: profile.displayName } : {}),
     ...(profile.publicId ? { publicId: profile.publicId } : {}),
+    ...(profile.identityBadge ? { identityBadge: profile.identityBadge } : {}),
     ...(profile.maskedPhone ? { maskedPhone: profile.maskedPhone } : {}),
     onboardingComplete: profile.onboardingComplete ?? false,
     wallet: profile.wallet,
