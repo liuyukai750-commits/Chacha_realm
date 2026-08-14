@@ -75,3 +75,44 @@ export function deletionConfirmation(value: unknown): "DELETE" {
   }
   return "DELETE";
 }
+
+const publicIdPattern = /^CC-[0-9A-HJKMNP-TV-Z]{8}$/;
+const recoveryCodePattern = /^[0-9A-HJKMNP-TV-Z]{16}$/;
+
+export function publicId(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new ApiProblem(400, "invalid_public_id", "请输入正确的猹号。" );
+  }
+  const normalized = value.normalize("NFKC").trim().toUpperCase();
+  if (!publicIdPattern.test(normalized)) {
+    throw new ApiProblem(400, "invalid_public_id", "猹号格式应为 CC- 加 8 位字符。" );
+  }
+  return normalized;
+}
+
+export function accountPassword(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new ApiProblem(400, "invalid_password", "密码需为 8—64 个字符。" );
+  }
+  const normalized = value.normalize("NFKC");
+  if (
+    normalized.length < 8
+    || normalized.length > 64
+    || normalized !== normalized.trim()
+    || /[\u0000-\u001F\u007F\u200B-\u200D\uFEFF]/u.test(normalized)
+  ) {
+    throw new ApiProblem(400, "invalid_password", "密码需为 8—64 个字符，不能含首尾空格或隐藏字符。" );
+  }
+  return normalized;
+}
+
+export function recoveryCode(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new ApiProblem(400, "invalid_recovery_code", "请输入完整的恢复码。" );
+  }
+  const normalized = value.normalize("NFKC").toUpperCase().replace(/[\s-]/g, "");
+  if (!recoveryCodePattern.test(normalized)) {
+    throw new ApiProblem(400, "invalid_recovery_code", "恢复码格式不正确。" );
+  }
+  return normalized;
+}

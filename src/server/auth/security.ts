@@ -45,6 +45,14 @@ function hmac(scope: string, value: string): string {
   return createHmac("sha256", authSecret()).update(scope).update("\0").update(value).digest("hex");
 }
 
+export function accountIdentityDigest(value: string): string {
+  return hmac("account-identity", value);
+}
+
+export function recoverySecretDigest(publicId: string, normalizedCode: string): string {
+  return hmac("account-recovery", `${publicId}\0${normalizedCode}`);
+}
+
 function switchEncryptionKey(): Buffer {
   return createHmac("sha256", authSecret()).update("phone-switch-cookie-key").digest();
 }

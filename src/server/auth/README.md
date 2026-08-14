@@ -5,7 +5,15 @@
 1. 启用 Phone Provider，并将中国大陆号码作为 E.164（`+86...`）处理。
 2. 配置 Supabase **Send SMS Hook**，由受控的服务端 Hook 调用腾讯云短信；腾讯云签名和模板必须先审核通过。
 3. 在 Supabase Auth 中配置 OTP 有效期、发送频率限制和 CAPTCHA。前端取得 CAPTCHA token 后，通过 `captchaToken` 传入 `/api/auth/phone/request`。
-4. Vercel 服务端配置独立的 `CHACHA_AUTH_HMAC_SECRET`（至少 32 个字符）。它只用于手机号/IP 摘要和短时验证码流程签名，不得暴露给浏览器。
+4. Vercel 服务端配置独立的 `CHACHA_AUTH_HMAC_SECRET`（至少 32 个字符）。它用于恢复码、账号/IP 摘要及兼容期短时流程签名，不得暴露给浏览器。
+
+## 当前正式入口：猹号 + 密码
+
+- 新用户由服务端创建 Supabase 永久用户，公开登录名是随机 `CC-XXXXXXXX` 猹号；内部邮箱仅作为 Supabase Auth 凭据，不进入公开 DTO 或普通日志。
+- 旧匿名用户在原 `auth.users.id` 上补齐密码身份，因此瓜田、瓜籽、帖子、评论和蹲瓜无需迁移。
+- 16 位恢复码只向用户展示一次，数据库只保存 HMAC 摘要；每次找回成功后旧码立即作废并换发新码。
+- 生产开启 `CHACHA_CAPTCHA_REQUIRED=true` 时必须同时配置 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 和 `TURNSTILE_SECRET_KEY`。
+- 手机 OTP 路由暂时保留为未来兼容入口，但登录页不调用；没有企业短信资质时不得开启手机号流程。
 
 数据库的 `auth_phone_attempts` 只保存 HMAC 摘要、动作和时间，不保存手机号或 IP 原文。普通应用日志也不得打印请求体、手机号、验证码、Cookie 或 Supabase token。
 

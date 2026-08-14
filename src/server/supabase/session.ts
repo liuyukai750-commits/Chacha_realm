@@ -25,7 +25,7 @@ export interface AuthSessionResponse {
 interface ProfileDto {
   alias: string;
   animal: string;
-  authKind?: "anonymous" | "phone";
+  authKind?: "anonymous" | "password" | "phone";
   displayName?: string | null;
   publicId?: string;
   maskedPhone?: string | null;
@@ -132,7 +132,7 @@ export async function publicSessionFor(session: ServerSession): Promise<Anonymou
     animal: profile.animal,
     // The validated Auth user is the source of truth. A just-upgraded access
     // token can still carry a stale `is_anonymous` JWT claim briefly.
-    authKind: session.isAnonymous ? "anonymous" : "phone",
+    authKind: session.isAnonymous ? "anonymous" : profile.authKind ?? "password",
     ...(profile.displayName ? { displayName: profile.displayName } : {}),
     ...(profile.publicId ? { publicId: profile.publicId } : {}),
     ...(profile.maskedPhone ? { maskedPhone: profile.maskedPhone } : {}),

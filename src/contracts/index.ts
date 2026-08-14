@@ -18,9 +18,36 @@ export type ZonePresence = "unknown" | "remote" | "local";
 export type SeekState = "outside" | "near" | "inside_zone" | "found";
 export type AccountStatus = "active" | "banned";
 export type BurialKind = "nearby_area" | "public_spot";
-export type AuthKind = "anonymous" | "phone";
+export type AuthKind = "anonymous" | "password" | "phone";
 export type PhoneAuthFlow = "sign_in" | "upgrade";
 export type AnimalIdentity = "猹" | "水豚" | "狐狸" | "熊猫" | "青蛙" | "仓鼠";
+
+export interface PasswordAccountRegisterRequest {
+  password: string;
+  animal: AnimalIdentity;
+  displayName: string;
+  acceptedTerms: true;
+  captchaToken?: string;
+}
+
+export interface PasswordAccountLoginRequest {
+  publicId: string;
+  password: string;
+  captchaToken?: string;
+}
+
+export interface PasswordAccountRecoverRequest {
+  publicId: string;
+  recoveryCode: string;
+  newPassword: string;
+  captchaToken?: string;
+}
+
+export interface PasswordAccountProvisionResult {
+  session: AnonymousSession;
+  recoveryCode: string;
+  existingDataPreserved: boolean;
+}
 
 export interface Coordinates {
   latitude: number;
