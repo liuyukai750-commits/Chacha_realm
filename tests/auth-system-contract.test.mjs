@@ -206,19 +206,27 @@ test("身份迁移提供显示昵称、不可变公开猹号、完成时间和�
   assert.match(sql, /generate_(?:chacha_)?public_id|result\s+text\s*:=\s*'CC-'/i);
 });
 
-test("资料接口在服务端执行 NFKC、1..6 可见字符、字符白名单和敏感身份风控", async () => {
+test("资料接口在服务端执行 NFKC、1..12 可见字符、字符白名单和敏感身份风控", async () => {
   const [profileRoute, validation] = await Promise.all([
     source("src/app/api/auth/profile/route.ts"),
     source("src/server/auth/validation.ts"),
   ]);
   const implementation = `${profileRoute}\n${validation}`;
   assert.match(implementation, /NFKC|normalize/i);
-  assert.match(implementation, /\{1,6\}|grapheme|visible/i);
+  assert.match(implementation, /\{1,12\}|grapheme|visible/i);
   assert.match(implementation, /Script=Han|A-Za-z0-9|nickname|displayName/i);
   assert.match(implementation, /官方|客服|管理员|blockedNicknameSignals/i);
   for (const animal of ["猹", "水豚", "狐狸", "熊猫", "青蛙", "仓鼠"]) {
     assert.ok(implementation.includes(animal), `服务端动物白名单缺少 ${animal}`);
   }
+});
+
+test("昵称输入在拼音组合完成前不截断，完成后才收敛到十二个可见字符", async () => {
+  const gate = await source("src/components/auth-gate.tsx");
+  assert.match(gate, /onCompositionStart[\s\S]{0,160}composingDisplayName\.current\s*=\s*true/);
+  assert.match(gate, /onCompositionEnd[\s\S]{0,220}trimToVisibleLength\([^,]+,\s*12\)/);
+  assert.match(gate, /composingDisplayName\.current\s*\?\s*event\.target\.value\s*:\s*trimToVisibleLength/);
+  assert.doesNotMatch(gate, /maxLength=\{?12\}?/);
 });
 
 test("资料 RPC 自身拒绝匿名 JWT，不能绕过 API 完成身份资料", async () => {

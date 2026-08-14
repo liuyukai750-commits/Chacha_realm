@@ -24,9 +24,10 @@ test("accepts only six-digit OTP codes", () => {
   assert.throws(() => otpCode("12345"), { code: "invalid_otp" });
 });
 
-test("nickname is NFKC-normalized, short and identity-safe", () => {
+test("nickname is NFKC-normalized, allows twelve characters and remains identity-safe", () => {
   assert.equal(displayName("Ａ猹12"), "A猹12");
-  assert.throws(() => displayName("七个字昵称太长了"), { code: "invalid_display_name" });
+  assert.equal(displayName("十二字昵称可以正常输入A"), "十二字昵称可以正常输入A");
+  assert.throws(() => displayName("十三字昵称确实已经太长了ABC"), { code: "invalid_display_name" });
   assert.throws(() => displayName("官方猹"), { code: "display_name_held" });
   assert.throws(() => displayName("猹猹国王"), { code: "display_name_reserved" });
   assert.throws(() => displayName("猹 猹"), { code: "invalid_display_name" });

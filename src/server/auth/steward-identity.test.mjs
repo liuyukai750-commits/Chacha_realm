@@ -6,6 +6,10 @@ const migration = readFileSync(
   new URL("../../../supabase/migrations/202608150001_steward_identity.sql", import.meta.url),
   "utf8",
 );
+const displayNameMigration = readFileSync(
+  new URL("../../../supabase/migrations/202608150002_display_name_length_12.sql", import.meta.url),
+  "utf8",
+);
 const contracts = readFileSync(new URL("../../contracts/index.ts", import.meta.url), "utf8");
 const session = readFileSync(new URL("../supabase/session.ts", import.meta.url), "utf8");
 const badgeComponent = readFileSync(new URL("../../components/identity-badge.tsx", import.meta.url), "utf8");
@@ -24,6 +28,12 @@ test("ordinary onboarding cannot claim the reserved owner identity", () => {
   );
   assert.match(profileFunction, /p_display_name = '猹猹国王'/);
   assert.match(migration, /display_name is distinct from '猹猹国王' or identity_badge = 'steward'/);
+});
+
+test("database profile validation accepts at most twelve display-name characters", () => {
+  assert.match(displayNameMigration, /char_length\(display_name\) between 1 and 12/);
+  assert.match(displayNameMigration, /char_length\(p_display_name\) not between 1 and 12/);
+  assert.match(displayNameMigration, /p_display_name = '猹猹国王'/);
 });
 
 test("private session and public community identity expose only the badge code", () => {

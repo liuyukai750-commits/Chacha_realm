@@ -149,6 +149,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
   const [step, setStep] = useState<AuthStep>("welcome");
   const [animal, setAnimal] = useState<AnimalCode>("猹");
   const [displayName, setDisplayName] = useState("");
+  const composingDisplayName = useRef(false);
   const [publicId, setPublicId] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -195,8 +196,8 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
   const register = async (event: FormEvent) => {
     event.preventDefault(); setError(""); setNotice("");
     const nickname = displayName.normalize("NFKC");
-    if (!nickname || visibleLength(nickname) > 6 || !/^[\p{Script=Han}A-Za-z0-9]+$/u.test(nickname)) {
-      return setError("昵称需为 1—6 个汉字、英文字母或数字。");
+    if (!nickname || visibleLength(nickname) > 12 || !/^[\p{Script=Han}A-Za-z0-9]+$/u.test(nickname)) {
+      return setError("昵称需为 1—12 个汉字、英文字母或数字。");
     }
     if (password.length < 8) return setError("密码至少需要 8 个字符。");
     if (!accepted) return setError("请先阅读并同意用户协议和隐私政策。");
@@ -303,7 +304,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
                   <AnimalAvatar animal={item.code} /><span><strong>{item.code}</strong><small>{item.note}</small></span>
                 </button>
               ))}</div><button type="button" className={styles.randomAnimal} onClick={() => setAnimal(animals[Math.floor(Math.random() * animals.length)].code)}>🎲 随机一只</button></fieldset>
-              <label className={styles.fieldLabel}><span>匿名昵称 <b>{visibleLength(displayName)}/6</b></span><input type="text" autoComplete="nickname" value={displayName} onChange={(event) => setDisplayName(trimToVisibleLength(event.target.value, 6))} placeholder="例如：晚风小猹" /></label>
+              <label className={styles.fieldLabel}><span>匿名昵称 <b>{visibleLength(displayName)}/12</b></span><input type="text" autoComplete="nickname" value={displayName} onCompositionStart={() => { composingDisplayName.current = true; }} onCompositionEnd={(event) => { composingDisplayName.current = false; setDisplayName(trimToVisibleLength(event.currentTarget.value, 12)); }} onChange={(event) => setDisplayName(composingDisplayName.current ? event.target.value : trimToVisibleLength(event.target.value, 12))} placeholder="例如：晚风小猹" /></label>
               <p className={styles.fieldHelp}>请勿使用真实姓名、联系方式或冒充官方身份。</p>
               <label className={styles.fieldLabel}><span>设置密码</span><input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="至少 8 个字符" /></label>
               <p className={styles.fieldHelp}>密码只用于登录；我们不会把它展示给任何人。</p>

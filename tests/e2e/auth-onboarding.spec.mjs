@@ -27,13 +27,13 @@ test.describe("猹号密码登录与身份流程", () => {
     await page.getByRole("button", { name: "创建我的猹号" }).click();
     for (const animal of ["猹", "水豚", "狐狸", "熊猫", "青蛙", "仓鼠"]) await expect(page.getByRole("button", { name: new RegExp(`^${animal}`) })).toBeVisible();
     await page.getByRole("button", { name: /^狐狸/ }).click();
-    await page.getByRole("textbox", { name: /匿名昵称/ }).fill("晚风小猹超过六字");
-    await expect(page.getByRole("textbox", { name: /匿名昵称/ })).toHaveValue("晚风小猹超过");
+    await page.getByRole("textbox", { name: /匿名昵称/ }).fill("晚风小猹在街口慢慢听故事ABC");
+    await expect(page.getByRole("textbox", { name: /匿名昵称/ })).toHaveValue("晚风小猹在街口慢慢听故事");
     await page.getByLabel("设置密码").fill("street-pass-2026");
     await page.getByRole("checkbox").check();
     await page.getByRole("button", { name: /生成我的猹号/ }).click();
 
-    expect(auth.registerCalls[0]).toMatchObject({ animal: "狐狸", displayName: "晚风小猹超过", password: "street-pass-2026", acceptedTerms: true });
+    expect(auth.registerCalls[0]).toMatchObject({ animal: "狐狸", displayName: "晚风小猹在街口慢慢听故事", password: "street-pass-2026", acceptedTerms: true });
     await expect(page.getByText("CC-7K3M9Q2R", { exact: true })).toBeVisible();
     await expect(page.getByText("ABCD-EFGH-JKLM-NPQR", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "进入猹猹街" })).toBeDisabled();

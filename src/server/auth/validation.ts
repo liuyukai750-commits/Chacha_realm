@@ -11,7 +11,7 @@ export const ANIMAL_IDENTITIES: readonly AnimalIdentity[] = [
 ];
 
 const animalSet = new Set<string>(ANIMAL_IDENTITIES);
-const nicknamePattern = /^[\u4E00-\u9FFFA-Za-z0-9]{1,6}$/u;
+const nicknamePattern = /^[\u4E00-\u9FFFA-Za-z0-9]{1,12}$/u;
 export const STEWARD_DISPLAY_NAME = "猹猹国王";
 const blockedNicknameSignals = [
   /官方|客服|管理员|系统|平台|猹猹街/iu,
@@ -58,11 +58,11 @@ export function animalIdentity(value: unknown): AnimalIdentity {
 
 export function displayName(value: unknown): string {
   if (typeof value !== "string") {
-    throw new ApiProblem(400, "invalid_display_name", "昵称需为 1—6 个汉字、英文字母或数字。");
+    throw new ApiProblem(400, "invalid_display_name", "昵称需为 1—12 个汉字、英文字母或数字。");
   }
   const normalized = value.normalize("NFKC").trim();
   if (!nicknamePattern.test(normalized)) {
-    throw new ApiProblem(400, "invalid_display_name", "昵称需为 1—6 个汉字、英文字母或数字。");
+    throw new ApiProblem(400, "invalid_display_name", "昵称需为 1—12 个汉字、英文字母或数字。");
   }
   if (normalized === STEWARD_DISPLAY_NAME) {
     throw new ApiProblem(422, "display_name_reserved", "这个昵称属于猹猹街主理人，请换一个。");
