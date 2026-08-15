@@ -27,7 +27,7 @@ async function openOwnField(page) {
 }
 
 test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
-  test("SHARE-FIRST-UI：首个安全原创有成功反馈、真籽 +1，并可进入瓜田播种", async ({ baseURL, context, page }) => {
+  test("SHARE-SAFE-UI：安全原创有成功反馈、真籽 +1，并可进入瓜田播种", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, {
       wallet: { smallSeedCount: 0, trueSeedCount: 0 },
       validReadsToday: 0,
@@ -93,6 +93,35 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
     expect(api.fieldRequests.length, "页面刷新后必须再次读取服务端瓜田").toBeGreaterThanOrEqual(2);
   });
 
+  test("SHARE-ENTRYPOINTS：底部埋瓜与瓜田再埋故事共用附近奖励链路", async ({ baseURL, context, page }) => {
+    const api = await installV0Api(page, {
+      wallet: { smallSeedCount: 0, trueSeedCount: 0 },
+      validReadsToday: 0,
+      fiveCities: true,
+    });
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+
+    const firstDialog = await openBurySheet(page);
+    await fillSafeMelon(firstDialog, "，来自底部入口");
+    await firstDialog.getByRole("button", { name: /埋瓜，把秘密压进土里/ }).click();
+    await expect.poll(() => api.createRequests).toHaveLength(1);
+    await page.getByRole("button", { name: "去瓜田种下", exact: true }).click();
+
+    const field = page.getByRole("region", { name: /我的瓜田/ });
+    await expect(field).toBeVisible();
+    await field.getByRole("button", { name: "再埋一个故事", exact: true }).click();
+    const secondDialog = page.getByRole("dialog", { name: "埋下一颗瓜" });
+    await expect(secondDialog.getByRole("button", { name: /附近生活圈/ })).toHaveAttribute("aria-pressed", "true");
+    await fillSafeMelon(secondDialog, "，来自瓜田入口");
+    await secondDialog.getByRole("button", { name: /埋瓜，把秘密压进土里/ }).click();
+
+    await expect.poll(() => api.createRequests).toHaveLength(2);
+    expect(api.createRequests.map((request) => request.burialKind)).toEqual(["nearby_area", "nearby_area"]);
+    expect(api.wallet.trueSeedCount).toBe(2);
+    await expect(page.locator(".bury-success-panel").getByText(/奖励 1 颗真瓜籽/)).toBeVisible();
+  });
+
   test("OWNER-READER：点击我埋下的成熟瓜可查看原文和公开评论", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, {
       wallet: { smallSeedCount: 0, trueSeedCount: 0 },
@@ -122,7 +151,7 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
     expect(api.commentGetRequests).toEqual([{ melonId: api.createdMelons[0].id, search: "?limit=20" }]);
   });
 
-  test("SHARE-LEDGER：held、后续发布和幂等重放都不会多发真瓜籽", async ({ page }) => {
+  test("SHARE-LEDGER：held 不奖励，每颗新安全瓜各奖励一次，幂等重放不多发", async ({ page }) => {
     const api = await installV0Api(page, {
       wallet: { smallSeedCount: 0, trueSeedCount: 0 },
       validReadsToday: 0,
@@ -157,9 +186,9 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
 
     expect(result.held).toMatchObject({ status: "held", trueSeedAwarded: false, wallet: { trueSeedCount: 0 } });
     expect(result.firstSafe).toMatchObject({ status: "incubating", trueSeedAwarded: true, wallet: { trueSeedCount: 1 } });
-    expect(result.laterSafe).toMatchObject({ status: "incubating", trueSeedAwarded: false, wallet: { trueSeedCount: 1 } });
+    expect(result.laterSafe).toMatchObject({ status: "incubating", trueSeedAwarded: true, wallet: { trueSeedCount: 2 } });
     expect(result.replay).toEqual(result.laterSafe);
-    expect(api.wallet.trueSeedCount).toBe(1);
+    expect(api.wallet.trueSeedCount).toBe(2);
     expect(api.createdMelons).toHaveLength(2);
   });
 });

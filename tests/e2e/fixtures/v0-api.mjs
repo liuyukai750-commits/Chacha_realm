@@ -255,7 +255,6 @@ export async function installV0Api(page, options = {}) {
     harvestFailure: options.harvestFailure ?? null,
     harvestFailureUsed: false,
     validReadsToday: options.validReadsToday ?? initialWallet.smallSeedCount,
-    originalRewardClaimed: options.originalRewardClaimed ?? false,
     completedReads: melon.completedReads,
     alreadyCompleted: options.alreadyCompleted ?? false,
     plantDistanceFailure: options.plantDistanceFailure ?? false,
@@ -621,9 +620,8 @@ export async function installV0Api(page, options = {}) {
         );
       }
       const status = state.createStatusSequence.shift() ?? "incubating";
-      const trueSeedAwarded = status === "incubating" && !state.originalRewardClaimed;
+      const trueSeedAwarded = status === "incubating";
       if (trueSeedAwarded) {
-        state.originalRewardClaimed = true;
         state.wallet.trueSeedCount += 1;
       }
       const resolvedCityId = body.burialKind === "nearby_area" ? options.realLocationCityId ?? state.activeCityId : state.activeSpot.cityId;

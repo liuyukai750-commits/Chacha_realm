@@ -1,31 +1,25 @@
 .audioControl {
   --audio-ink: #173b37;
   --audio-paper: rgba(255, 254, 248, 0.94);
-  position: fixed;
-  z-index: 47;
-  right: 12px;
-  bottom: max(102px, calc(env(safe-area-inset-bottom) + 94px));
-  display: grid;
-  justify-items: end;
-  gap: 7px;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
   color: var(--audio-ink);
   font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
 .audioControl > button {
-  min-width: 78px;
-  min-height: 46px;
-  padding: 0 11px 0 8px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
   border: 2px solid var(--audio-ink);
-  border-radius: 15px;
+  border-radius: 999px;
   background: var(--audio-paper);
-  box-shadow: 2px 3px 0 rgba(23, 59, 55, 0.75);
+  box-shadow: 2px 2px 0 rgba(23, 59, 55, 0.75);
   color: var(--audio-ink);
-  font: 900 11px/1 inherit;
   backdrop-filter: blur(12px);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -38,8 +32,8 @@
 }
 
 .radio {
-  width: 28px;
-  height: 28px;
+  width: 27px;
+  height: 27px;
   padding: 5px;
   display: flex;
   align-items: end;
@@ -48,6 +42,18 @@
   border: 1px solid rgba(23, 59, 55, 0.55);
   border-radius: 9px;
   background: #dceca8;
+}
+
+.label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .radio i {
@@ -63,6 +69,11 @@
 }
 
 .feedback {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 9px);
+  right: 0;
+  width: max-content;
   max-width: 208px;
   margin: 0;
   padding: 7px 9px;
@@ -75,13 +86,6 @@
   font-weight: 750;
   line-height: 1.45;
   backdrop-filter: blur(10px);
-}
-
-@media (min-width: 700px) {
-  .audioControl {
-    right: 22px;
-    bottom: 22px;
-  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

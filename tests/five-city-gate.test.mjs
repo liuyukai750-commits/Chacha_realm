@@ -6,6 +6,7 @@ const cityIds = ["changsha", "beijing", "shanghai", "guangzhou", "shenzhen"];
 const geography = readFileSync("src/data/geography.ts", "utf8");
 const migration = readFileSync("supabase/migrations/202608100002_nearby_life_circle_burial.sql", "utf8");
 const preciseMigration = readFileSync("supabase/migrations/202608150003_precise_burial_anchors.sql", "utf8");
+const unifiedMigration = readFileSync("supabase/migrations/202608150005_unified_burial_rewards.sql", "utf8");
 const repository = readFileSync("src/server/repositories/island-repository.ts", "utf8");
 const createRoute = readFileSync("src/app/api/melons/route.ts", "utf8");
 const fixture = readFileSync("tests/e2e/fixtures/v0-api.mjs", "utf8");
@@ -34,8 +35,8 @@ test("nearby life-circle stores exact anchors only in a private service-side tab
   assert.match(migration, /create_nearby_melon/);
   assert.match(preciseMigration, /create table if not exists public\.melon_location_anchors/);
   assert.match(preciseMigration, /revoke all on public\.melon_location_anchors from public, anon, authenticated/);
-  assert.match(repository, /create_nearby_melon_v2/);
-  assert.match(repository, /p_latitude:\s*input\.location\.latitude/);
+  assert.match(repository, /create_melon_v3/);
+  assert.match(repository, /p_latitude:\s*nearbyBurial \? input\.location!\.latitude : null/);
   assert.doesNotMatch(repository, /console\.(log|info|warn|error)\([^)]*location/i);
 });
 
@@ -57,10 +58,16 @@ test("melon create does not trust client cityId for public or nearby burial", ()
   assert.doesNotMatch(createRoute, /cityId\(body\.cityId\)\s*\?\?\s*"changsha"/);
   assert.match(createRoute, /operationId:\s*uuid\(body\.operationId, "operationId"\)/);
   assert.match(createRoute, /burialKind: "public_spot"[\s\S]*spotId: uuid\(body\.spotId, "spotId"\)/);
-  assert.match(repository, /resolveSupportedCityForBurial\(input\.location\)/);
-  assert.match(repository, /p_city_id:\s*resolvedCityId/);
-  assert.match(repository, /p_city_id:\s*spot\.cityId/);
+  assert.match(repository, /resolveSupportedCityForBurial\(input\.location!\)/);
+  assert.match(repository, /const cityId = nearbyBurial[\s\S]*resolveSupportedCityForBurial\(input\.location!\)[\s\S]*spot!\.cityId/);
+  assert.match(repository, /p_city_id:\s*cityId/);
   assert.match(repository, /p_operation_id:\s*input\.operationId/);
+});
+
+test("current create path uses one RPC for public spots and nearby life circles", () => {
+  assert.match(unifiedMigration, /create or replace function public\.create_melon_v3/);
+  assert.equal((repository.match(/"create_melon_v3"/g) ?? []).length, 1);
+  assert.doesNotMatch(repository, /"create_nearby_melon_v2"/);
 });
 
 test("nearby create uses V1 economy ledger, active profile, held moderation and service-role-only RPC", () => {

@@ -10,7 +10,7 @@
 | READ-6 | Automated | 第 6 次仍计有效阅读和作者 XP，但读者不再获得籽。 |
 | READ-IDEMPOTENT | Automated + Integration | 自读、重复、并发重放不发资源；每位不同读者首次有效吃完只给作者 1 XP。 |
 | READ-CHINA-DAY | Automated + Integration | 每日上限只按 `Asia/Shanghai` 零点重置。 |
-| SHARE-FIRST | Automated + Integration | 每日首颗进入孵化的安全原创瓜奖励 1 真籽；后续、held、失败和幂等重放不奖励。 |
+| SHARE-SAFE | Automated + Integration | 每颗进入孵化的安全原创瓜奖励 1 真籽；held、失败和幂等重放不奖励。 |
 | FIELD-PLANT | Automated + Integration | 选择整片土地并确认后，服务端占用下一空位且恰好扣 1 真籽。 |
 | FIELD-CAPACITY | Automated + Integration | 三片地各最多 3 个，总数最多 9 个；满地不扣籽，不出现第 10 个瓜。 |
 | FIELD-12H | Automated + Integration | 11:59:59.999 仍未成熟，满 12 小时由服务端时间判定成熟。 |

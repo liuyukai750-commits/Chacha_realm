@@ -189,10 +189,10 @@ test("登录闸门关闭时首页绕过 AuthGate，避免会话请求阻塞刷�
   ]);
   assert.match(envExample, /AUTH_GATE_ENABLED=false/);
   assert.match(page, /process\.env\.AUTH_GATE_ENABLED\s*===\s*["']true["']/);
-  const appDeclaration = page.search(/const\s+app\s*=\s*\([\s\S]*?<ChachaIsland\s*\/>[\s\S]*?<AmbientAudio\s*\/>[\s\S]*?\);/);
+  const appDeclaration = page.search(/const\s+app\s*=\s*<ChachaIsland\s*\/>;/);
   const disabledReturn = page.search(/if\s*\(!authGateRequired\)\s*return\s+app\s*;/);
   const authGateRender = page.search(/return\s*<AuthGate/);
-  assert.ok(appDeclaration >= 0, "街区应用应同时包含主体与背景音乐组件");
+  assert.ok(appDeclaration >= 0, "街区应用主体应在关闭登录闸门时直接渲染");
   assert.ok(disabledReturn > appDeclaration && authGateRender > disabledReturn, "闸门关闭时必须直接渲染应用，不能先挂载 AuthGate");
 });
 

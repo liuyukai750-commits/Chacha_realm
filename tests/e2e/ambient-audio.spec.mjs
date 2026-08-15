@@ -3,9 +3,9 @@ import { installV0Api } from "./fixtures/v0-api.mjs";
 
 const preferenceKey = "chacha-street:ambient-audio";
 
-async function installMediaProbe(page, { savedPreference } = {}) {
-  await page.addInitScript(({ preferenceKey, savedPreference }) => {
-    window.__audioProbe = { playCalls: 0, pauseCalls: 0, rejectPlay: false };
+async function installMediaProbe(page, { savedPreference, rejectPlay = false } = {}) {
+  await page.addInitScript(({ preferenceKey, savedPreference, rejectPlay }) => {
+    window.__audioProbe = { playCalls: 0, pauseCalls: 0, rejectPlay };
     if (savedPreference) window.localStorage.setItem(preferenceKey, savedPreference);
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
       configurable: true,
@@ -25,7 +25,7 @@ async function installMediaProbe(page, { savedPreference } = {}) {
         this.dispatchEvent(new Event("pause"));
       },
     });
-  }, { preferenceKey, savedPreference });
+  }, { preferenceKey, savedPreference, rejectPlay });
 }
 
 async function openStreet(page, options) {
@@ -36,11 +36,15 @@ async function openStreet(page, options) {
 }
 
 test.describe("背景音乐浏览器能力模拟（不代表真机）", () => {
-  test("默认不自动播放，首次用户手势可开启并持久保存偏好", async ({ page }) => {
+  test("默认开启并尝试播放，控件固定在城市按钮旁且可关闭", async ({ page }) => {
     const control = await openStreet(page);
     await expect(control).toBeVisible();
-    await expect(control).toHaveAttribute("aria-pressed", "false");
-    expect(await page.evaluate(() => window.__audioProbe.playCalls)).toBe(0);
+    await expect(control).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => page.evaluate(() => window.__audioProbe.playCalls)).toBe(1);
+    await expect(control).toHaveAttribute("aria-label", "关闭背景音乐");
+
+    const actions = page.locator(".topbar-actions");
+    await expect(actions.locator(".city-switch + aside")).toHaveCount(1);
 
     const audioSemantics = await page.locator("audio").evaluate((audio) => ({
       loop: audio.loop,
@@ -56,28 +60,25 @@ test.describe("背景音乐浏览器能力模拟（不代表真机）", () => {
     });
 
     await control.click();
-    await expect(control).toHaveAttribute("aria-pressed", "true");
-    await expect(control).toHaveAttribute("aria-label", "关闭背景音乐");
-    expect(await page.evaluate(() => window.__audioProbe.playCalls)).toBe(1);
-    expect(await page.evaluate((key) => localStorage.getItem(key), preferenceKey)).toBe("on");
-
-    await control.click();
     await expect(control).toHaveAttribute("aria-pressed", "false");
     await expect(control).toHaveAttribute("aria-label", "播放背景音乐");
     expect(await page.evaluate(() => window.__audioProbe.pauseCalls)).toBeGreaterThanOrEqual(1);
     expect(await page.evaluate((key) => localStorage.getItem(key), preferenceKey)).toBe("off");
+
+    await control.click();
+    await expect(control).toHaveAttribute("aria-pressed", "true");
+    await expect(control).toHaveAttribute("aria-label", "关闭背景音乐");
+    expect(await page.evaluate(() => window.__audioProbe.playCalls)).toBe(2);
+    expect(await page.evaluate((key) => localStorage.getItem(key), preferenceKey)).toBe("on");
 
     const box = await control.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
   });
 
-  test("已保存开启偏好也等待页面手势，并在隐藏/恢复时暂停续播", async ({ page }) => {
+  test("保存的开启偏好自动尝试播放，并在隐藏/恢复时暂停续播", async ({ page }) => {
     const control = await openStreet(page, { savedPreference: "on" });
     await expect(control).toHaveAttribute("aria-pressed", "true");
-    expect(await page.evaluate(() => window.__audioProbe.playCalls)).toBe(0);
-
-    await page.locator("main").dispatchEvent("pointerdown");
     await expect(control).toHaveAttribute("aria-label", "关闭背景音乐");
     await expect.poll(() => page.evaluate(() => window.__audioProbe.playCalls)).toBe(1);
 
@@ -94,9 +95,16 @@ test.describe("背景音乐浏览器能力模拟（不代表真机）", () => {
     await expect.poll(() => page.evaluate(() => window.__audioProbe.playCalls)).toBe(2);
   });
 
+  test("明确关闭偏好不会自动播放", async ({ page }) => {
+    const control = await openStreet(page, { savedPreference: "off" });
+    await expect(control).toHaveAttribute("aria-pressed", "false");
+    expect(await page.evaluate(() => window.__audioProbe.playCalls)).toBe(0);
+  });
+
   test("播放拒绝和媒体错误都有文字回退，不会点击无反应", async ({ page }) => {
-    const control = await openStreet(page);
-    await page.evaluate(() => { window.__audioProbe.rejectPlay = true; });
+    const control = await openStreet(page, { rejectPlay: true });
+    await expect.poll(() => page.evaluate(() => window.__audioProbe.playCalls)).toBe(1);
+    await expect(page.getByText("音乐没有响起来，点一下再试。", { exact: true })).toHaveCount(0);
     await control.click();
     await expect(page.getByText("音乐没有响起来，点一下再试。", { exact: true })).toBeVisible();
     await expect(control).toHaveAttribute("aria-pressed", "true");

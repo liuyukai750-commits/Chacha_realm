@@ -10,9 +10,9 @@ type AudioPreference = "on" | "off";
 
 function readPreference(): AudioPreference {
   try {
-    return window.localStorage.getItem(AUDIO_PREFERENCE_KEY) === "on" ? "on" : "off";
+    return window.localStorage.getItem(AUDIO_PREFERENCE_KEY) === "off" ? "off" : "on";
   } catch {
-    return "off";
+    return "on";
   }
 }
 
@@ -26,7 +26,8 @@ function writePreference(preference: AudioPreference) {
 
 export function AmbientAudio() {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [preference, setPreference] = useState<AudioPreference>("off");
+  const autoplayAttemptedRef = useRef(false);
+  const [preference, setPreference] = useState<AudioPreference>("on");
   const [preferenceReady, setPreferenceReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -39,7 +40,7 @@ export function AmbientAudio() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const play = useCallback(async () => {
+  const play = useCallback(async (reportFailure = true) => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.volume = AMBIENT_VOLUME;
@@ -49,17 +50,22 @@ export function AmbientAudio() {
       setFeedback("");
     } catch {
       setPlaying(false);
-      setFeedback("音乐没有响起来，点一下再试。");
+      if (reportFailure) setFeedback("音乐没有响起来，点一下再试。");
     }
   }, []);
 
   useEffect(() => {
     if (!preferenceReady || preference !== "on" || playing) return;
 
+    if (!autoplayAttemptedRef.current && !document.hidden) {
+      autoplayAttemptedRef.current = true;
+      void play(false);
+    }
+
     const resumeAfterGesture = (event: Event) => {
       const target = event.target;
       if (target instanceof Element && target.closest("[data-ambient-audio-control]")) return;
-      void play();
+      void play(false);
     };
 
     document.addEventListener("pointerdown", resumeAfterGesture, { capture: true });
@@ -78,7 +84,7 @@ export function AmbientAudio() {
         audio.pause();
         return;
       }
-      if (preference === "on") void play();
+      if (preference === "on") void play(false);
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
@@ -99,7 +105,7 @@ export function AmbientAudio() {
 
     setPreference("on");
     writePreference("on");
-    await play();
+    await play(true);
   };
 
   const label = playing ? "音乐中" : preference === "on" ? "继续音乐" : "音乐";
@@ -119,7 +125,7 @@ export function AmbientAudio() {
           <i />
           <i />
         </span>
-        <span>{label}</span>
+        <span className={styles.label}>{label}</span>
       </button>
       <audio
         ref={audioRef}

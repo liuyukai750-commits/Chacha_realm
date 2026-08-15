@@ -20,6 +20,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import { AmbientAudio } from "@/components/ambient-audio/ambient-audio";
 import type {
   CityId,
   CompleteReadResult,
@@ -381,8 +382,8 @@ export function ChachaIsland() {
     setNotice(result.status === "held"
       ? "瓜已收到 · 内容正在安全复核，暂不发放真瓜籽"
       : result.trueSeedAwarded
-      ? `瓜埋好了 · 已归入${resultCityName} · 今日首颗安全原创奖励真瓜籽 +1`
-      : `瓜埋好了 · 已归入${resultCityName} · 今天的首发真瓜籽奖励已经领过`);
+      ? `瓜埋好了 · 已归入${resultCityName} · 安全原创奖励真瓜籽 +1`
+      : `瓜埋好了 · 已归入${resultCityName} · 重复提交不会重复发放真瓜籽`);
 
     void refreshOwnFieldAfterCreate(islandAdapter).then(
       (field) => setModel((current) => current ? {
@@ -554,6 +555,7 @@ export function ChachaIsland() {
           <button className="city-switch" onClick={() => setShowCities(true)} aria-label={`当前城市${activeCity.name}，切换城市`}>
             <LocationIcon /><span>{activeCity.name}</span><ChevronIcon />
           </button>
+          <AmbientAudio />
           <span className="seed-count" aria-label={`拥有 ${model.session.wallet.trueSeedCount} 粒真瓜籽`}><SeedIcon />{model.session.wallet.trueSeedCount}</span>
         </div>
       </header>
@@ -565,10 +567,10 @@ export function ChachaIsland() {
           <div role="status" aria-live="polite">
             <strong>{buryFeedback.status === "held" ? "瓜已送去安全复核" : "这颗瓜已经埋好"}</strong>
             <p>{buryFeedback.status === "held"
-              ? "复核通过前不会公开，也不会发放首发真瓜籽。"
+              ? "复核通过前不会公开，也不会发放真瓜籽。"
               : buryFeedback.trueSeedAwarded
               ? `${buryFeedback.burialKind === "nearby_area" ? "已固定在发布位置" : "已投递到所选公区"}，并奖励 1 颗真瓜籽。`
-              : `${buryFeedback.burialKind === "nearby_area" ? "已固定在发布位置" : "已投递到所选公区"}；今天的首发真瓜籽奖励此前已经领过。`}</p>
+              : `${buryFeedback.burialKind === "nearby_area" ? "已固定在发布位置" : "已投递到所选公区"}；重复提交不会重复发放真瓜籽。`}</p>
           </div>
           <div>
             <button type="button" onClick={async () => { setBuryFeedback(null); await showOwnField(); }}>

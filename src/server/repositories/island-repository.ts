@@ -183,42 +183,39 @@ export async function discover(
 }
 
 export async function createMelon(input: CreateMelonRequest, actorId: string): Promise<CreateMelonResult> {
-  if (input.burialKind === "nearby_area") {
-    if (!input.location) throw new ApiProblem(400, "invalid_location", "附近埋瓜需要本次手机定位。 ");
-    const resolvedCityId = resolveSupportedCityForBurial(input.location);
-    const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
-      "create_nearby_melon_v2",
-      {
-        p_actor_id: actorId,
-        p_operation_id: input.operationId,
-        p_city_id: resolvedCityId,
-        p_latitude: input.location.latitude,
-        p_longitude: input.location.longitude,
-        p_topic: input.topic,
-        p_title: input.title,
-        p_content: input.content,
-        p_reveal_mode: "open",
-      },
-    );
-    return { ...result, cityId: resolvedCityId };
+  const nearbyBurial = input.burialKind === "nearby_area";
+  if (nearbyBurial && !input.location) {
+    throw new ApiProblem(400, "invalid_location", "附近埋瓜需要本次手机定位。 ");
   }
-  if (!input.spotId) throw new ApiProblem(400, "invalid_spot", "公共地点埋瓜需要有效地点。");
-  const spot = getPublicSpot(input.spotId);
-  if (!spot) throw new ApiProblem(400, "invalid_spot", "该公共地点尚未开放。");
+
+  const spot = nearbyBurial ? null : input.spotId ? getPublicSpot(input.spotId) : null;
+  if (!nearbyBurial && !input.spotId) {
+    throw new ApiProblem(400, "invalid_spot", "公共地点埋瓜需要有效地点。");
+  }
+  if (!nearbyBurial && !spot) {
+    throw new ApiProblem(400, "invalid_spot", "该公共地点尚未开放。");
+  }
+
+  const cityId = nearbyBurial
+    ? resolveSupportedCityForBurial(input.location!)
+    : spot!.cityId;
   const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
-    "create_melon",
+    "create_melon_v3",
     {
       p_actor_id: actorId,
       p_operation_id: input.operationId,
-      p_city_id: spot.cityId,
-      p_spot_id: input.spotId,
+      p_burial_kind: nearbyBurial ? "nearby_area" : "public_spot",
+      p_city_id: cityId,
+      p_spot_id: nearbyBurial ? null : input.spotId,
+      p_latitude: nearbyBurial ? input.location!.latitude : null,
+      p_longitude: nearbyBurial ? input.location!.longitude : null,
       p_topic: input.topic,
       p_title: input.title,
       p_content: input.content,
       p_reveal_mode: "open",
     },
   );
-  return { ...result, cityId: spot.cityId };
+  return { ...result, cityId };
 }
 
 export async function openMelon(melonId: string, actorId: string): Promise<MelonDetail> {
