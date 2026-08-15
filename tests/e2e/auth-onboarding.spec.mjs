@@ -83,6 +83,49 @@ test.describe("猹号密码登录与身份流程", () => {
     expect(auth.deleteCalls).toEqual([{ confirmation: "DELETE" }]);
   });
 
+  test("账号页可以用系统分享邀请好友且链接不携带页面状态", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: async (payload) => { window.__sharedInvite = payload; },
+      });
+    });
+    await installV0Api(page);
+    await installAuthApi(page, { session: { authenticated: true, anonymous: false, needsProfile: false, profile: permanentProfile } });
+    await page.goto("/?city=changsha&melon=private", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /打开我的账号/ }).click();
+    const accountSheet = page.getByRole("dialog");
+    const layout = await accountSheet.evaluate((node) => ({ clientWidth: node.clientWidth, scrollWidth: node.scrollWidth }));
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+    expect((await page.getByRole("button", { name: "发给好友" }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await page.getByRole("button", { name: "发给好友" }).click();
+    await expect.poll(() => page.evaluate(() => window.__sharedInvite)).toMatchObject({
+      title: "猹猹街",
+      url: "http://127.0.0.1:3107/",
+    });
+    const payload = await page.evaluate(() => window.__sharedInvite);
+    expect(payload.url).not.toContain("city=");
+    expect(payload.url).not.toContain("melon=");
+    await expect(page.getByText("已交给系统分享。", { exact: true })).toBeVisible();
+  });
+
+  test("系统分享不可用时仍可复制干净的邀请链接", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: async (value) => { window.__copiedInvite = value; } },
+      });
+    });
+    await installV0Api(page);
+    await installAuthApi(page, { session: { authenticated: true, anonymous: false, needsProfile: false, profile: permanentProfile } });
+    await page.goto("/?from=test", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /打开我的账号/ }).click();
+    await page.getByRole("button", { name: "复制邀请链接" }).click();
+    await expect.poll(() => page.evaluate(() => window.__copiedInvite)).toBe("http://127.0.0.1:3107/");
+    await expect(page.getByText("邀请链接已复制。", { exact: true })).toBeVisible();
+  });
+
   test("主理人街牌只在被授予的账号上出现且保持清晰可读", async ({ page }) => {
     const stewardProfile = { ...permanentProfile, displayName: "猹猹国王", identityBadge: "steward" };
     await installV0Api(page);

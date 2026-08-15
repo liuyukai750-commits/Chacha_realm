@@ -87,6 +87,15 @@ function normalizeRecoveryCode(value: string): string {
     .replace(/(.{4})(?=.)/g, "$1-");
 }
 
+function resolveInviteUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  try {
+    return new URL("/", configuredUrl || window.location.origin).toString();
+  } catch {
+    return `${window.location.origin}/`;
+  }
+}
+
 function apiMessage(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") return fallback;
   const failure = payload as ApiFailure;
@@ -162,6 +171,9 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
   const [notice, setNotice] = useState("");
   const [accountOpen, setAccountOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
+  const inviteInputRef = useRef<HTMLInputElement>(null);
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaEpoch, setCaptchaEpoch] = useState(0);
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -266,6 +278,37 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
     catch (reason) { setError(reason instanceof Error ? reason.message : "注销没有完成，请重试。"); setBusy(false); }
   };
 
+  const copyInviteLink = async () => {
+    const url = inviteUrl || resolveInviteUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus("邀请链接已复制。");
+    } catch {
+      inviteInputRef.current?.focus();
+      inviteInputRef.current?.select();
+      setShareStatus("请长按上方链接并选择复制。");
+    }
+  };
+
+  const shareInvite = async () => {
+    const url = inviteUrl || resolveInviteUrl();
+    if (typeof navigator.share !== "function") {
+      await copyInviteLink();
+      return;
+    }
+    try {
+      await navigator.share({
+        title: "猹猹街",
+        text: "来猹猹街，匿名听听附近的故事，也埋下一颗瓜。",
+        url,
+      });
+      setShareStatus("已交给系统分享。");
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      await copyInviteLink();
+    }
+  };
+
   if (checking && required) return <AuthLoading />;
   if (!required) return <>{children}</>;
 
@@ -362,12 +405,19 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
   }
 
   return <>{children}{isPermanent && session?.profile && <>
-    <button className={styles.accountFab} aria-label="打开我的账号" onClick={() => setAccountOpen(true)}><AnimalAvatar animal={session.profile.animal} size="small" /></button>
+    <button className={styles.accountFab} aria-label="打开我的账号" onClick={() => { setInviteUrl(resolveInviteUrl()); setShareStatus(""); setAccountOpen(true); }}><AnimalAvatar animal={session.profile.animal} size="small" /></button>
     {accountOpen && <div className={styles.accountBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAccountOpen(false); }}>
       <section className={styles.accountSheet} role="dialog" aria-modal="true" aria-labelledby="account-title">
         <div className={styles.sheetHandle} aria-hidden="true" /><button className={styles.closeAccount} aria-label="关闭账号面板" onClick={() => setAccountOpen(false)}>×</button>
         <header><AnimalAvatar animal={session.profile.animal} size="large" /><div><p>我的匿名街牌</p><div className={styles.accountIdentity}><h2 id="account-title">{session.profile.displayName}</h2><IdentityBadge badge={session.profile.identityBadge} /></div><strong>{session.profile.publicId}</strong></div></header>
         <dl><div><dt>动物身份</dt><dd>{session.profile.animal}</dd></div><div><dt>登录方式</dt><dd>猹号 + 密码</dd></div><div><dt>账号状态</dt><dd>{session.profile.accountStatus === "banned" ? "只读" : "正常"}</dd></div></dl>
+        <section className={styles.inviteTicket} aria-labelledby="invite-title">
+          <div className={styles.inviteStamp} aria-hidden="true">递</div>
+          <div className={styles.inviteCopy}><strong id="invite-title">递一张街牌给朋友</strong><p>邀请朋友来听瓜、埋瓜。链接不会带上你的定位、猹号或当前页面。</p></div>
+          <label className={styles.inviteLink}><span>邀请链接</span><input ref={inviteInputRef} readOnly value={inviteUrl} onFocus={(event) => event.currentTarget.select()} /></label>
+          <div className={styles.inviteActions}><button type="button" onClick={() => void shareInvite()}>发给好友</button><button type="button" onClick={() => void copyInviteLink()}>复制邀请链接</button></div>
+          {shareStatus && <p className={styles.shareStatus} role="status" aria-live="polite">{shareStatus}</p>}
+        </section>
         {error && <p className={styles.formError} role="alert">{error}</p>}
         <button className={styles.logoutAction} disabled={busy} onClick={() => void logout()}>退出登录</button>
         {!deleteConfirm ? <button className={styles.deleteAction} onClick={() => setDeleteConfirm(true)}>注销账号</button> : <div className={styles.deleteConfirm} role="alert"><p>注销后瓜田、帖子和互动数据将进入删除流程，无法靠重新登录恢复。</p><button disabled={busy} onClick={() => void deleteAccount()}>{busy ? "正在注销…" : "确认注销账号"}</button><button disabled={busy} onClick={() => setDeleteConfirm(false)}>取消</button></div>}
