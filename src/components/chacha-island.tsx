@@ -903,13 +903,16 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
             const squatBusy = squatBusyIds.includes(melon.id);
             const scene = getSpotScene(melon.spot);
             const displayTitle = detail?.title ?? melon.title ?? (melon.status === "mature" ? `一颗成熟的${topicName[melon.topic]}瓜` : `${topicName[melon.topic]}孵化瓜`);
+            const authorName = detail?.displayName ?? detail?.alias ?? melon.displayName ?? "匿名小动物";
+            const authorAnimal: AnimalIdentity = detail?.animal ?? melon.animal ?? "猹";
             return <SwipeActionRow key={melon.id} actionLabel="不看了" actionAriaLabel={`从瓜篮移出${displayTitle}`} onAction={() => onDismiss(melon)}>
             <article className={`basket-row ${melon.status}`} aria-label={displayTitle}>
-              <span className="basket-fruit" aria-hidden="true"><i /></span>
+              <span className="basket-author-avatar"><AnimalAvatar animal={authorAnimal} size="small" /></span>
               <div className="basket-copy">
-                <span>{topicName[melon.topic]}瓜 / {scene.displayName}</span>
-                <h3>{melon.status === "mature" ? displayTitle : `正在孵化，${formatCountdown(melon.maturesAt)} 后成熟`}</h3>
-                <p>{melon.status === "mature" ? `${detail?.displayName ?? detail?.alias ?? "匿名小动物"} / ${distanceName[melon.distanceBand]} / ${melon.commentCount ?? 0} 条评论` : "蹲后续不会打扰它成熟"}</p>
+                <div className="basket-author-line"><strong className="basket-author-name">{authorName}</strong><span>{topicName[melon.topic]}瓜 · {scene.displayName}</span></div>
+                {melon.status === "mature"
+                  ? <><h3>{displayTitle}</h3><p>{distanceName[melon.distanceBand]} · {melon.commentCount ?? 0} 条评论</p></>
+                  : <p className="basket-incubation">正在孵化，{formatCountdown(melon.maturesAt)} 后成熟</p>}
               </div>
               <div className="basket-actions">
                 {melon.status === "mature" ? <>

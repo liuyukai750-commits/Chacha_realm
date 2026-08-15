@@ -120,6 +120,8 @@ export interface CitySummary {
 export interface MelonPreview {
   id: string;
   status: "incubating" | "mature";
+  animal?: AnimalIdentity;
+  displayName?: string;
   burialKind?: BurialKind;
   topic: SafeTopic;
   cityId: CityId;

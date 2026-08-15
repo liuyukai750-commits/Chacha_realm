@@ -835,6 +835,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   overflow:visible;
   padding-top:4px;
 }
+.basket-author-avatar{width:44px;min-height:44px;display:grid;place-items:start center;align-self:start;padding-top:1px}
+.basket-author-line{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 8px;min-width:0}
+.basket-author-name{max-width:100%;overflow:hidden;color:var(--ink);font:900 13px/1.35 var(--display);text-overflow:ellipsis;white-space:nowrap}
+.basket-author-line>span{color:var(--grass-dark);font:800 8px/1.35 var(--data)}
+.basket-copy .basket-incubation{margin-top:6px;color:var(--ink-soft);font:750 11px/1.45 var(--body)}
+.sunny-shell[data-day-phase="night"] .basket-author-name{color:#f5fbff}
+.sunny-shell[data-day-phase="night"] .basket-author-line>span{color:#b7dfd3}
+.sunny-shell[data-day-phase="night"] .basket-copy .basket-incubation{color:#c8d9e1}
 .basket-actions .basket-primary,
 .sunny-shell[data-day-phase="night"] .basket-actions .basket-primary{
   background:#ff7866;
@@ -915,9 +923,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .melon-basket.is-open .basket-handle{min-height:78px}
   .melon-basket.is-open .basket-content{padding:4px 14px 18px}
   .melon-basket.is-open .basket-row{grid-template-columns:44px minmax(0,1fr);gap:12px;padding:17px 0}
-  .melon-basket.is-open .basket-fruit{width:36px;height:36px}
-  .melon-basket.is-open .basket-copy h3{font-size:17px;line-height:1.35}
-  .melon-basket.is-open .basket-copy p{font-size:13px;line-height:1.55}
+  .melon-basket.is-open .basket-copy h3{font-size:15px;line-height:1.4}
+  .melon-basket.is-open .basket-copy p{font-size:12px;line-height:1.5}
+  .melon-basket.is-open .basket-copy .basket-incubation{font-size:11px;line-height:1.45}
   .melon-basket.is-open .basket-actions{grid-column:1/-1}
   .melon-basket.is-open .basket-actions button{flex:1;min-height:48px;font-size:13px}
   .dev-preview-grid{margin-top:14px}

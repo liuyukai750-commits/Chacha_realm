@@ -163,10 +163,15 @@ export function cityMelons(cityId, activeSpot = primarySpotForCity(cityId), opti
   const local = discoveryMelons.slice(0, 4).map((item, index) => ({
     ...item,
     id: item.id === melon.id ? `${cityId}-local-1` : `${cityId}-${item.id}`,
+    status: options.includeIncubating && index === 1 ? "incubating" : item.status,
     cityId,
     districtId: activeSpot.districtId,
     spot: activeSpot,
-    title: item.id === melon.id ? `${city?.name ?? cityId}公共瓜` : `${city?.name ?? cityId}瓜区第 ${index + 1} 件小事`,
+    displayName: item.displayName ?? item.alias,
+    title: options.includeIncubating && index === 1
+      ? "还在长的后续瓜"
+      : item.id === melon.id ? `${city?.name ?? cityId}公共瓜` : `${city?.name ?? cityId}瓜区第 ${index + 1} 件小事`,
+    ...(options.includeIncubating && index === 1 ? { maturesAt: "2026-08-04T14:00:00.000Z" } : {}),
     distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
     isRemote: false,
   }));
@@ -301,6 +306,8 @@ export async function installV0Api(page, options = {}) {
         : discoveryMelons.map((item, index) => ({
           id: item.id,
           status: options.includeIncubating && index === 1 ? "incubating" : item.status,
+          animal: item.animal,
+          displayName: item.displayName ?? item.alias,
           burialKind: options.includeNearbyAreaInCity && index === 0 ? "nearby_area" : "public_spot",
           topic: item.topic,
           cityId: activeSpot.cityId,
@@ -423,6 +430,8 @@ export async function installV0Api(page, options = {}) {
         items: [...discoveryMelons.map((item, index) => ({
           id: item.id,
           status: options.includeIncubating && index === 1 ? "incubating" : item.status,
+          animal: item.animal,
+          displayName: item.displayName ?? item.alias,
           burialKind: options.includeNearbyAreaInCity && index === 0 ? "nearby_area" : "public_spot",
           topic: item.topic,
           cityId: state.activeSpot.cityId,

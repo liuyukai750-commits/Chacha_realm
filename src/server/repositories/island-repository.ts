@@ -142,6 +142,8 @@ export async function discover(
       const preview: MelonPreview = {
         id: candidate.id,
         status: candidate.status,
+        ...(candidate.animal ? { animal: candidate.animal } : {}),
+        ...(candidate.displayName ? { displayName: candidate.displayName } : {}),
         burialKind: candidateBurialKind,
         topic: candidate.topic,
         cityId: candidate.cityId,

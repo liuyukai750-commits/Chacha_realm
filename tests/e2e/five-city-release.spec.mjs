@@ -196,6 +196,27 @@ test.describe("五城同步发布门禁", () => {
       }
     }
   });
+
+  test("BASKET-IDENTITY：五城瓜篮统一显示作者动物、昵称与精简孵化状态", async ({ page }) => {
+    await installV0Api(page, { fiveCities: true, includeIncubating: true });
+    await enterIsland(page);
+
+    for (const city of fiveCityMatrix) {
+      if (city.id !== "changsha") await switchCity(page, city.name);
+      await expandBasket(page);
+
+      const matureRow = page.locator(".melon-basket .basket-row.mature").first();
+      const incubatingRow = page.locator(".melon-basket .basket-row.incubating").first();
+      await expect(matureRow.locator(".basket-author-avatar img")).toHaveCount(1);
+      await expect(matureRow.locator(".basket-author-name")).toHaveText("加班仓鼠 237");
+      await expect(incubatingRow.locator(".basket-author-avatar img")).toHaveCount(1);
+      await expect(incubatingRow.locator(".basket-author-name")).toHaveText("晒太阳的小动物 102");
+      await expect(incubatingRow.locator(".basket-incubation")).toContainText(/正在孵化.*后成熟/);
+      await expect(incubatingRow).not.toContainText("蹲后续不会打扰它成熟");
+      const statusFontSize = await incubatingRow.locator(".basket-incubation").evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+      expect(statusFontSize).toBeLessThanOrEqual(12);
+    }
+  });
 });
 
 test.describe("埋瓜能力失败门禁", () => {

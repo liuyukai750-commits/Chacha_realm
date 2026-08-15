@@ -11,7 +11,8 @@
     "qa:contracts": "node --test tests/unified-burial-reward-contract.test.mjs tests/ambient-audio-contract.test.mjs tests/bury-entry-consistency.test.mjs tests/five-city-gate.test.mjs tests/mobile-reader-contract.test.mjs",
     "qa:db": "node scripts/check-supabase-migrations.mjs",
     "qa:mobile": "npx playwright test --config tests/e2e/mobile-reader.config.mjs",
-    "qa:smoke": "npm run qa:contracts && npm run qa:db && npm run lint -- src/components/ambient-audio src/components/chacha-island.tsx src/components/bury-sheet-v1.tsx src/server/repositories/island-repository.ts && npx tsc --noEmit && npx playwright test --config tests/e2e/release-smoke.config.mjs && npm run qa:mobile",
+    "qa:five-city": "npx playwright test --config tests/e2e/five-city-release.config.mjs",
+    "qa:smoke": "npm run qa:contracts && npm run qa:db && npm run lint -- src/components/ambient-audio src/components/chacha-island.tsx src/components/bury-sheet-v1.tsx src/server/repositories/island-repository.ts && npx tsc --noEmit && npx playwright test --config tests/e2e/release-smoke.config.mjs && npm run qa:mobile && npm run qa:five-city",
     "preview:setup": "git config core.hooksPath .githooks"
   },
   "dependencies": {
