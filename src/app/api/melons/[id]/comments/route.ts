@@ -21,9 +21,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   return route<MelonCommentsPage>(async () => {
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
-    await requireSession();
+    const session = await requireSession();
     const url = new URL(request.url);
-    return getComments(id, url.searchParams.get("cursor"), pageLimit(url.searchParams.get("limit")));
+    return getComments(
+      id,
+      url.searchParams.get("cursor"),
+      pageLimit(url.searchParams.get("limit")),
+      session.accessToken,
+    );
   });
 }
 

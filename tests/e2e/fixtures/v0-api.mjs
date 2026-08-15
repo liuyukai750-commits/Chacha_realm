@@ -230,6 +230,7 @@ export async function installV0Api(page, options = {}) {
   const state = {
     commentRequests: [],
     commentGetRequests: [],
+    commentsByMelon: new Map(),
     completeRequests: [],
     createRequests: [],
     createOperations: new Map(),
@@ -534,7 +535,13 @@ export async function installV0Api(page, options = {}) {
     const commentsMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/comments`);
     if (method === "GET" && commentsMelon) {
       state.commentGetRequests.push({ melonId: commentsMelon.id, search: url.search });
-      return json(route, { items: publicComments.map((item) => ({ ...item, melonId: commentsMelon.id })) });
+      if (!state.commentsByMelon.has(commentsMelon.id)) {
+        state.commentsByMelon.set(
+          commentsMelon.id,
+          publicComments.map((item) => ({ ...item, melonId: commentsMelon.id })),
+        );
+      }
+      return json(route, { items: structuredClone(state.commentsByMelon.get(commentsMelon.id)) });
     }
 
     if (method === "POST" && path === "/api/presence/verify") {
@@ -569,13 +576,17 @@ export async function installV0Api(page, options = {}) {
       if (!body?.presenceToken) {
         return json(route, { error: { code: "PRESENCE_REQUIRED", message: "需要有效的现场凭证" } }, 403);
       }
-      return json(route, {
+      const created = {
         id: `comment-${state.commentRequests.length}`,
         melonId: commentsMelon.id,
         alias: "巡城小猹 101",
         content: body.content,
         createdAt: fixedNow,
-      });
+      };
+      const existing = state.commentsByMelon.get(commentsMelon.id)
+        ?? publicComments.map((item) => ({ ...item, melonId: commentsMelon.id }));
+      state.commentsByMelon.set(commentsMelon.id, [created, ...existing]);
+      return json(route, created);
     }
 
     if (method === "POST" && path === "/api/melons") {

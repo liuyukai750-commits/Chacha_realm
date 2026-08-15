@@ -299,14 +299,19 @@ export async function getMelonPresenceTarget(melonId: string, actorId: string): 
   return target;
 }
 
-export async function getComments(melonId: string, cursorValue: string | null, limit: number): Promise<MelonCommentsPage> {
+export async function getComments(
+  melonId: string,
+  cursorValue: string | null,
+  limit: number,
+  accessToken: string,
+): Promise<MelonCommentsPage> {
   const cursor = decodeCommentCursor(cursorValue);
   const rows = await rpc<MelonComment[]>("get_melon_comments", {
     p_melon_id: melonId,
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_id: cursor?.id ?? null,
     p_limit: limit + 1,
-  });
+  }, accessToken);
   const items = rows.slice(0, limit);
   const last = items.at(-1);
   return {
