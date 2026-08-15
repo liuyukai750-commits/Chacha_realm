@@ -26,8 +26,9 @@ test("定位与五秒阅读边界只能经 Next 服务端进入 privileged RPC",
   assert.match(repository, /p_reveal_mode: "open"/i);
   assert.match(functionBody("create_melon"), /reveal_mode\)[\s\S]*values \([\s\S]*'open'\)/i);
   assert.match(repository, /serviceRpc<CompleteReadResult>\(\s*"complete_melon_read"[\s\S]*p_actor_id: actorId/i);
-  assert.match(repository, /requireSafeSeek\(input\.spotId, input\.location\)[\s\S]*serviceRpc<Omit<CreateMelonResult, "cityId">>/i);
-  assert.match(melonRoute, /validateLocationProof\(body\.location\)[\s\S]*createMelon\(input, session\.userId\)/i);
+  assert.match(repository, /input\.burialKind === "nearby_area"[\s\S]*create_nearby_melon_v2[\s\S]*p_latitude: input\.location\.latitude/i);
+  assert.doesNotMatch(repository, /requireSafeSeek\(input\.spotId, input\.location\)/i);
+  assert.match(melonRoute, /kind === "nearby_area"[\s\S]*validateLocationProof\(body\.location\)[\s\S]*burialKind: "public_spot"[\s\S]*createMelon\(input, session\.userId\)/i);
   assert.match(completeRoute, /verifyReadToken\(readToken, session\.userId, id\)[\s\S]*completeRead\(id, session\.userId\)/i);
 });
 

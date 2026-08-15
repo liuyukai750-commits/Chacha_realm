@@ -1,6 +1,6 @@
 import type { MelonCommentsPage } from "@/contracts";
 import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
-import { addComment, getComments } from "@/server/repositories/island-repository";
+import { addComment, getComments, getMelonReadPolicy } from "@/server/repositories/island-repository";
 import { requirePresenceCredential } from "@/server/security/presence";
 import { requireActiveSession, requireSession } from "@/server/supabase/session";
 import { object, text, uuid } from "@/server/validation";
@@ -22,12 +22,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
     const session = await requireSession();
+    const policy = await getMelonReadPolicy(id, session.userId);
+    if (policy.burialKind === "nearby_area" && !policy.isOwner) {
+      requirePresenceCredential(request.headers.get("x-chacha-presence-token") ?? "", session.userId, { spotId: id });
+    }
     const url = new URL(request.url);
     return getComments(
       id,
       url.searchParams.get("cursor"),
       pageLimit(url.searchParams.get("limit")),
-      session.accessToken,
     );
   });
 }

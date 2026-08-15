@@ -135,12 +135,21 @@ test.describe("猹号密码登录与身份流程", () => {
     const badge = page.getByLabel("猹猹街主理人");
     await expect(page.getByRole("heading", { name: "猹猹国王" })).toBeVisible();
     await expect(badge).toHaveText("主理人");
+    await expect(page.getByRole("link", { name: /打开主理人驾驶舱/ })).toHaveAttribute("href", "/admin");
     const metrics = await badge.evaluate((node) => {
       const style = getComputedStyle(node);
       return { height: node.getBoundingClientRect().height, color: style.color, background: style.backgroundColor };
     });
     expect(metrics.height).toBeGreaterThanOrEqual(20);
     expect(metrics.color).not.toBe(metrics.background);
+  });
+
+  test("普通账号的账号面板不出现主理人驾驶舱入口", async ({ page }) => {
+    await installV0Api(page);
+    await installAuthApi(page, { session: { authenticated: true, anonymous: false, needsProfile: false, profile: permanentProfile } });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /打开我的账号/ }).click();
+    await expect(page.getByRole("link", { name: /打开主理人驾驶舱/ })).toHaveCount(0);
   });
 
   test("375/430 登录卡无横向溢出且主要触控目标不少于 44px", async ({ page }) => {

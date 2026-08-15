@@ -52,7 +52,7 @@
 | `SUPABASE_SECRET_KEY` | 新 Supabase secret API key，服务端专用，执行审核、评论写入、读瓜完成、瓜详情和其他 actor-bound RPC。 | 绝密。只放 `apikey`，不得作为 Bearer，不得发聊天、不得加 `NEXT_PUBLIC_*`、不得提交。预发布不使用 legacy service role JWT。 |
 | `CHACHA_READ_TOKEN_SECRET` | 5 秒读瓜完成凭证 HMAC。 | 绝密，至少 32 个随机字符。 |
 | `CHACHA_PRESENCE_TOKEN_SECRET` | 15 分钟附近评论资格凭证 HMAC。 | 绝密，必须与 `CHACHA_READ_TOKEN_SECRET` 不同。 |
-| `CHACHA_LOCATION_HMAC_SECRET` | 附近生活圈模糊 cell HMAC，用于 nearby_area 发现与埋瓜。 | 绝密，至少 32 个随机字符，必须与其他 HMAC secret 不同。 |
+| `CHACHA_LOCATION_HMAC_SECRET` | 仅供旧版 HMAC cell 数据兼容；执行精确锚点迁移后不再参与发现或权限判断。 | 若旧部署仍配置则继续保密；新环境不依赖此值。 |
 
 绝不能提交或发送到聊天：真实 `.env` / `.env.local`、Supabase secret key、legacy service role key、access token、数据库连接串、带凭据的迁移输出、浏览器数据、Cookie、含 key 截图、生产日志、用户个人数据。
 
@@ -64,7 +64,8 @@
 2. `supabase/migrations/202608090001_presence_comments_moderation.sql`
 3. `supabase/migrations/202608090002_melon_reveal_mode.sql`
 4. `supabase/migrations/202608100001_field_economy_v1.sql`
-5. 如测试项目需要内置城市/行政区/公共地点目录，再执行 `supabase/seed.sql`
+5. 按文件名顺序执行后续迁移，至少包含 `202608100002_nearby_life_circle_burial.sql`、`202608150003_precise_burial_anchors.sql` 及其间所有版本。
+6. 如测试项目需要内置城市/行政区/公共地点目录，再执行 `supabase/seed.sql`
 
 当前迁移都是 forward migration。回滚点应使用 Supabase 项目备份、分支或一次性测试项目 reset；每个迁移前记录 checkpoint。不要在生产项目执行，直到单独测试项目通过下面的真实数据库验收。
 

@@ -235,7 +235,7 @@ test.describe("V0 核心循环", () => {
     await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
   });
 
-  test("PLANT-DISTANCE：距离失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
+  test("PLANT-LOCATION：附近定位失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, { plantDistanceFailure: true });
     await allowLocation(context, baseURL);
     await enterIsland(page);
@@ -243,14 +243,14 @@ test.describe("V0 核心循环", () => {
 
     const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
     const form = buryDialog.locator("form");
-    await chooseOption(buryDialog, { label: /公共地点/, optionName: spot.name, optionValue: spot.id });
+    await buryDialog.getByRole("button", { name: /附近生活圈/ }).click();
     await chooseOption(buryDialog, { label: /话题|瓜/, optionName: "日常", optionValue: "daily" });
     await form.getByRole("textbox", { name: /标题|瓜.*名字/ }).fill("广场边遇到的一件小事");
     await form.getByRole("textbox", { name: /故事|内容/ }).fill("今天路过广场时，有人替陌生人挡住了一场突然的大雨。这里是保留的完整草稿。");
     await form.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).click();
 
     await expect.poll(() => api.createRequests).toHaveLength(1);
-    await expect(buryDialog.getByRole("alert")).toContainText(/500\s*米|距离|公共地点/);
+    await expect(buryDialog.getByRole("alert")).toContainText(/定位精度|精确位置/);
     await expect(form.getByRole("textbox", { name: /标题|瓜.*名字/ })).toHaveValue("广场边遇到的一件小事");
     await expect(form.getByRole("textbox", { name: /故事|内容/ })).toHaveValue(/这里是保留的完整草稿/);
   });

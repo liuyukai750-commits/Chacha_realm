@@ -19,10 +19,9 @@ export async function POST(request: Request) {
       title: text(body.title, "title", 60),
       content: text(body.content, "content", 1000),
       revealMode: revealMode(body.revealMode),
-      location: validateLocationProof(body.location),
     };
     const input: CreateMelonRequest = kind === "nearby_area"
-      ? { ...base, burialKind: "nearby_area" }
+      ? { ...base, burialKind: "nearby_area", location: validateLocationProof(body.location) }
       : { ...base, burialKind: "public_spot", spotId: uuid(body.spotId, "spotId") };
     return createMelon(input, session.userId);
   });

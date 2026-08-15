@@ -84,16 +84,16 @@ export function BurySheetV1({
               <legend>埋瓜方式</legend>
               <button type="button" className={buryMode === "nearby_area" ? "selected" : ""} aria-pressed={buryMode === "nearby_area"} onClick={() => { setBuryMode("nearby_area"); setError(null); }}>
                 <LocationIcon />
-                <span><strong>附近生活圈</strong><small>500 米模糊范围 · 本地发现</small></span>
+                <span><strong>附近生活圈</strong><small>固定发布坐标 · 1 公里内可见</small></span>
               </button>
               <button type="button" className={buryMode === "public_spot" ? "selected" : ""} aria-pressed={buryMode === "public_spot"} onClick={() => { setBuryMode("public_spot"); setError(null); }}>
                 <RadarIcon />
-                <span><strong>公共地点</strong><small>系统地点 · 可进地点瓜区</small></span>
+                <span><strong>公共地点</strong><small>无需到场 · 同城都能吃</small></span>
               </button>
             </fieldset>
 
             {buryMode === "nearby_area" && (
-              <div className="bury-mode-note" role="status"><LocationIcon /><p><strong>附近生活圈</strong>{demoMode ? "本地试玩会模拟当前位置发布；真实模式点击提交时才请求一次定位。" : "点击提交时才请求一次定位，服务端只保存模糊生活圈归属。"}</p></div>
+              <div className="bury-mode-note" role="status"><LocationIcon /><p><strong>附近生活圈</strong>{demoMode ? "本地试玩会模拟当前位置发布。" : "提交时读取一次手机定位；瓜会固定在这里，只对 1 公里内的猹开放。"}</p></div>
             )}
             <fieldset className="spot-choice-list">
               <legend>公共地点</legend>
@@ -110,9 +110,9 @@ export function BurySheetV1({
             <label htmlFor={titleInputId}><span>标题</span><input id={titleInputId} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={42} placeholder="一句话说清发生了什么" /><small>{title.length}/42</small></label>
             <label htmlFor={contentInputId}><span>故事内容</span><textarea id={contentInputId} value={content} onChange={(event) => setContent(event.target.value)} maxLength={800} placeholder="写下匿名故事，不写可识别信息" /><small>{content.length}/800</small></label>
             {selectedSpot && <div className="place-scene is-compact" role="img" aria-label={`${getSpotScene(selectedSpot).title}的半真实城市场景，${getSpotScene(selectedSpot).sceneLabel}，不是实景地图`} />}
-            {buryMode === "public_spot" && selectedSpot && <div className="bury-mode-note" role="status"><RadarIcon /><p><strong>{getSpotScene(selectedSpot).displayName}</strong>提交时验证约 500 米范围，人在别的城市会返回明确错误。</p></div>}
+            {buryMode === "public_spot" && selectedSpot && <div className="bury-mode-note" role="status"><RadarIcon /><p><strong>{getSpotScene(selectedSpot).displayName}</strong>可以远程投递；同城都能看和吃，进入公区 1 公里才可评论。</p></div>}
             <p className="safety-note">不要写真实姓名、联系方式、具体门牌或能认出某个人的信息。禁止造谣和开黄腔。</p>
-            <div className="location-gate"><LocationIcon /><p><strong>发布时才请求一次定位</strong>{buryMode === "nearby_area" ? "只用于服务端计算模糊生活圈；不保存原始经纬度。" : "只用于服务端验证你在所选公共地点约 500 米内；不保存原始经纬度。"}</p></div>
+            <div className="location-gate"><LocationIcon /><p><strong>{buryMode === "nearby_area" ? "附近瓜需要一次定位" : "公区瓜不读取当前位置"}</strong>{buryMode === "nearby_area" ? "精确坐标只保存在服务端私有锚点中，用于 1 公里判定；不会公开、返回或写入普通日志。" : "瓜会固定在所选公区；所在城市其他位置也能吃，评论需要进入公区 1 公里。"}</p></div>
             {error && <p ref={errorRef} className="form-error bury-submit-error" role="alert" aria-live="assertive" tabIndex={-1}><strong>这次还没埋成功</strong><span>{error}</span></p>}
             {!canSubmit && !busy && <p className="form-missing" role="status">还差：{missingItems.join("、")}</p>}
             <button className="bury-submit" aria-label="埋瓜，把秘密压进土里" disabled={!canSubmit}>{busy ? "正在压土..." : error ? "重新埋一次" : demoMode ? "模拟抵达并埋瓜" : "把秘密压进土里"}</button>

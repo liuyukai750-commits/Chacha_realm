@@ -1,6 +1,5 @@
 import "server-only";
 
-import { createHmac } from "node:crypto";
 import { unstable_cache } from "next/cache";
 
 import { cities, getPublicSpot } from "@/data/geography";
@@ -37,7 +36,6 @@ import { isDiscoveryItemVisible } from "@/server/repositories/discovery-visibili
 import { isInsidePublicSpotScene } from "@/server/security/discovery-scene";
 import { distanceMeters, toDistanceBand } from "@/server/security/location";
 import { resolveSupportedCityForBurial } from "@/server/security/location-city";
-import { requireSafeSeek } from "@/server/security/seek";
 import { resolveVisitorLocation } from "@/features/discovery/location";
 import { rpc, selectRows, serviceRpc } from "@/server/supabase/http";
 
@@ -51,22 +49,8 @@ interface PublicSpotRow {
 }
 
 interface DiscoveryCandidate extends Omit<MelonPreview, "distanceBand" | "isRemote"> {
-  spotLatitude: number;
-  spotLongitude: number;
+  distanceMeters?: number;
   createdAt: string;
-}
-
-const APPROX_500M_LAT_DEGREES = 0.0045;
-
-export function nearbyCellIdForLocation(cityId: CityId, location: CreateMelonRequest["location"]): string {
-  const secret = process.env.CHACHA_LOCATION_HMAC_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new ApiProblem(503, "location_secret_missing", "附近生活圈密钥未配置，暂时不能埋生活圈瓜。");
-  }
-  const latCell = Math.floor(location.latitude / APPROX_500M_LAT_DEGREES);
-  const lonScale = Math.max(0.0001, APPROX_500M_LAT_DEGREES / Math.max(0.2, Math.cos(location.latitude * Math.PI / 180)));
-  const lonCell = Math.floor(location.longitude / lonScale);
-  return createHmac("sha256", secret).update(`${cityId}:${latCell}:${lonCell}`).digest("base64url").slice(0, 32);
 }
 
 async function publicSpots(accessToken: string): Promise<PublicSpotRow[]> {
@@ -134,11 +118,14 @@ export async function discover(
     : input.selectedCityId ?? cities[0]?.id ?? "changsha";
   const activeDistrictId = nearest?.spot.city_id === activeCityId ? nearest.spot.district_id : undefined;
   const sceneContext = discoverySceneContext(usableLocation, nearest);
-  const visitorNearbyCellId = usableLocation && process.env.CHACHA_LOCATION_HMAC_SECRET ? nearbyCellIdForLocation(activeCityId, usableLocation) : undefined;
   const [candidates, basketExclusions] = await Promise.all([
     serviceRpc<DiscoveryCandidate[]>(
-      "get_discovery_candidates_for_visitor",
-      { p_city_id: activeCityId, p_nearby_cell_id: visitorNearbyCellId ?? null },
+      "get_discovery_candidates_for_visitor_v2",
+      {
+        p_city_id: activeCityId,
+        p_latitude: usableLocation?.latitude ?? null,
+        p_longitude: usableLocation?.longitude ?? null,
+      },
     ),
     serviceRpc<string[]>("get_melon_basket_exclusions", { p_actor_id: actorId }),
   ]);
@@ -148,9 +135,9 @@ export async function discover(
     .filter((candidate) => !excludedIds.has(candidate.id))
     .map((candidate) => {
       const candidateBurialKind = candidate.burialKind ?? "public_spot";
-      const distanceM = usableLocation && candidateBurialKind !== "nearby_area"
-        ? distanceMeters(usableLocation, { latitude: candidate.spotLatitude, longitude: candidate.spotLongitude })
-        : candidateBurialKind === "nearby_area" && candidate.cityId === activeCityId ? 500 : Number.POSITIVE_INFINITY;
+      const distanceM = typeof candidate.distanceMeters === "number"
+        ? candidate.distanceMeters
+        : Number.POSITIVE_INFINITY;
       const distanceBand = toDistanceBand(distanceM);
       const preview: MelonPreview = {
         id: candidate.id,
@@ -197,14 +184,16 @@ export async function discover(
 
 export async function createMelon(input: CreateMelonRequest, actorId: string): Promise<CreateMelonResult> {
   if (input.burialKind === "nearby_area") {
+    if (!input.location) throw new ApiProblem(400, "invalid_location", "附近埋瓜需要本次手机定位。 ");
     const resolvedCityId = resolveSupportedCityForBurial(input.location);
     const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
-      "create_nearby_melon",
+      "create_nearby_melon_v2",
       {
         p_actor_id: actorId,
         p_operation_id: input.operationId,
         p_city_id: resolvedCityId,
-        p_nearby_cell_id: nearbyCellIdForLocation(resolvedCityId, input.location),
+        p_latitude: input.location.latitude,
+        p_longitude: input.location.longitude,
         p_topic: input.topic,
         p_title: input.title,
         p_content: input.content,
@@ -216,10 +205,6 @@ export async function createMelon(input: CreateMelonRequest, actorId: string): P
   if (!input.spotId) throw new ApiProblem(400, "invalid_spot", "公共地点埋瓜需要有效地点。");
   const spot = getPublicSpot(input.spotId);
   if (!spot) throw new ApiProblem(400, "invalid_spot", "该公共地点尚未开放。");
-  const evaluated = requireSafeSeek(input.spotId, input.location);
-  if (evaluated.seekState !== "found") {
-    throw new ApiProblem(403, "outside_spot_radius", "只有定位误差范围完整落在公共地点 500 米内才能埋瓜。 ");
-  }
   const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
     "create_melon",
     {
@@ -285,33 +270,50 @@ export function deleteOwnMelon(melonId: string, actorId: string) {
 
 export interface MelonPresenceTarget {
   burialKind: "nearby_area" | "public_spot";
-  spotId?: string;
-  nearbyCityId?: CityId;
-  nearbyCellId?: string;
+  withinOneKm: boolean;
 }
 
-export async function getMelonPresenceTarget(melonId: string, actorId: string): Promise<MelonPresenceTarget> {
-  const target = await serviceRpc<MelonPresenceTarget | null>("get_melon_presence_target", {
+export async function getMelonPresenceTarget(
+  melonId: string,
+  actorId: string,
+  location: NonNullable<CreateMelonRequest["location"]>,
+): Promise<MelonPresenceTarget> {
+  const target = await serviceRpc<MelonPresenceTarget | null>("get_melon_presence_target_v2", {
     p_actor_id: actorId,
     p_melon_id: melonId,
+    p_latitude: location.latitude,
+    p_longitude: location.longitude,
   });
   if (!target) throw new ApiProblem(404, "not_found", "这个瓜尚未成熟或已不可用。 ");
   return target;
+}
+
+export interface MelonReadPolicy {
+  burialKind: "nearby_area" | "public_spot";
+  isOwner: boolean;
+}
+
+export async function getMelonReadPolicy(melonId: string, actorId: string): Promise<MelonReadPolicy> {
+  const policy = await serviceRpc<MelonReadPolicy | null>("get_melon_read_policy", {
+    p_actor_id: actorId,
+    p_melon_id: melonId,
+  });
+  if (!policy) throw new ApiProblem(404, "not_found", "这个瓜尚未成熟或已不可用。 ");
+  return policy;
 }
 
 export async function getComments(
   melonId: string,
   cursorValue: string | null,
   limit: number,
-  accessToken: string,
 ): Promise<MelonCommentsPage> {
   const cursor = decodeCommentCursor(cursorValue);
-  const rows = await rpc<MelonComment[]>("get_melon_comments", {
+  const rows = await serviceRpc<MelonComment[]>("get_melon_comments", {
     p_melon_id: melonId,
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_id: cursor?.id ?? null,
     p_limit: limit + 1,
-  }, accessToken);
+  });
   const items = rows.slice(0, limit);
   const last = items.at(-1);
   return {

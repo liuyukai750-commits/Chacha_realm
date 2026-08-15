@@ -228,6 +228,7 @@ export async function installV0Api(page, options = {}) {
   };
   const initialExperience = options.experience ?? { total: 0, fromReads: 0, fromHarvests: 0 };
   const state = {
+    sessionAlias: options.sessionAlias ?? "巡城小猹 101",
     commentRequests: [],
     commentGetRequests: [],
     commentsByMelon: new Map(),
@@ -260,6 +261,7 @@ export async function installV0Api(page, options = {}) {
     plantDistanceFailure: options.plantDistanceFailure ?? false,
     activeSpot: options.spot ?? spot,
     activeCityId: options.activeCityId ?? "changsha",
+    nearbyWithinRange: options.nearbyWithinRange ?? true,
     fiveCities: options.fiveCities ?? false,
     presenceSequence: options.presenceSequence ?? ["inside_zone"],
     presenceAttempt: 0,
@@ -317,7 +319,7 @@ export async function installV0Api(page, options = {}) {
       const squatItems = Array.from(state.squats.values());
       return json(route, {
         session: {
-          alias: "巡城小猹 101",
+          alias: state.sessionAlias,
           animal: "猹",
           wallet: { ...state.wallet },
           experience: { ...state.experience },
@@ -341,7 +343,7 @@ export async function installV0Api(page, options = {}) {
 
     if (method === "POST" && path === "/api/session/anonymous") {
       return json(route, {
-        alias: "巡城小猹 101",
+        alias: state.sessionAlias,
         animal: "猹",
         wallet: { ...state.wallet },
         experience: { ...state.experience },
@@ -390,23 +392,35 @@ export async function installV0Api(page, options = {}) {
         const activeSpot = primarySpotForCity(requestedCityId);
         state.activeCityId = requestedCityId;
         state.activeSpot = activeSpot;
+        const createdItems = state.createdMelons.filter((item) =>
+          item.cityId === requestedCityId
+          && (body?.location
+            ? item.burialKind === "nearby_area" && item.distanceBand === "within_1km" && state.nearbyWithinRange
+            : item.burialKind === "public_spot"),
+        );
         return json(route, {
           visitorType: body?.location ? "local" : "location_unknown",
           activeCityId: requestedCityId,
           sceneContext: body?.location
             ? options.nearLandmark === false ? { kind: "nearby_area" } : { kind: "public_spot", spot: activeSpot }
             : { kind: "city_overview" },
-          items: cityMelons(requestedCityId, activeSpot, options),
+          items: [...cityMelons(requestedCityId, activeSpot, options), ...createdItems],
           localEmpty: false,
         });
       }
+      const createdItems = state.createdMelons.filter((item) =>
+        item.cityId === state.activeSpot.cityId
+        && (body?.location
+          ? item.burialKind === "nearby_area" && item.distanceBand === "within_1km" && state.nearbyWithinRange
+          : item.burialKind === "public_spot"),
+      );
       return json(route, {
         visitorType: body?.location ? "local" : "location_unknown",
         activeCityId: "changsha",
         sceneContext: body?.location
           ? options.nearLandmark === false ? { kind: "nearby_area" } : { kind: "public_spot", spot: state.activeSpot }
           : { kind: "city_overview" },
-        items: discoveryMelons.map((item, index) => ({
+        items: [...discoveryMelons.map((item, index) => ({
           id: item.id,
           status: options.includeIncubating && index === 1 ? "incubating" : item.status,
           burialKind: options.includeNearbyAreaInCity && index === 0 ? "nearby_area" : "public_spot",
@@ -421,7 +435,7 @@ export async function installV0Api(page, options = {}) {
           isRemote: item.isRemote,
           revealMode: item.revealMode,
           ...(options.includeIncubating && index === 1 ? { maturesAt: "2026-08-04T14:00:00.000Z" } : {}),
-        })),
+        })), ...createdItems],
         localEmpty: false,
       });
     }
@@ -435,9 +449,9 @@ export async function installV0Api(page, options = {}) {
       return json(route, {
         melon: {
           ...requestedMelon,
-          cityId: state.activeSpot.cityId,
-          districtId: state.activeSpot.districtId,
-          spot: state.activeSpot,
+          cityId: requestedMelon.cityId ?? state.activeSpot.cityId,
+          districtId: requestedMelon.districtId ?? state.activeSpot.districtId,
+          spot: requestedMelon.spot ?? state.activeSpot,
           completedReads: requestedMelon.id === melon.id ? state.completedReads : requestedMelon.completedReads,
           liked: state.likes.has(requestedMelon.id),
           squatCount: state.squats.has(requestedMelon.id) ? 1 : requestedMelon.squatCount ?? 0,
@@ -579,7 +593,7 @@ export async function installV0Api(page, options = {}) {
       const created = {
         id: `comment-${state.commentRequests.length}`,
         melonId: commentsMelon.id,
-        alias: "巡城小猹 101",
+        alias: state.sessionAlias,
         content: body.content,
         createdAt: fixedNow,
       };
@@ -599,11 +613,11 @@ export async function installV0Api(page, options = {}) {
       if (options.unopenedNearbyCity && body.burialKind === "nearby_area") {
         return json(route, { error: { code: "nearby_city_unavailable", message: "当前生活圈尚未开放" } }, 403);
       }
-      if (state.plantDistanceFailure) {
+      if (state.plantDistanceFailure && body.burialKind === "nearby_area") {
         return json(
           route,
-          { error: { code: "LOCATION_OUT_OF_RANGE", message: "请到公共地点 500 米内再埋瓜" } },
-          403,
+          { error: { code: "location_too_imprecise", message: "定位精度不足，请开启精确位置后重试" } },
+          400,
         );
       }
       const status = state.createStatusSequence.shift() ?? "incubating";
@@ -634,7 +648,7 @@ export async function installV0Api(page, options = {}) {
         completedReads: 0,
         isRemote: false,
         revealMode: "open",
-        alias: "巡城小猹 101",
+        alias: state.sessionAlias,
         title: body.title,
         content: body.content,
         createdAt: fixedNow,
@@ -759,7 +773,7 @@ function ownField(state) {
   }));
   const matureCount = state.plants.filter((plant) => plant.stage === "mature").length;
   return {
-    alias: "巡城小猹 101",
+    alias: state.sessionAlias,
     animal: "猹",
     plots,
     plantedCount: state.plants.length,

@@ -175,7 +175,8 @@ export interface CreateMelonRequest {
   title: string;
   content: string;
   revealMode: MelonRevealMode;
-  location: LocationProof;
+  /** Required for nearby_area only. Public-zone burial is intentionally remote-capable. */
+  location?: LocationProof;
 }
 
 export interface CreateMelonResult {
@@ -392,7 +393,8 @@ export interface SquatShelf {
 
 export interface VerifyZonePresenceRequest {
   melonId: string;
-  location: LocationProof;
+  /** Required only for nearby_area. Public-zone delivery uses the configured spot centre. */
+  location?: LocationProof;
 }
 
 export interface ZonePresenceResult {

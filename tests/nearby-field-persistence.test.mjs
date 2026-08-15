@@ -34,6 +34,7 @@ function lastFunctionDefinition(name) {
     [...sql.matchAll(pattern)].map((match) => ({ migrationName, body: match[0] })),
   );
   assert.ok(definitions.length > 0, `迁移必须定义 ${name}`);
-  return definitions.at(-1).body;
+  const substantive = definitions.slice().reverse().find(({ body }) => /m\.burial_kind|m\.nearby_city_id/i.test(body));
+  assert.ok(substantive, `${name} 的身份包装之外必须保留 nearby_area 实现`);
+  return substantive.body;
 }
-

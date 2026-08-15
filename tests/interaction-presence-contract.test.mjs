@@ -15,10 +15,11 @@ test("点赞和蹲后续只允许服务端按显式匿名身份写入", () => {
   assert.match(repository, /serviceRpc\("set_melon_squat"[\s\S]*p_actor_id: actorId/i);
 });
 
-test("现场评论凭证绑定瓜，并支持 nearby_area HMAC 生活圈验证", () => {
+test("现场评论凭证绑定瓜，并由服务端按固定锚点的一公里范围验证", () => {
   assert.match(presenceRoute, /uuid\(body\.melonId, "melonId"\)/);
-  assert.match(presenceRoute, /target\.burialKind === "nearby_area"/);
-  assert.match(presenceRoute, /nearbyCellIdForLocation\(resolvedCityId, location\) === target\.nearbyCellId/);
+  assert.match(presenceRoute, /getMelonPresenceTarget\(melonId, session\.userId, location\)/);
+  assert.match(presenceRoute, /target\.withinOneKm/);
+  assert.doesNotMatch(presenceRoute, /nearbyCellIdForLocation|requireSafeSeek/);
   assert.doesNotMatch(presenceRoute, /latitude[^\n]*log|longitude[^\n]*log/i);
   assert.match(commentsRoute, /requirePresenceCredential\(presenceToken, session\.userId, \{ spotId: id \}\)/);
   assert.match(migration, /get_melon_presence_target/);

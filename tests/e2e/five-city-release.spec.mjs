@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
 import {
-  cityFixture,
   enterIsland,
   fiveCityMatrix,
   fixedNow,
@@ -121,8 +120,7 @@ test.describe("五城同步发布门禁", () => {
       const createPayload = api.createRequests.at(-1);
       expect(createPayload).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id });
       expect(createPayload).not.toHaveProperty("cityId");
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
-      expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
+      expect(api.discoveryRequests.at(-1)).toEqual({ selectedCityId: city.id });
 
       await expandBasket(page);
       const articles = page.locator(".melon-basket").getByRole("article");
@@ -152,8 +150,7 @@ test.describe("五城同步发布门禁", () => {
       await submitPublicSpotMelon(page, city.name, publicSpot.name);
       expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id });
       expect(api.createRequests.at(-1)).not.toHaveProperty("cityId");
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
-      expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
+      expect(api.discoveryRequests.at(-1)).toEqual({ selectedCityId: city.id });
     }
   });
 
@@ -169,7 +166,7 @@ test.describe("五城同步发布门禁", () => {
     expect(createPayload).toMatchObject({ burialKind: "nearby_area", location: expect.any(Object) });
     expect(createPayload).not.toHaveProperty("cityId");
     await expect(page.getByRole("button", { name: /当前城市长沙/ })).toBeVisible();
-    await expect(page.locator(".bury-success-panel").getByText(/归入长沙/)).toBeVisible();
+    await expect(page.locator(".live-notice")).toContainText(/已归入长沙/);
     expect(api.createdMelons[0]).toMatchObject({ cityId: "changsha", spot: { cityId: "changsha", name: "附近生活圈" } });
   });
 
@@ -224,7 +221,7 @@ test.describe("埋瓜能力失败门禁", () => {
     });
   }
 
-  test("BURY-GEO-LOW-ACCURACY：低精度被服务端明确拒绝且不奖励", async ({ baseURL, context, page }) => {
+  test("BURY-GEO-LOW-ACCURACY：附近瓜低精度被服务端明确拒绝且不奖励", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, {
       fiveCities: true,
       plantDistanceFailure: true,
@@ -232,10 +229,11 @@ test.describe("埋瓜能力失败门禁", () => {
     await allowLocation(context, baseURL, { ...preciseLocation, accuracy: 2_500 });
     await enterIsland(page);
 
-    const city = cityFixture("changsha");
-    await submitPublicSpotAttempt(page, city.name, primarySpotForCity(city.id).name);
-    const dialog = page.getByRole("dialog", { name: "埋下一颗瓜" });
-    await expect(dialog.getByRole("alert")).toContainText(/500\s*米|距离|公共地点/);
+    const dialog = await openBurySheet(page);
+    await dialog.getByRole("button", { name: /附近生活圈/ }).click();
+    await fillBuryForm(dialog, "长沙");
+    await dialog.getByRole("button", { name: /把秘密压进土里|模拟抵达并埋瓜/ }).click();
+    await expect(dialog.getByRole("alert")).toContainText(/定位精度|精确位置/);
     expect(api.createRequests).toHaveLength(1);
     expect(api.wallet.trueSeedCount).toBe(0);
   });
@@ -315,13 +313,6 @@ test.describe("成熟、孵化、评论和移动能力模拟", () => {
     }
   });
 });
-
-async function submitPublicSpotAttempt(page, cityName, spotName) {
-  const dialog = await openBurySheet(page);
-  await dialog.getByRole("button", { name: spotName, exact: true }).click();
-  await fillBuryForm(dialog, cityName);
-  await dialog.getByRole("button", { name: /把秘密压进土里|模拟抵达并埋瓜/ }).click();
-}
 
 function otherCitySpotPattern(activeCityId) {
   const names = fiveCityMatrix

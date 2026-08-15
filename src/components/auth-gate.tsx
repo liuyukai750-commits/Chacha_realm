@@ -411,6 +411,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
         <div className={styles.sheetHandle} aria-hidden="true" /><button className={styles.closeAccount} aria-label="关闭账号面板" onClick={() => setAccountOpen(false)}>×</button>
         <header><AnimalAvatar animal={session.profile.animal} size="large" /><div><p>我的匿名街牌</p><div className={styles.accountIdentity}><h2 id="account-title">{session.profile.displayName}</h2><IdentityBadge badge={session.profile.identityBadge} /></div><strong>{session.profile.publicId}</strong></div></header>
         <dl><div><dt>动物身份</dt><dd>{session.profile.animal}</dd></div><div><dt>登录方式</dt><dd>猹号 + 密码</dd></div><div><dt>账号状态</dt><dd>{session.profile.accountStatus === "banned" ? "只读" : "正常"}</dd></div></dl>
+        {session.profile.identityBadge === "steward" && <a className={styles.stewardConsoleLink} href="/admin"><span aria-hidden="true">账</span><div><strong>打开主理人驾驶舱</strong><p>查看注册、活跃、五城内容和安全概况</p></div><b aria-hidden="true">→</b></a>}
         <section className={styles.inviteTicket} aria-labelledby="invite-title">
           <div className={styles.inviteStamp} aria-hidden="true">递</div>
           <div className={styles.inviteCopy}><strong id="invite-title">递一张街牌给朋友</strong><p>邀请朋友来听瓜、埋瓜。链接不会带上你的定位、猹号或当前页面。</p></div>

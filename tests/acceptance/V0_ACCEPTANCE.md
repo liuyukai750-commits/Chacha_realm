@@ -13,7 +13,7 @@
 | READ-5S | E2E / Passed | 打开成熟瓜不足 5 秒不能完成；满 5 秒后才允许提交完成凭证。 |
 | READ-REPEAT | E2E / Passed | 同一用户重复完成同一颗瓜不再获得瓜籽，界面展示服务端返回的未计数结果。 |
 | SQUAT | E2E / Passed | 可蹲瓜并可取消；状态、`aria-pressed` 与服务端结果一致，失败时恢复原状态。 |
-| PLANT-DISTANCE | E2E / Passed | 与公共地点距离超过 500 米时埋瓜失败，保留输入并显示可恢复的距离错误。 |
+| PLANT-LOCATION | E2E / Passed | 附近埋瓜缺少有效手机定位或精度不足时失败并保留草稿；公区瓜可远程投递，不请求当前位置。 |
 | COMMENT-140 | E2E / Passed | 0 字不能提交，140 字可以提交，141 字不能进入请求；计数与错误不只靠颜色表达。 |
 | FIELD-OTHER | E2E / Passed | 可从瓜作者进入他人瓜田；显示公开 alias、成长阶段和公开瓜，不显示埋瓜入口、精确位置或内部 user id。 |
 | MOTION-REDUCE | E2E / Passed | `prefers-reduced-motion: reduce` 下非必要动画和位移过渡被移除或近乎瞬时，流程反馈仍可见。 |
@@ -27,7 +27,7 @@
 
 ## 发布阻断条件
 
-- 任一核心循环用例（`GEO-*`、`READ-*`、`SQUAT`、`PLANT-DISTANCE`、`COMMENT-140`）失败。
+- 任一核心循环用例（`GEO-*`、`READ-*`、`SQUAT`、`PLANT-LOCATION`、`COMMENT-140`）失败。
 - 页面或存储泄露精确坐标、内部 user id、凭证或 service role 信息。
 - 拒绝权限、网络失败或不支持能力时出现无反馈操作。
 - 375/430 视口无法到达主操作，或 reduced motion 仍有持续性非必要动画。

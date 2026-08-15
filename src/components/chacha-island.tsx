@@ -94,7 +94,9 @@ const seekCopy: Record<SeekState, { label: string; hint: string; notice: string 
 
 type LandmarkKind = "pavilion" | "temple" | "pearl" | "canton" | "skyline" | "meadow";
 type DiscoveryScope = "nearby" | "city";
-type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded" | "cityId">;
+type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded" | "cityId"> & {
+  burialKind: NonNullable<CreateMelonRequest["burialKind"]>;
+};
 
 async function refreshOwnFieldAfterCreate(adapter: IslandAdapter): Promise<FieldView> {
   const delays = [0, 600, 1_800];
@@ -218,6 +220,7 @@ export function ChachaIsland() {
   const activeCity = model?.cities.find((city) => city.id === model.discovery.activeCityId);
   const writesBlocked = model?.session.accountStatus === "banned";
   const citySelectionRequestRef = useRef(0);
+  const lastLocatedProofRef = useRef<LocationProof | null>(null);
 
   const selectCity = async (cityId: CityId) => {
     if (!model) return;
@@ -237,8 +240,9 @@ export function ChachaIsland() {
       const location = mode === "demo"
         ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString() }
         : await requestLocationProof();
+      lastLocatedProofRef.current = location;
       const discovery = await islandAdapter.discover({ location });
-      const nearbyCount = nearbyItemsForScene(discovery.items, discovery.sceneContext).length;
+      const nearbyCount = nearbyItemsForScene(discovery.items).length;
       setModel({ ...model, discovery });
       setDiscoveryScope("nearby");
       setNotice(mode === "demo"
@@ -254,6 +258,7 @@ export function ChachaIsland() {
 
   const seekZone = async (melonId: string) => {
     const location = await requestLocationProof();
+    lastLocatedProofRef.current = location;
     const result = await islandAdapter.verifyZonePresence({ melonId, location });
     setZonePresence((current) => ({ ...current, [melonId]: result }));
     setNotice(seekCopy[result.seekState].notice);
@@ -261,17 +266,34 @@ export function ChachaIsland() {
     return result;
   };
 
-  const openMelon = async (preview: MelonPreview, presenceToken?: string) => {
+  const openMelon = async (preview: MelonPreview, presenceToken?: string): Promise<boolean> => {
     if (preview.status === "incubating") {
       setNotice(`这颗瓜还在长，约 ${formatCountdown(preview.maturesAt)} 后成熟`);
-      return;
+      return false;
     }
     setOpeningMelon(true);
     try {
+      let accessToken = presenceToken;
+      if (preview.burialKind === "nearby_area" && !accessToken) {
+        const cachedLocation = lastLocatedProofRef.current;
+        const cachedAt = cachedLocation ? Date.parse(cachedLocation.capturedAt) : Number.NaN;
+        const location = cachedLocation && Number.isFinite(cachedAt) && cachedAt >= Date.now() - 4 * 60 * 1_000
+          ? cachedLocation
+          : await requestLocationProof();
+        lastLocatedProofRef.current = location;
+        const presence = await islandAdapter.verifyZonePresence({ melonId: preview.id, location });
+        if (presence.presence !== "local" || !presence.presenceToken) {
+          throw new Error("这颗附近瓜只在埋瓜点 1 公里内开放。");
+        }
+        setZonePresence((current) => ({ ...current, [preview.id]: presence }));
+        accessToken = presence.presenceToken;
+      }
       setOpenedAsOwner(false);
-      setOpened(await islandAdapter.openMelon(preview.id, presenceToken));
+      setOpened(await islandAdapter.openMelon(preview.id, accessToken));
+      return true;
     } catch (error) {
       setNotice(messageFrom(error));
+      return false;
     } finally {
       setOpeningMelon(false);
     }
@@ -335,16 +357,19 @@ export function ChachaIsland() {
   };
 
   const createMelon = async (input: Omit<CreateMelonRequest, "location">) => {
-    const location = mode === "demo"
-      ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString(), simulated: true, simulationLabel: input.burialKind === "public_spot" ? "demo_public_spot_arrival" : "demo_nearby_life_circle" }
-      : await requestLocationProof();
-    const result = await islandAdapter.createMelon({ ...input, location });
+    const location = input.burialKind === "nearby_area"
+      ? mode === "demo"
+        ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString(), simulated: true, simulationLabel: "demo_nearby_life_circle" }
+        : await requestLocationProof()
+      : undefined;
+    if (location) lastLocatedProofRef.current = location;
+    const result = await islandAdapter.createMelon(location ? { ...input, location } : input);
 
     // The create transaction is the source of truth. Reflect it before any
     // secondary refresh so a slow discovery request cannot hide a successful
     // publish or its wallet reward on mobile networks.
     setShowBury(false);
-    setBuryFeedback({ id: result.id, status: result.status, trueSeedAwarded: result.trueSeedAwarded, cityId: result.cityId });
+    setBuryFeedback({ id: result.id, status: result.status, trueSeedAwarded: result.trueSeedAwarded, cityId: result.cityId, burialKind: input.burialKind ?? "public_spot" });
     setModel((current) => {
       if (!current) return current;
       const field = "wallet" in current.field
@@ -370,10 +395,10 @@ export function ChachaIsland() {
         : `瓜已埋好，已归入${resultCityName} · 瓜田列表暂时没刷新，可点击重试`),
     );
 
-    void islandAdapter.discover({ location }).then(
+    void islandAdapter.discover(location ? { location } : { selectedCityId: result.cityId }).then(
       (discovery) => {
         setModel((current) => current ? { ...current, discovery } : current);
-        setDiscoveryScope(discovery.visitorType === "local" ? "nearby" : "city");
+        setDiscoveryScope(location && discovery.visitorType === "local" ? "nearby" : "city");
       },
       () => undefined,
     );
@@ -465,9 +490,8 @@ export function ChachaIsland() {
     }
     setOpeningMelon(true);
     try {
-      const openedMelon = await islandAdapter.openMelon(item.melon.id);
-      setOpenedAsOwner(false);
-      setOpened(openedMelon);
+      const openedSuccessfully = await openMelon(item.melon);
+      if (!openedSuccessfully) return;
       setShowSquatShelf(false);
       if (item.unread) {
         void islandAdapter.markSquatSeen(item.melon.id).then(() => {
@@ -543,8 +567,8 @@ export function ChachaIsland() {
             <p>{buryFeedback.status === "held"
               ? "复核通过前不会公开，也不会发放首发真瓜籽。"
               : buryFeedback.trueSeedAwarded
-              ? `已按真实位置归入${model.cities.find((city) => city.id === buryFeedback.cityId)?.name ?? "开放城市"}，并奖励 1 颗真瓜籽。`
-              : `已按真实位置归入${model.cities.find((city) => city.id === buryFeedback.cityId)?.name ?? "开放城市"}；今天的首发真瓜籽奖励此前已经领过。`}</p>
+              ? `${buryFeedback.burialKind === "nearby_area" ? "已固定在发布位置" : "已投递到所选公区"}，并奖励 1 颗真瓜籽。`
+              : `${buryFeedback.burialKind === "nearby_area" ? "已固定在发布位置" : "已投递到所选公区"}；今天的首发真瓜籽奖励此前已经领过。`}</p>
           </div>
           <div>
             <button type="button" onClick={async () => { setBuryFeedback(null); await showOwnField(); }}>
@@ -727,7 +751,7 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
   const [basketOpen, setBasketOpen] = useState(true);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const cityItems = items.filter((melon) => melon.cityId === cityId && (melon.burialKind ?? "public_spot") === "public_spot");
-  const nearbyItems = nearbyItemsForScene(items, sceneContext);
+  const nearbyItems = nearbyItemsForScene(items);
   const scopedItems = scope === "nearby" ? nearbyItems : cityItems;
   const spotGroups = Array.from(scopedItems.reduce((groups, melon) => {
     const group = groups.get(melon.spot.id) ?? [];
@@ -877,15 +901,8 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
 
 function nearbyItemsForScene(
   items: readonly MelonPreview[],
-  sceneContext: DiscoverySceneContext,
 ): MelonPreview[] {
-  if (sceneContext.kind === "nearby_area") {
-    return items.filter((melon) => melon.distanceBand === "within_1km" && melon.burialKind === "nearby_area");
-  }
-  if (sceneContext.kind !== "public_spot") return [];
-  return items.filter(
-    (melon) => melon.distanceBand === "within_1km" && melon.burialKind !== "nearby_area" && melon.spot.id === sceneContext.spot.id,
-  );
+  return items.filter((melon) => melon.distanceBand === "within_1km");
 }
 
 function DevPreviewCards() {
@@ -1245,12 +1262,12 @@ function InlineComments({ adapter, melon, onSeek, readOnly, initialPresence }: {
 
   useEffect(() => {
     let active = true;
-    adapter.comments(melon.id).then(
+    adapter.comments(melon.id, initialPresence?.presenceToken).then(
       (value) => { if (active) setComments(value.items); },
       (caught) => { if (active) setError(messageFrom(caught)); },
     ).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [adapter, melon.id]);
+  }, [adapter, initialPresence?.presenceToken, melon.id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1362,49 +1379,6 @@ function CityIsland({ cityId, cityName, radar = false, compact = false }: { city
       <span className="landmark-glyph" aria-hidden="true"><i /><i /><i /><b /></span>
       {radar && <span className="landmark-caption"><strong>{landmark.name}</strong><small>象征景观 · 非导航</small></span>}
     </div>
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function BurySheet({ spots, cityName, onClose, onCreate }: { spots: IslandBootstrap["cities"][number]["spots"]; cityName: string; onClose: () => void; onCreate: (input: Omit<CreateMelonRequest, "location">) => Promise<void> }) {
-  const spotInputId = useId();
-  const topicInputId = useId();
-  const titleInputId = useId();
-  const contentInputId = useId();
-  const [spotId, setSpotId] = useState(spots[0]?.id ?? "");
-  const [topic, setTopic] = useState<SafeTopic>("daily");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const selectedSpot = spots.find((spot) => spot.id === spotId);
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault(); setError(null);
-    if (!spotId) return setError("这座城还没有可埋瓜的公开地点。可以先去其他城市逛逛。" );
-    if (title.trim().length < 4) return setError("标题至少写 4 个字，让路过的猹知道发生了什么。" );
-    if (content.trim().length < 20) return setError("故事至少写 20 个字，再留一点现场细节。" );
-    setBusy(true);
-    try { await onCreate({ operationId: createOperationId(), burialKind: "public_spot", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" }); }
-    catch (caught) { setError(messageFrom(caught)); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <Sheet title="埋下一颗瓜" subtitle={`会埋在${cityName}的公开地点附近`} onClose={onClose} stealth>
-      <form className="bury-form" aria-label="埋瓜" onSubmit={submit}>
-        <StealthCue title="把秘密压进土里" copy="只留下模糊距离，精确位置不进瓜田。" bury />
-        <label htmlFor={spotInputId}><span>公共地点</span><select id={spotInputId} value={spotId} onChange={(event) => setSpotId(event.target.value)}><option value="">请选择公开地点</option>{spots.map((spot) => <option value={spot.id} key={spot.id}>{getSpotScene(spot).displayName}</option>)}</select></label>
-        {selectedSpot && <PlaceScene spot={selectedSpot} compact />}
-        <label htmlFor={topicInputId}><span>话题</span><select id={topicInputId} value={topic} onChange={(event) => setTopic(event.target.value as SafeTopic)}>{(Object.keys(topicName) as SafeTopic[]).map((key) => <option value={key} key={key}>{topicName[key]}</option>)}</select></label>
-        <label htmlFor={titleInputId}><span>标题</span><input id={titleInputId} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={42} placeholder="一句话说清发生了什么"/><small>{title.length}/42</small></label>
-        <label htmlFor={contentInputId}><span>故事内容</span><textarea id={contentInputId} value={content} onChange={(event) => setContent(event.target.value)} maxLength={800} placeholder="写下匿名故事，不写可识别信息"/><small>{content.length}/800</small></label>
-        <p className="safety-note">不要写真实姓名、联系方式、具体门牌或能认出某个人的信息。禁止造谣和开黄腔。</p>
-        <div className="location-gate"><LocationIcon /><p><strong>发布时才请求一次定位</strong>只用于确认你在所选公共地点 500 米内；不会保存、输出或写进日志。拒绝后仍可继续逛瓜域。</p></div>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="bury-submit" aria-label="埋瓜，把秘密压进土里" disabled={busy}>{busy ? "正在压土…" : "把秘密压进土里"}</button>
-      </form>
-    </Sheet>
   );
 }
 

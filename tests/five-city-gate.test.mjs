@@ -5,6 +5,7 @@ import test from "node:test";
 const cityIds = ["changsha", "beijing", "shanghai", "guangzhou", "shenzhen"];
 const geography = readFileSync("src/data/geography.ts", "utf8");
 const migration = readFileSync("supabase/migrations/202608100002_nearby_life_circle_burial.sql", "utf8");
+const preciseMigration = readFileSync("supabase/migrations/202608150003_precise_burial_anchors.sql", "utf8");
 const repository = readFileSync("src/server/repositories/island-repository.ts", "utf8");
 const createRoute = readFileSync("src/app/api/melons/route.ts", "utf8");
 const fixture = readFileSync("tests/e2e/fixtures/v0-api.mjs", "utf8");
@@ -26,24 +27,24 @@ test("five-city public spot matrix is complete and unique", () => {
   }
 });
 
-test("nearby life-circle contract does not persist raw coordinates", () => {
+test("nearby life-circle stores exact anchors only in a private service-side table", () => {
   assert.match(migration, /burial_kind text not null default 'public_spot'/);
   assert.match(migration, /nearby_city_id text/);
   assert.match(migration, /nearby_cell_id text/);
   assert.match(migration, /create_nearby_melon/);
-  assert.doesNotMatch(migration, /user_(latitude|longitude)|raw_(latitude|longitude)|location_history|movement_trace/i);
-  assert.match(repository, /createHmac\("sha256"/);
-  assert.match(repository, /p_nearby_cell_id:\s*nearbyCellIdForLocation/);
+  assert.match(preciseMigration, /create table if not exists public\.melon_location_anchors/);
+  assert.match(preciseMigration, /revoke all on public\.melon_location_anchors from public, anon, authenticated/);
+  assert.match(repository, /create_nearby_melon_v2/);
+  assert.match(repository, /p_latitude:\s*input\.location\.latitude/);
   assert.doesNotMatch(repository, /console\.(log|info|warn|error)\([^)]*location/i);
 });
 
-test("nearby discovery is filtered by service-role RPC and does not expose cell ids", () => {
-  assert.match(migration, /create or replace function public\.get_discovery_candidates_for_visitor/);
-  assert.match(migration, /and m\.nearby_city_id = p_city_id/);
-  assert.match(migration, /and m\.nearby_cell_id = p_nearby_cell_id/);
-  assert.doesNotMatch(functionBody("get_discovery_candidates_for_visitor"), /'nearbyCellId'/);
-  assert.match(repository, /serviceRpc<DiscoveryCandidate\[\]>\(\s*"get_discovery_candidates_for_visitor"/);
-  assert.match(repository, /p_nearby_cell_id:\s*visitorNearbyCellId \?\? null/);
+test("nearby discovery is filtered by a service-role exact-distance RPC and exposes no anchors", () => {
+  assert.match(preciseMigration, /create or replace function public\.get_discovery_candidates_for_visitor_v2/);
+  assert.match(preciseMigration, /private_distance_meters[\s\S]*<= 1000/);
+  assert.doesNotMatch(preciseMigration, /'nearbyCellId'|'latitude'|'longitude'/);
+  assert.match(repository, /serviceRpc<DiscoveryCandidate\[\]>\(\s*"get_discovery_candidates_for_visitor_v2"/);
+  assert.match(repository, /p_latitude:\s*usableLocation\?\.latitude \?\? null/);
   assert.doesNotMatch(repository, /candidate\.nearbyCellId/);
   assert.match(repository, /isDiscoveryItemVisible/);
   assert.match(repository, /hasLocation:\s*Boolean\(usableLocation\)/);

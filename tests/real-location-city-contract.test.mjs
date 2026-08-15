@@ -21,10 +21,12 @@ test("public spot burial payload submits only spotId; the server owns spot city 
   assert.doesNotMatch(publicSubmit, /cityId/);
 });
 
-test("create melon route validates location but never parses client cityId", async () => {
+test("create melon route validates location only for nearby burial and never parses client cityId", async () => {
   const route = await source("src/app/api/melons/route.ts");
+  const baseBlock = route.match(/const base = \{[\s\S]*?\n\s*\};/)?.[0] ?? "";
 
-  assert.match(route, /location:\s*validateLocationProof\(body\.location\)/);
+  assert.match(route, /kind === "nearby_area"[\s\S]*location:\s*validateLocationProof\(body\.location\)/);
+  assert.doesNotMatch(baseBlock, /location:\s*validateLocationProof/);
   assert.doesNotMatch(route, /cityId\(body\.cityId\)/);
   assert.doesNotMatch(route, /parsedCityId|body\.cityId/);
 });
@@ -34,7 +36,8 @@ test("repository resolves nearby city from real location and public spot city fr
 
   assert.match(repository, /const resolvedCityId = resolveSupportedCityForBurial\(input\.location\)/);
   assert.match(repository, /p_city_id:\s*resolvedCityId/);
-  assert.match(repository, /nearbyCellIdForLocation\(resolvedCityId, input\.location\)/);
+  assert.match(repository, /p_latitude:\s*input\.location\.latitude/);
+  assert.match(repository, /p_longitude:\s*input\.location\.longitude/);
   assert.match(repository, /const spot = getPublicSpot\(input\.spotId\)/);
   assert.match(repository, /p_city_id:\s*spot\.cityId/);
   assert.match(repository, /return \{ \.\.\.result, cityId: resolvedCityId \}/);

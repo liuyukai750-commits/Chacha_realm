@@ -189,9 +189,11 @@ test("登录闸门关闭时首页绕过 AuthGate，避免会话请求阻塞刷�
   ]);
   assert.match(envExample, /AUTH_GATE_ENABLED=false/);
   assert.match(page, /process\.env\.AUTH_GATE_ENABLED\s*===\s*["']true["']/);
-  const disabledReturn = page.search(/if\s*\(!authGateRequired\)\s*return\s*<ChachaIsland\s*\/>/);
+  const appDeclaration = page.search(/const\s+app\s*=\s*\([\s\S]*?<ChachaIsland\s*\/>[\s\S]*?<AmbientAudio\s*\/>[\s\S]*?\);/);
+  const disabledReturn = page.search(/if\s*\(!authGateRequired\)\s*return\s+app\s*;/);
   const authGateRender = page.search(/return\s*<AuthGate/);
-  assert.ok(disabledReturn >= 0 && authGateRender > disabledReturn, "闸门关闭时必须直接渲染应用，不能先挂载 AuthGate");
+  assert.ok(appDeclaration >= 0, "街区应用应同时包含主体与背景音乐组件");
+  assert.ok(disabledReturn > appDeclaration && authGateRender > disabledReturn, "闸门关闭时必须直接渲染应用，不能先挂载 AuthGate");
 });
 
 test("身份迁移提供显示昵称、不可变公开猹号、完成时间和六种动物约束", async () => {

@@ -13,20 +13,14 @@ export interface DiscoveryVisibilityContext {
 }
 
 /**
- * Keeps located discovery strict: a normal 1 km life circle only sees melons
- * buried into that life circle, while a public landmark only sees its own
- * landmark melons. City-wide fallback is reserved for browsing without a
- * location proof.
+ * The database already scopes candidates to the active city. Public-zone
+ * melons stay readable throughout that city; private nearby melons are only
+ * returned for a located visitor inside their fixed one-kilometre radius.
  */
 export function isDiscoveryItemVisible(
   context: DiscoveryVisibilityContext,
   item: DiscoveryVisibilityItem,
 ): boolean {
-  if (!context.hasLocation) return item.burialKind === "public_spot";
-  if (item.distanceBand !== "within_1km") return false;
-  if (context.sceneKind === "nearby_area") return item.burialKind === "nearby_area";
-  if (context.sceneKind === "public_spot") {
-    return item.burialKind === "public_spot" && item.spotId === context.activeSpotId;
-  }
-  return false;
+  if (item.burialKind === "public_spot") return true;
+  return context.hasLocation && item.distanceBand === "within_1km";
 }

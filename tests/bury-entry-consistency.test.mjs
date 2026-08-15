@@ -26,8 +26,9 @@ test("安全复核中的瓜只对瓜主瓜田可见，不会被静默丢失", ()
   const joined = migrations.join("\n");
   const definitions = [...joined.matchAll(/create or replace function public\.field_view_for_profile\([^]*?\n\$\$;/gi)];
   assert.ok(definitions.length > 0);
-  const latest = definitions.at(-1)[0];
-  assert.match(latest, /p_include_private\s+and\s+m\.status\s*=\s*'held'/i);
+  const substantive = definitions.map((match) => match[0]).reverse().find((body) => /m\.status\s*=\s*'held'/i.test(body));
+  assert.ok(substantive, "瓜田视图实现必须保留 held 瓜主分支；身份包装函数不能掩盖该实现");
+  assert.match(substantive, /p_include_private\s+and\s+m\.status\s*=\s*'held'/i);
   assert.match(component, /安全复核中 · 点击查看原文/);
 });
 

@@ -1,0 +1,113 @@
+.audioControl {
+  --audio-ink: #173b37;
+  --audio-paper: rgba(255, 254, 248, 0.94);
+  position: fixed;
+  z-index: 47;
+  right: 12px;
+  bottom: max(102px, calc(env(safe-area-inset-bottom) + 94px));
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+  color: var(--audio-ink);
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.audioControl > button {
+  min-width: 78px;
+  min-height: 46px;
+  padding: 0 11px 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 2px solid var(--audio-ink);
+  border-radius: 15px;
+  background: var(--audio-paper);
+  box-shadow: 2px 3px 0 rgba(23, 59, 55, 0.75);
+  color: var(--audio-ink);
+  font: 900 11px/1 inherit;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.audioControl > button:focus-visible {
+  outline: 3px solid #ff8175;
+  outline-offset: 3px;
+}
+
+.radio {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid rgba(23, 59, 55, 0.55);
+  border-radius: 9px;
+  background: #dceca8;
+}
+
+.radio i {
+  width: 3px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--audio-ink);
+  transform-origin: center bottom;
+}
+
+.radio i:nth-child(2) {
+  height: 13px;
+}
+
+.feedback {
+  max-width: 208px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 10px;
+  background: rgba(18, 53, 50, 0.92);
+  box-shadow: 0 6px 18px rgba(11, 35, 33, 0.2);
+  color: #f7fff9;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.45;
+  backdrop-filter: blur(10px);
+}
+
+@media (min-width: 700px) {
+  .audioControl {
+    right: 22px;
+    bottom: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .audioControl[data-playing="true"] .radio i:nth-child(1) {
+    animation: audio-level 0.9s ease-in-out infinite alternate;
+  }
+
+  .audioControl[data-playing="true"] .radio i:nth-child(2) {
+    animation: audio-level 0.72s ease-in-out -0.2s infinite alternate;
+  }
+
+  .audioControl[data-playing="true"] .radio i:nth-child(3) {
+    animation: audio-level 1.05s ease-in-out -0.45s infinite alternate;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audioControl *,
+  .audioControl *::before,
+  .audioControl *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes audio-level {
+  from { transform: scaleY(0.55); }
+  to { transform: scaleY(1); }
+}

@@ -22,7 +22,7 @@
 | `SUPABASE_SECRET_KEY` | 预发布 secret key | 准生产 secret key | 生产 secret key | 新 `sb_secret` 只作为 `apikey` 使用；server-only，绝不能作为 Bearer、加 `NEXT_PUBLIC_*` 或提交。旧 `SUPABASE_SERVICE_ROLE_KEY` 仅为本地兼容回退。 |
 | `CHACHA_READ_TOKEN_SECRET` | preview 专用随机值 | staging 专用随机值 | prod 专用随机值 | server-only，至少 32 个随机字符。 |
 | `CHACHA_PRESENCE_TOKEN_SECRET` | preview 专用随机值 | staging 专用随机值 | prod 专用随机值 | server-only，至少 32 个随机字符，必须不同于 read secret。 |
-| `CHACHA_LOCATION_HMAC_SECRET` | preview 专用随机值 | staging 专用随机值 | prod 专用随机值 | server-only，用于附近生活圈 cell HMAC，必须不同于其他 secret。 |
+| `CHACHA_LOCATION_HMAC_SECRET` | 旧环境可保留 | 旧环境可保留 | 旧环境可保留 | 仅兼容旧 cell 数据；精确锚点迁移后的发现与权限判断不依赖此变量。 |
 
 当前代码也兼容 `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`、`SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 作为 Supabase 配置回退，但预发布默认不要使用 legacy JWT key。Next.js 会把 `NEXT_PUBLIC_*` 在构建时内联进浏览器 bundle，后续 promote 同一个构建产物时不会自动读取目标环境的新值。
 
@@ -55,7 +55,7 @@ iOS Safari 验收前提：
 
 - HTTPS 安全上下文和浏览器定位权限。
 - `SUPABASE_URL`、`SUPABASE_PUBLISHABLE_KEY` 可用。
-- 若存在 `nearby_area` 瓜，必须配置 `CHACHA_LOCATION_HMAC_SECRET`，否则无法生成访问者附近 cell；未配置时附近生活圈瓜不会展示，附近生活圈埋瓜会 503。
+- 已执行 `202608150003_precise_burial_anchors.sql`；附近瓜使用私有固定坐标锚点和数据库精确距离判定，不再依赖 HMAC cell 发现。
 - Supabase 已执行迁移和公共地点 seed，且 `public_spots.active=true`。
 
 失败回退：
@@ -66,33 +66,34 @@ iOS Safari 验收前提：
 
 ### 提交时一次性定位
 
-链路：用户提交埋瓜 -> 浏览器本次取位置 -> `POST /api/melons` -> 服务端验证 `LocationProof` -> nearby_area 写入 HMAC cell，public_spot 需完整落在公共地点 500m 内 -> service role RPC 写入。
+链路分为两条：`nearby_area` 提交时由浏览器取一次位置，服务端验证后写入仅 service role 可访问的私有固定锚点；`public_spot` 只提交系统地点 ID，可远程投递，不读取发布者当前位置。
 
 依赖：
 
 - HTTPS、安全上下文、用户手势触发定位。
-- `SUPABASE_SECRET_KEY`、`CHACHA_LOCATION_HMAC_SECRET`。
-- public_spot 埋瓜还依赖公共地点目录与 `requireSafeSeek` 判定。
+- `SUPABASE_SECRET_KEY`。
+- public_spot 埋瓜依赖公共地点目录；nearby_area 依赖 HTTPS 定位与私有锚点迁移。
 
 失败回退：
 
-- 用户拒绝定位：保留草稿或表单内容，继续允许城市浏览。
-- 不在公共地点 500m 内：拒绝 public_spot 埋瓜，但不泄露精确距离。
-- `CHACHA_LOCATION_HMAC_SECRET` 缺失：nearby_area 埋瓜返回 503，应在发布前阻断。
+- 用户拒绝定位：只阻止 nearby_area 发布，保留草稿并继续允许城市浏览和 public_spot 远程发布。
+- public_spot 不进行发布者距离检查；评论时再按公共地点中心 1 公里判定。
+- 私有锚点迁移未执行：nearby_area 发布必须失败并在发布前阻断，不能退回旧 cell 模糊匹配。
 
 ### 评论 presence
 
-链路：用户打开瓜详情 -> 远程可读评论 -> 用户点击验证现场评论资格 -> `POST /api/presence/verify` -> 服务端验证位置与公共地点 -> 签发绑定 `userId + spotId + level` 的 15 分钟 HMAC token -> `POST /api/melons/:id/comments` 校验 token 后写入评论。
+链路：用户打开公区瓜详情或尝试打开附近瓜 -> `POST /api/presence/verify` -> 服务端按公区配置中心或附近瓜私有固定锚点计算 1 公里资格 -> 签发绑定 `userId + melonId + level` 的 15 分钟 HMAC token -> 详情、评论读取或评论写入按瓜类型校验 token。
 
 依赖：
 
 - HTTPS 与定位权限。
 - `CHACHA_PRESENCE_TOKEN_SECRET`。
-- 活跃 session、未封禁 profile、评论对应公共地点仍存在。
+- 活跃 session、未封禁 profile；公区瓜对应地点仍存在，附近瓜对应私有锚点仍存在。
 
 失败回退：
 
-- remote/outside：继续允许读评论、轻反应和蹲后续，不显示文字评论输入框。
+- 公区瓜 remote/outside：继续允许读评论、轻反应和蹲后续，不显示文字评论输入框。
+- 附近瓜 remote/outside：不得打开正文或评论；蹲瓜架可保留条目，但再次打开仍需重新通过 1 公里验证。
 - token 过期或无效：保留评论草稿，要求重新验证位置。
 - 用户被封禁：只读公开内容。
 
@@ -134,8 +135,8 @@ iOS Safari 验收前提：
 - `npm run lint` 通过。
 - `/api/session/anonymous` 在 HTTPS 预发布 URL 下设置 secure httpOnly cookie。
 - `/api/discovery` 在拒绝定位时不扩大范围；在允许定位时只返回 `DistanceBand` 和场景语义，不返回坐标。
-- nearby_area 埋瓜在 `CHACHA_LOCATION_HMAC_SECRET` 存在时成功，缺失时发布前阻断。
-- public_spot 埋瓜只有 500m found 条件通过才成功。
+- nearby_area 埋瓜写入固定私有锚点；发布者移动后，原锚点附近 1 公里仍可见，发布者新位置不会带走瓜。
+- public_spot 可远程发布且不请求当前位置；所属城市全域可吃，公共地点中心 1 公里内可评论。
 - presence token 15 分钟过期，过期后评论失败且草稿保留。
 - 远程用户可读评论、轻反应、蹲后续，但不能发表文字评论。
 - iOS Safari、Android Chrome、鸿蒙浏览器分别验证 HTTPS 定位权限、软键盘、前后台恢复和拒绝权限回退。
