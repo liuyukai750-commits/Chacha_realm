@@ -55,12 +55,22 @@ test.describe("猹号密码登录与身份流程", () => {
     expect(auth.registerCalls).toHaveLength(2);
   });
 
-  test("旧匿名账号明确提示原地保留数据，永久用户直接恢复街区", async ({ page }) => {
+  test("旧匿名账号可以选择保留试玩瓜田创建新号或登录已有猹号", async ({ page }) => {
     await installV0Api(page); await installAuthApi(page, { anonymous: true }); await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByText(/当前浏览器还有一片试玩瓜田/)).toBeVisible();
+    await expect(page.getByRole("button", { name: /创建猹号并保留试玩瓜田/ })).toBeVisible();
+    await page.getByRole("button", { name: /已有猹号/ }).click();
+    await expect(page.getByRole("heading", { name: /回到原来的瓜田/ })).toBeVisible();
+    await expect(page.getByText(/试玩数据不会自动合并/)).toBeVisible();
+    await page.getByRole("button", { name: /返回/ }).click();
+    await page.getByRole("button", { name: /创建猹号并保留试玩瓜田/ }).click();
     await expect(page.getByText(/已经埋下的瓜、瓜籽、评论和蹲瓜都会保留/)).toBeVisible();
-    await page.unrouteAll({ behavior: "wait" });
+    await expect(page.getByRole("button", { name: /返回/ })).toBeVisible();
+  });
+
+  test("永久用户直接恢复街区", async ({ page }) => {
     await installV0Api(page); await installAuthApi(page, { session: { authenticated: true, anonymous: false, needsProfile: false, profile: permanentProfile } });
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("button", { name: /打开我的账号/ })).toBeVisible();
   });
 

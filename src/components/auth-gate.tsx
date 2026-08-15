@@ -177,7 +177,6 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
         if (!active) return;
         const next = normalizeSession(payload);
         setSession(next);
-        if (next.anonymous) setStep("register");
       })
       .catch(() => active && setSession({ authenticated: false, anonymous: false, needsProfile: false }))
       .finally(() => active && setChecking(false));
@@ -280,6 +279,10 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
             <span className={styles.passwordBadge}>猹号通行</span>
           </header>
 
+          {session?.anonymous && step === "welcome" && (
+            <div className={styles.legacyNotice} role="note"><span aria-hidden="true">🌱</span><div><strong>当前浏览器还有一片试玩瓜田</strong><p>创建新猹号会保留它；登录已有猹号会回到原瓜田，试玩数据不会自动合并。</p></div></div>
+          )}
+
           {session?.anonymous && step === "register" && (
             <div className={styles.legacyNotice} role="note"><span aria-hidden="true">🌱</span><div><strong>保护并带走现在的瓜田</strong><p>创建猹号后，已经埋下的瓜、瓜籽、评论和蹲瓜都会保留。</p></div></div>
           )}
@@ -288,7 +291,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
             <div className={styles.authForm}>
               <div className={styles.authTitle}><p>匿名街牌 · 永久瓜田</p><h1 id="auth-title">真名留在门外，<em>故事带进街里。</em></h1></div>
               <div className={styles.welcomeAnimals} aria-hidden="true">{animals.slice(0, 4).map((item) => <AnimalAvatar key={item.code} animal={item.code} />)}</div>
-              <button className={styles.primaryAction} onClick={() => openStep("register")}>创建我的猹号</button>
+              <button className={styles.primaryAction} onClick={() => openStep("register")}>{session?.anonymous ? "创建猹号并保留试玩瓜田" : "创建我的猹号"}</button>
               <button className={styles.secondaryAction} onClick={() => openStep("login")}>已有猹号，直接登录</button>
               <button className={styles.textAction} onClick={() => openStep("recover")}>忘记密码 · 用恢复码找回</button>
               <p className={styles.privacyPromise}>手机号、微信、真实姓名都不是公开身份；社区只展示动物、昵称和猹号。</p>
@@ -297,7 +300,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
 
           {step === "register" && (
             <form className={styles.authForm} onSubmit={register}>
-              {!session?.anonymous && <button type="button" className={styles.backAction} onClick={() => openStep("welcome")}>← 返回</button>}
+              <button type="button" className={styles.backAction} onClick={() => openStep("welcome")}>← 返回</button>
               <div className={styles.authTitle}><p>创建街牌</p><h1 id="auth-title">选一只动物，<em>认领一片瓜田。</em></h1></div>
               <fieldset className={styles.animalPicker}><legend>我的动物身份</legend><div>{animals.map((item) => (
                 <button type="button" key={item.code} className={animal === item.code ? styles.animalSelected : ""} aria-pressed={animal === item.code} onClick={() => setAnimal(item.code)}>
@@ -319,6 +322,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
             <form className={styles.authForm} onSubmit={login}>
               <button type="button" className={styles.backAction} onClick={() => openStep("welcome")}>← 返回</button>
               <div className={styles.authTitle}><p>老街坊回来</p><h1 id="auth-title">输入猹号，<em>回到原来的瓜田。</em></h1></div>
+              {session?.anonymous && <div className={styles.legacyNotice} role="note"><span aria-hidden="true">↩</span><div><strong>登录已有猹号</strong><p>登录后会回到原来的瓜田；当前试玩数据不会自动合并或转移。</p></div></div>}
               <label className={styles.fieldLabel}><span>猹号</span><input type="text" autoCapitalize="characters" autoComplete="username" value={publicId} onChange={(event) => setPublicId(normalizePublicId(event.target.value))} placeholder="CC-7K3M9Q2R" /></label>
               <label className={`${styles.fieldLabel} ${styles.spacedField}`}><span>密码</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="请输入密码" /></label>
               {turnstileSiteKey && <TurnstileWidget key={captchaEpoch} siteKey={turnstileSiteKey} onToken={setCaptchaToken} />}
