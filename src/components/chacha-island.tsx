@@ -21,7 +21,9 @@ import {
 } from "react";
 import Image from "next/image";
 import { AmbientAudio } from "@/components/ambient-audio/ambient-audio";
+import { AnimalAvatar } from "@/components/auth-gate";
 import type {
+  AnimalIdentity,
   CityId,
   CompleteReadResult,
   CreateMelonRequest,
@@ -39,7 +41,6 @@ import type {
   MelonPreview,
   OpenedMelon,
   OwnFieldView,
-  PublicSpotSummary,
   ReactionType,
   SafeTopic,
   SeekState,
@@ -727,6 +728,31 @@ function SwipeActionRow({ children, actionLabel, actionAriaLabel, onAction, dest
   </div>;
 }
 
+function StoryFocus({ melon, authorName, fieldLookup, onViewField }: {
+  melon: OpenedMelon["melon"];
+  authorName: string;
+  fieldLookup?: string;
+  onViewField?: (lookup: string) => void;
+}) {
+  const animal: AnimalIdentity = melon.animal ?? "猹";
+  return <section className="story-focus" aria-labelledby={`story-title-${melon.id}`}>
+    <header className="story-focus-header">
+      <span className="story-focus-label">标题</span>
+      <h2 id={`story-title-${melon.id}`}>{melon.title}</h2>
+      <div className="story-author">
+        <AnimalAvatar animal={animal} size="medium" />
+        <p><small>瓜主</small><strong>{authorName} <IdentityBadge badge={melon.identityBadge} /></strong></p>
+      </div>
+    </header>
+    <div className="story-focus-body"><p>{melon.content}</p></div>
+    <footer className="story-focus-footer">
+      <span>{topicName[melon.topic]}瓜 · {getSpotScene(melon.spot).displayName}</span>
+      <time dateTime={melon.createdAt}>{formatRelativeTime(melon.createdAt)}</time>
+      {fieldLookup && onViewField && <a href={`/fields/${encodeURIComponent(fieldLookup)}`} onClick={(event) => { event.preventDefault(); onViewField(fieldLookup); }}>看 {authorName} 的瓜田</a>}
+    </footer>
+  </section>;
+}
+
 function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName, dayPhase, demoMode, sceneContext, visitorLocated, scope, locatingNearby, openingMelon, onLocate, onCityBrowse, onOpen, onSquat, onDismiss, onRefresh, readOnly }: {
   items: MelonPreview[];
   details: IslandBootstrap["melonDetails"];
@@ -1129,11 +1155,12 @@ function OwnerMelonReader({ adapter, opened, onClose }: { adapter: IslandAdapter
     ? `正在孵化 · 约 ${formatCountdown(opened.melon.maturesAt)} 后公开`
     : "已经成熟 · 下方是吃瓜猹留下的公开回声";
 
-  return <Sheet title={opened.melon.title} subtitle="我的瓜 · 瓜主管理视图" onClose={onClose} wide stealth>
+  const authorName = opened.melon.displayName ?? opened.melon.alias;
+
+  return <Sheet title="我的瓜详情" subtitle="正文与公开评论" onClose={onClose} wide>
     <article className="owner-melon-reader">
       <div className={`owner-melon-status is-${opened.melon.status}`} role="status"><strong>{statusCopy}</strong></div>
-      <PlaceScene spot={opened.melon.spot} stealth />
-      <section className="owner-story"><span>{topicName[opened.melon.topic]}瓜 · {getSpotScene(opened.melon.spot).displayName}</span><p>{opened.melon.content}</p><small>发布于 {formatRelativeTime(opened.melon.createdAt)}</small></section>
+      <StoryFocus melon={opened.melon} authorName={authorName} />
       <div className="owner-melon-stats" aria-label="这颗瓜的数据"><span>吃完 <strong>{opened.melon.completedReads ?? 0}</strong> 只猹</span>{reactionMeta.map(([key, label]) => <span key={key}>{label} <strong>{opened.melon.reactions[key]}</strong></span>)}</div>
       <section className="comments owner-comments" aria-labelledby="owner-comments-title">
         <header><div><span>公开回声</span><h3 id="owner-comments-title">吃瓜猹的评论</h3></div><strong>{comments.length}</strong></header>
@@ -1166,9 +1193,6 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   }, []);
 
   const ready = elapsed >= 5000;
-  const peel = Math.max(12, elapsed / 50);
-  const peelStyle = { "--peel": `${peel}%` } as CSSProperties;
-
   const complete = async () => {
     setBusy(true); setError(null);
     try {
@@ -1226,17 +1250,11 @@ function MelonReader({ adapter, opened, onClose, onFinished, onViewField, onSeek
   };
 
   return (
-    <Sheet title={opened.melon.title} subtitle={`${getSpotScene(opened.melon.spot).displayName} · ${authorName}`} onClose={onClose} wide stealth>
+    <Sheet title="吃瓜详情" subtitle={`${getSpotScene(opened.melon.spot).displayName} · 正文与评论`} onClose={onClose} wide>
       <article className="melon-reader">
-        <StealthCue title="扒开草丛" copy="叶影替你挡住路过的视线，正文仍保持清楚可读。" />
-        <PlaceScene spot={opened.melon.spot} stealth />
-        <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span></div>
-        <div className="reader-links"><a href={`/fields/${encodeURIComponent(fieldLookup)}`} onClick={(event) => { event.preventDefault(); onViewField(fieldLookup); }}>查看 {authorName} <IdentityBadge badge={opened.melon.identityBadge} /> 的瓜田</a><span><MessageIcon /> 评论就在正文下方</span></div>
+        <StoryFocus melon={opened.melon} authorName={authorName} fieldLookup={fieldLookup} onViewField={onViewField} />
+        <div className="reader-meta"><span>{topicName[opened.melon.topic]}瓜</span><span>{distanceName[opened.melon.distanceBand]}</span><span><MessageIcon /> 评论在正文下方</span></div>
         <ReportControl adapter={adapter} targetType="melon" targetId={opened.melon.id} label="举报这颗瓜" />
-        <div className="peel-story" style={peelStyle}>
-          <div className="story-paper"><p>{opened.melon.content}</p><footer>来自 {authorName} <IdentityBadge badge={opened.melon.identityBadge} /></footer></div>
-          <div className="melon-peel" aria-hidden="true"><i /><i /><i /><span>{ready ? "瓜瓤见底了" : "慢慢剥开…"}</span></div>
-        </div>
         <div className="read-finish">
           {completionResult?.autoConverted && <span className="seed-convert-burst" aria-hidden="true"><i/><i/><i/><i/><i/><b>真</b></span>}
           <div className="read-clock" role="status" aria-live="polite" aria-label={completionResult ? readRewardLabel(completionResult) : ready ? "已经阅读 5 秒，可以完成吃瓜" : `还需阅读 ${Math.ceil((5000 - elapsed) / 1000)} 秒`}><span style={{ "--progress": `${elapsed / 50}%` } as CSSProperties}>{ready ? <CheckIcon /> : Math.ceil((5000 - elapsed) / 1000)}</span><p><strong>{completionResult ? readRewardLabel(completionResult) : ready ? "可以完成吃瓜" : "别急着划走"}</strong><small>{completionResult ? `小瓜籽 ${completionResult.wallet.smallSeedCount}/5 · 真瓜籽 ${completionResult.wallet.trueSeedCount}` : ready ? "完成后今日有效次数会由服务端判定" : "读满 5 秒，才算认真吃完"}</small></p></div>
@@ -1382,28 +1400,6 @@ function CityIsland({ cityId, cityName, radar = false, compact = false }: { city
       {radar && <span className="landmark-caption"><strong>{landmark.name}</strong><small>象征景观 · 非导航</small></span>}
     </div>
   );
-}
-
-function PlaceScene({ spot, compact = false, stealth = false }: { spot: PublicSpotSummary; compact?: boolean; stealth?: boolean }) {
-  const scene = getSpotScene(spot);
-  const detail = scene.hidesExactVenue ? "地点名称已模糊" : `${scene.displayName}周边意象`;
-  return (
-    <div
-      className={`place-scene scene-${scene.kind}${compact ? " is-compact" : ""}${stealth ? " is-stealth" : ""}`}
-      role="img"
-      aria-label={`${scene.title}的半真实城市场景：${scene.sceneLabel}。${detail}，不是实景地图。`}
-    >
-      <span className="scene-sky" aria-hidden="true"><i /></span>
-      <span className="scene-buildings" aria-hidden="true"><i /><i /><i /></span>
-      <span className="scene-prop" aria-hidden="true"><i /><i /><b /></span>
-      <span className="scene-ground" aria-hidden="true" />
-      <span className="scene-caption"><strong>{scene.title}</strong><small>{detail} · 非实景</small></span>
-    </div>
-  );
-}
-
-function StealthCue({ title, copy, bury = false }: { title: string; copy: string; bury?: boolean }) {
-  return <div className={`stealth-cue${bury ? " is-bury" : ""}`}><span aria-hidden="true"><i /><i /><i /></span><p><strong>{title}</strong><small>{copy}</small></p></div>;
 }
 
 function Sheet({ title, subtitle, onClose, children, wide = false, stealth = false }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; wide?: boolean; stealth?: boolean }) {

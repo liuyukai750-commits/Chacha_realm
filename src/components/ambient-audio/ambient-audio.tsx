@@ -6,7 +6,10 @@ import styles from "./ambient-audio.module.css";
 // Reset the early-preview preference once. Some testers saved "off" while the
 // control still lived in the floating rail, before its final header behavior.
 const AUDIO_PREFERENCE_KEY = "chacha-street:ambient-audio:v2";
-const AMBIENT_VOLUME = 0.16;
+// Mobile Safari effectively follows the device media volume, while Android and
+// HarmonyOS browsers honor this multiplier. A mid-level value keeps those
+// platforms aligned without resorting to brittle user-agent branches.
+const AMBIENT_VOLUME = 0.55;
 
 type AudioPreference = "on" | "off";
 

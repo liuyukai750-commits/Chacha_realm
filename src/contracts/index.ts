@@ -137,6 +137,7 @@ export interface MelonPreview {
 export interface MelonDetail extends Omit<MelonPreview, "status"> {
   status: "incubating" | "mature" | "held";
   alias: string;
+  animal?: AnimalIdentity;
   displayName?: string;
   publicId?: string;
   identityBadge?: IdentityBadge;

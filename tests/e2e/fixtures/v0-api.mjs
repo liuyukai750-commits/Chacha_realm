@@ -102,6 +102,7 @@ export const melon = {
   isRemote: false,
   revealMode: "open",
   alias: "加班仓鼠 237",
+  animal: "仓鼠",
   title: "老板凌晨发来一个小改动",
   content: "我回了一个刚准备睡，他秒回说那正好，现在我和广场的路灯一样精神。",
   createdAt: "2026-08-04T08:00:00.000Z",
