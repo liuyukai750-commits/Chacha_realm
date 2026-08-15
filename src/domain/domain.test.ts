@@ -12,23 +12,23 @@ import {
 import { getMelonSpreadRadiusKm, resolveMelonLifecycle } from "./lifecycle.ts";
 import { evaluateReadReward, type ValidReadRecord } from "./reads.ts";
 
-test("瓜在创建两小时后成熟，成熟后 24 小时零有效阅读归档", () => {
+test("瓜在创建三分钟后成熟，成熟后 24 小时零有效阅读归档", () => {
   const createdAt = "2026-08-04T00:00:00.000Z";
 
   assert.equal(
-    resolveMelonLifecycle({ status: "incubating", createdAt, validReadCount: 0, now: "2026-08-04T01:59:59.999Z" }).status,
+    resolveMelonLifecycle({ status: "incubating", createdAt, validReadCount: 0, now: "2026-08-04T00:02:59.999Z" }).status,
     "incubating",
   );
   assert.equal(
-    resolveMelonLifecycle({ status: "incubating", createdAt, validReadCount: 0, now: "2026-08-04T02:00:00.000Z" }).status,
+    resolveMelonLifecycle({ status: "incubating", createdAt, validReadCount: 0, now: "2026-08-04T00:03:00.000Z" }).status,
     "mature",
   );
   assert.equal(
-    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 0, now: "2026-08-05T02:00:00.000Z" }).status,
+    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 0, now: "2026-08-05T00:03:00.000Z" }).status,
     "archived",
   );
   assert.equal(
-    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 1, now: "2026-08-05T02:00:00.000Z" }).status,
+    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 1, now: "2026-08-05T00:03:00.000Z" }).status,
     "mature",
   );
 });

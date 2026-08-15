@@ -1,8 +1,8 @@
 import type { MelonStatus } from "../contracts/index.ts";
 
-import { DAY_MS, HOUR_MS, addMilliseconds, timestampMs } from "./time.ts";
+import { DAY_MS, HOUR_MS, MINUTE_MS, addMilliseconds, timestampMs } from "./time.ts";
 
-export const INCUBATION_MS = 2 * HOUR_MS;
+export const INCUBATION_MS = 3 * MINUTE_MS;
 export const UNREAD_ARCHIVE_MS = 24 * HOUR_MS;
 
 export interface MelonLifecycleInput {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync("supabase/migrations/202608150005_unified_burial_rewards.sql", "utf8");
+const incubationMigration = readFileSync("supabase/migrations/202608150008_three_minute_incubation.sql", "utf8");
 const repository = readFileSync("src/server/repositories/island-repository.ts", "utf8");
 
 function functionBody(name) {
@@ -19,7 +20,9 @@ test("两种埋瓜方式统一进入同一个 service-role 事务", () => {
   assert.match(body, /service_role_required/);
   assert.match(migration, /grant execute on function public\.create_melon_v3\([\s\S]*?\) to service_role/i);
   assert.doesNotMatch(migration, /grant execute on function public\.create_melon_v3\([^;]+to authenticated/i);
-  assert.equal((repository.match(/"create_melon_v3"/g) ?? []).length, 1, "repository 只保留一个创建 RPC 入口");
+  assert.match(incubationMigration, /public\.create_melon_v3\(/);
+  assert.equal((repository.match(/"create_melon_v4"/g) ?? []).length, 1, "repository 只保留一个创建 RPC 入口");
+  assert.doesNotMatch(repository, /"create_melon_v3"/);
   assert.doesNotMatch(repository, /"create_nearby_melon_v2"/);
 });
 

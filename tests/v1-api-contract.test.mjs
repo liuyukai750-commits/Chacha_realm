@@ -52,13 +52,13 @@ test("完成吃瓜先验证 5 秒阅读凭证，再调用事务性完成 RPC", a
   assert.match(route, /verifyReadToken\(readToken, session\.userId, id\)/);
 });
 
-test("原创奖励在统一 create_melon_v3 RPC 内完成，HTTP 层不自行修改钱包", async () => {
+test("原创奖励由三分钟包装后的统一 create_melon_v4 RPC 完成，HTTP 层不自行修改钱包", async () => {
   const [route, repository] = await Promise.all([
     source("src/app/api/melons/route.ts"),
     source("src/server/repositories/island-repository.ts"),
   ]);
   assert.match(route, /return createMelon\(input, session\.userId\)/);
   assert.doesNotMatch(route, /trueSeedCount|smallSeedCount|seed_count/);
-  assert.match(repository, /serviceRpc<Omit<CreateMelonResult, "cityId">>\(\s*"create_melon_v3"/);
+  assert.match(repository, /serviceRpc<Omit<CreateMelonResult, "cityId">>\(\s*"create_melon_v4"/);
   assert.match(repository, /return \{ \.\.\.result, cityId \}/);
 });

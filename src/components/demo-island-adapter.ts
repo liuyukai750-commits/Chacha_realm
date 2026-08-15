@@ -99,19 +99,19 @@ const cities: CitySummary[] = [
 const previewSeeds: Array<Omit<MelonPreview, "revealMode">> = [
   { id: "m-001", status: "mature", topic: "work", cityId: "changsha", districtId: "tianxin", spot: changshaSpots[1], distanceBand: "within_1km", completedReads: 18, isRemote: false },
   { id: "m-002", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_3km", completedReads: 11, isRemote: false },
-  { id: "m-004", status: "incubating", topic: "food", cityId: "changsha", districtId: "yuelu", spot: changshaSpots[2], distanceBand: "within_3km", maturesAt: new Date(Date.now() + 78 * 60 * 1000).toISOString(), isRemote: false },
+  { id: "m-004", status: "incubating", topic: "food", cityId: "changsha", districtId: "yuelu", spot: changshaSpots[2], distanceBand: "within_3km", maturesAt: new Date(Date.now() + 1 * 60 * 1000).toISOString(), isRemote: false },
   { id: "m-003", status: "mature", topic: "relationship", cityId: "changsha", districtId: "kaifu", spot: { id: "spot-cs-04", cityId: "changsha", districtId: "kaifu", name: "烈士公园" }, distanceBand: "within_8km", completedReads: 27, isRemote: false },
   { id: "m-005", status: "mature", topic: "neighborhood", cityId: "shanghai", districtId: "xuhui", spot: { id: "spot-sh-01", cityId: "shanghai", districtId: "xuhui", name: "襄阳公园" }, distanceBand: "remote", completedReads: 34, isRemote: true },
   { id: "m-006", status: "mature", topic: "food", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 9, isRemote: false },
-  { id: "m-007", status: "incubating", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 31 * 60 * 1000).toISOString(), isRemote: false },
+  { id: "m-007", status: "incubating", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(), isRemote: false },
   { id: "m-008", status: "mature", topic: "relationship", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 14, isRemote: false },
   { id: "m-009", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 6, isRemote: false },
-  { id: "m-010", status: "incubating", topic: "work", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 54 * 60 * 1000).toISOString(), isRemote: false },
+  { id: "m-010", status: "incubating", topic: "work", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(), isRemote: false },
   { id: "m-011", status: "mature", topic: "neighborhood", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 19, isRemote: false },
   { id: "m-012", status: "mature", topic: "work", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 12, isRemote: false },
-  { id: "m-013", status: "incubating", topic: "neighborhood", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 69 * 60 * 1000).toISOString(), isRemote: false },
+  { id: "m-013", status: "incubating", topic: "neighborhood", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 3 * 60 * 1000).toISOString(), isRemote: false },
   { id: "m-014", status: "mature", topic: "food", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 5, isRemote: false },
-  { id: "m-015", status: "incubating", topic: "relationship", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 96 * 60 * 1000).toISOString(), isRemote: false },
+  { id: "m-015", status: "incubating", topic: "relationship", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", maturesAt: new Date(Date.now() + 3 * 60 * 1000).toISOString(), isRemote: false },
   { id: "m-016", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 8, isRemote: false },
 ];
 
@@ -428,7 +428,7 @@ export const demoIslandAdapter: IslandAdapter = {
       : cities.flatMap((item) => item.spots).find((item) => item.id === request.spotId);
     if (!spot) throw new Error("这个公共地点暂时不能埋瓜。" );
     lastDemoScene = burialKind === "nearby_area" ? { kind: "nearby_area" } : { kind: "public_spot", spot };
-    const preview: MelonPreview = { id, status: "incubating", burialKind, topic: request.topic, cityId: spot.cityId, districtId: spot.districtId, spot, distanceBand: "within_1km", maturesAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), isRemote: false, revealMode: request.revealMode };
+    const preview: MelonPreview = { id, status: "incubating", burialKind, topic: request.topic, cityId: spot.cityId, districtId: spot.districtId, spot, distanceBand: "within_1km", maturesAt: new Date(Date.now() + 3 * 60 * 1000).toISOString(), isRemote: false, revealMode: request.revealMode };
     const trueSeedAwarded = !dailyShareRewarded;
     dailyShareRewarded = true;
     const wallet = trueSeedAwarded ? { ...session.wallet, trueSeedCount: session.wallet.trueSeedCount + 1 } : session.wallet;

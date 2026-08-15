@@ -202,7 +202,7 @@ export async function createMelon(input: CreateMelonRequest, actorId: string): P
     ? resolveSupportedCityForBurial(input.location!)
     : spot!.cityId;
   const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
-    "create_melon_v3",
+    "create_melon_v4",
     {
       p_actor_id: actorId,
       p_operation_id: input.operationId,
