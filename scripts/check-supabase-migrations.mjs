@@ -5,11 +5,19 @@ const executable = isWindows ? process.env.ComSpec ?? "cmd.exe" : "npx";
 const args = isWindows
   ? ["/d", "/s", "/c", "npx.cmd supabase@2.114.0 migration list --linked"]
   : ["supabase@2.114.0", "migration", "list", "--linked"];
-const result = spawnSync(executable, args, {
-  cwd: process.cwd(),
-  encoding: "utf8",
-  windowsHide: true,
-});
+function readMigrationList() {
+  return spawnSync(executable, args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    windowsHide: true,
+  });
+}
+
+let result = readMigrationList();
+if (result.status !== 0 && !result.error) {
+  console.warn("Supabase 迁移状态首次读取失败，正在做一次短重试。");
+  result = readMigrationList();
+}
 
 if (result.status !== 0) {
   process.stderr.write(
