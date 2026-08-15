@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { installV0Api } from "./fixtures/v0-api.mjs";
 
-const preferenceKey = "chacha-street:ambient-audio";
+const preferenceKey = "chacha-street:ambient-audio:v2";
+const legacyPreferenceKey = "chacha-street:ambient-audio";
 
 async function installMediaProbe(page, { savedPreference, rejectPlay = false } = {}) {
   await page.addInitScript(({ preferenceKey, savedPreference, rejectPlay }) => {
@@ -74,6 +75,14 @@ test.describe("背景音乐浏览器能力模拟（不代表真机）", () => {
     const box = await control.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  });
+
+  test("旧预览保存的关闭状态不会让新版首次进入继续保持关闭", async ({ page }) => {
+    await page.addInitScript((key) => window.localStorage.setItem(key, "off"), legacyPreferenceKey);
+    const control = await openStreet(page);
+    await expect(control).toHaveAttribute("aria-pressed", "true");
+    await expect(control).toContainText("音乐中");
+    await expect.poll(() => page.evaluate(() => window.__audioProbe.playCalls)).toBe(1);
   });
 
   test("保存的开启偏好自动尝试播放，并在隐藏/恢复时暂停续播", async ({ page }) => {

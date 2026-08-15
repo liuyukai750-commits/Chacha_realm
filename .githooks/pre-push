@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+branch="$(git branch --show-current)"
+if [ "$branch" != "codex/preview" ]; then
+  echo "Push 已阻止：测试版本只允许从固定分支 codex/preview 推送。" >&2
+  echo "请先切换到 codex/preview，并运行 npm run qa:smoke。" >&2
+  exit 1
+fi
+
+echo "Push 前门禁：正在运行 npm run qa:smoke"
+npm run qa:smoke

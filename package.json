@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "qa:contracts": "node --test tests/unified-burial-reward-contract.test.mjs tests/ambient-audio-contract.test.mjs tests/bury-entry-consistency.test.mjs tests/five-city-gate.test.mjs",
+    "qa:db": "node scripts/check-supabase-migrations.mjs",
+    "qa:smoke": "npm run qa:contracts && npm run qa:db && npm run lint -- src/components/ambient-audio src/components/chacha-island.tsx src/components/bury-sheet-v1.tsx src/server/repositories/island-repository.ts && npx tsc --noEmit && npx playwright test --config tests/e2e/release-smoke.config.mjs",
+    "preview:setup": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "next": "16.3.0",

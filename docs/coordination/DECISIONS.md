@@ -158,3 +158,10 @@ V1 的蹲瓜通知只在猹猹街站内出现，不申请系统通知权限、�
 - 浏览器禁止有声自动播放时不伪装成功；首次播放必须来自用户手势。用户的开关偏好只保存在本机浏览器，不进入账号资料。
 - iOS Safari、Android Chrome 与鸿蒙浏览器共用原生音频回退；页面进入后台时暂停，回到前台后仅在用户已开启音乐的情况下恢复。
 - 播放失败必须给出可理解且不打断主流程的反馈；音乐开关不得遮挡底部导航或依靠大面积高亮表达状态。
+
+## D-032 Preview 先验收后推送（2026-08-15）
+
+- 日常测试发布固定使用 `codex/preview`，不得把未验收改动直接推向 `main`、正式域名或 Vercel Production。
+- `npm run qa:smoke` 是 Push 前硬门禁：必须核验测试 Supabase 迁移齐平、关键契约、Lint、TypeScript、production build、390px WebKit 核心流程和关键页面截图。
+- `.githooks/pre-push` 在本地重复执行门禁，并拒绝从非固定 Preview 分支推送。测试失败、数据库版本落后、截图存在 P0/P1 或反馈清单未完成时一律 HOLD。
+- Preview 成功只代表候选版本可供真机检查，不等于正式上线；不得使用 `--prod` 或 `promote`，也不得修改 `chacharealm.cn`。

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./ambient-audio.module.css";
 
-const AUDIO_PREFERENCE_KEY = "chacha-street:ambient-audio";
+// Reset the early-preview preference once. Some testers saved "off" while the
+// control still lived in the floating rail, before its final header behavior.
+const AUDIO_PREFERENCE_KEY = "chacha-street:ambient-audio:v2";
 const AMBIENT_VOLUME = 0.16;
 
 type AudioPreference = "on" | "off";
@@ -108,10 +110,14 @@ export function AmbientAudio() {
     await play(true);
   };
 
-  const label = playing ? "音乐中" : preference === "on" ? "继续音乐" : "音乐";
+  const label = playing ? "音乐中" : preference === "on" ? "音乐待响" : "音乐已关";
 
   return (
-    <aside className={styles.audioControl} data-playing={playing ? "true" : "false"}>
+    <aside
+      className={styles.audioControl}
+      data-playing={playing ? "true" : "false"}
+      data-preference={preference}
+    >
       {feedback && <p className={styles.feedback} role="status">{feedback}</p>}
       <button
         type="button"

@@ -19,6 +19,7 @@ test("背景音乐不抢首屏流量，并由原生 audio 循环播放", () => {
 });
 
 test("背景音乐默认开启，受浏览器限制时等待手势，并记住关闭偏好", () => {
+  assert.match(component, /chacha-street:ambient-audio:v2/);
   assert.match(component, /=== "off" \? "off" : "on"/);
   assert.match(component, /void play\(false\)/);
   assert.match(component, /localStorage\.setItem/);
