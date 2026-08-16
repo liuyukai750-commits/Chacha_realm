@@ -31,17 +31,17 @@ test("create melon route validates location only for nearby burial and never par
   assert.doesNotMatch(route, /parsedCityId|body\.cityId/);
 });
 
-test("repository resolves nearby city from real location and public spot city from configured spot", async () => {
+test("repository resolves nearby city from real location and public spot city from the active database row", async () => {
   const repository = await source("src/server/repositories/island-repository.ts");
 
-  assert.match(repository, /const resolvedCityId = resolveSupportedCityForBurial\(input\.location\)/);
-  assert.match(repository, /p_city_id:\s*resolvedCityId/);
-  assert.match(repository, /p_latitude:\s*input\.location\.latitude/);
-  assert.match(repository, /p_longitude:\s*input\.location\.longitude/);
-  assert.match(repository, /const spot = getPublicSpot\(input\.spotId\)/);
-  assert.match(repository, /p_city_id:\s*spot\.cityId/);
-  assert.match(repository, /return \{ \.\.\.result, cityId: resolvedCityId \}/);
-  assert.match(repository, /return \{ \.\.\.result, cityId: spot\.cityId \}/);
+  assert.match(repository, /resolveSupportedCityForBurial\(input\.location!\)/);
+  assert.match(repository, /activePublicSpot\(input\.spotId\)/);
+  assert.match(repository, /id=eq\.\$\{encodeURIComponent\(spotId\)\}&active=eq\.true/);
+  assert.match(repository, /p_city_id:\s*cityId/);
+  assert.match(repository, /p_latitude:\s*nearbyBurial \? input\.location!\.latitude : null/);
+  assert.match(repository, /p_longitude:\s*nearbyBurial \? input\.location!\.longitude : null/);
+  assert.match(repository, /return \{ \.\.\.result, cityId \}/);
+  assert.doesNotMatch(repository, /getPublicSpot\(input\.spotId\)/);
   assert.doesNotMatch(repository, /p_city_id:\s*input\.cityId/);
 });
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 
-import { cities, getPublicSpot } from "@/data/geography";
+import { cities } from "@/data/geography";
 import type {
   CityId,
   CitySummary,
@@ -92,6 +92,14 @@ function discoverySceneContext(
 
 async function fetchCities(): Promise<CitySummary[]> {
   return rpc<CitySummary[]>("get_city_catalog", {});
+}
+
+async function activePublicSpot(spotId: string): Promise<PublicSpotRow | null> {
+  const rows = await selectRows<PublicSpotRow[]>(
+    "public_spots",
+    `select=id,city_id,district_id,name,latitude,longitude&id=eq.${encodeURIComponent(spotId)}&active=eq.true&limit=1`,
+  );
+  return rows[0] ?? null;
 }
 
 const getCachedCities = unstable_cache(fetchCities, ["chacha-city-catalog-v1"], {
@@ -190,7 +198,7 @@ export async function createMelon(input: CreateMelonRequest, actorId: string): P
     throw new ApiProblem(400, "invalid_location", "附近埋瓜需要本次手机定位。 ");
   }
 
-  const spot = nearbyBurial ? null : input.spotId ? getPublicSpot(input.spotId) : null;
+  const spot = nearbyBurial ? null : input.spotId ? await activePublicSpot(input.spotId) : null;
   if (!nearbyBurial && !input.spotId) {
     throw new ApiProblem(400, "invalid_spot", "公共地点埋瓜需要有效地点。");
   }
@@ -200,7 +208,7 @@ export async function createMelon(input: CreateMelonRequest, actorId: string): P
 
   const cityId = nearbyBurial
     ? resolveSupportedCityForBurial(input.location!)
-    : spot!.cityId;
+    : spot!.city_id;
   const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
     "create_melon_v4",
     {
