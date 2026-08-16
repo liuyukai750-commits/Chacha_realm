@@ -65,6 +65,6 @@ test("Preview 核心路径：音乐恢复、附近埋瓜、真籽和瓜田", asy
   const field = page.getByRole("region", { name: /我的瓜田/ });
   await expect(field).toBeVisible();
   await expect(field.getByText(/真瓜籽[^\d]*1|1[^\d]*真瓜籽/).first()).toBeVisible();
-  await expect(field.locator(".my-melons")).toContainText("附近生活圈");
+  await expect(field.locator(".my-melons")).toContainText("[Preview 发布前埋瓜验收]");
   await page.screenshot({ path: resolve(screenshots, "04-field.png"), fullPage: true });
 });

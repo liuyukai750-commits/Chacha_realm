@@ -6,6 +6,7 @@ const island = readFileSync(new URL("../src/components/chacha-island.tsx", impor
 const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/202608150006_public_animal_identity.sql", import.meta.url), "utf8");
 const discoveryIdentityMigration = readFileSync(new URL("../supabase/migrations/202608150007_discovery_author_identity.sql", import.meta.url), "utf8");
+const listMetadataMigration = readFileSync(new URL("../supabase/migrations/202608160001_melon_list_metadata.sql", import.meta.url), "utf8");
 
 test("普通触摸焦点不会被误判为左滑操作", () => {
   assert.doesNotMatch(css, /\.swipe-action-row:focus-within\s+\.swipe-action-content/);
@@ -37,4 +38,23 @@ test("五城共用的瓜篮预览直接携带公开动物与昵称", () => {
   assert.match(discoveryIdentityMigration, /profile_public_identity\(m\.author_id\)/i);
   assert.match(discoveryIdentityMigration, /-\s*'publicId'/i, "发现列表不需要公开猹号");
   assert.doesNotMatch(discoveryIdentityMigration, /auth\.users|phone|latitude[^\n]*jsonb_build_object|longitude[^\n]*jsonb_build_object/i);
+});
+
+test("瓜篮、我的瓜与蹲瓜架共享标题、头像、时间戳和倒序规则", () => {
+  assert.match(island, /function storyTitle/);
+  assert.match(island, /function newestFirst/);
+  assert.match(island, /className="melon-timestamp"/);
+  assert.match(island, /className="field-melon-avatar"[\s\S]*?<AnimalAvatar/);
+  assert.match(island, /className="squat-shelf-avatar"[\s\S]*?<AnimalAvatar/);
+  assert.match(listMetadataMigration, /get_discovery_candidates_for_visitor_v2/i);
+  assert.match(listMetadataMigration, /field_view_for_profile/i);
+  assert.match(listMetadataMigration, /get_squat_shelf/i);
+  assert.match(listMetadataMigration, /'createdAt',\s*m\.created_at/i);
+  assert.match(listMetadataMigration, /profile_public_identity\(m\.author_id\)/i);
+});
+
+test("打开瓜时并行预取评论，避免正文后再串行等待", () => {
+  assert.match(island, /commentsPrefetchRef/);
+  assert.match(island, /prefetchComments\(preview\.id/);
+  assert.match(island, /prefetchedComments=/);
 });

@@ -140,17 +140,22 @@ test.describe("五城同步发布门禁", () => {
 
     for (const city of fiveCityMatrix) {
       if (city.id !== "changsha") await switchCity(page, city.name);
+      const nearbyDiscoveryCount = api.discoveryRequests.length;
       await submitNearbyMelon(page, city.name);
       expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "nearby_area" });
       expect(api.createRequests.at(-1)).not.toHaveProperty("cityId");
-      expect(api.discoveryRequests.at(-1)).toMatchObject({ location: expect.any(Object) });
-      expect(api.discoveryRequests.at(-1)).not.toHaveProperty("selectedCityId");
+      await expect.poll(() => api.discoveryRequests.slice(nearbyDiscoveryCount).some((request) => Boolean(request.location))).toBe(true);
+      const nearbyRefresh = api.discoveryRequests.slice(nearbyDiscoveryCount).find((request) => request.location);
+      expect(nearbyRefresh).toMatchObject({ location: expect.any(Object) });
+      expect(nearbyRefresh).not.toHaveProperty("selectedCityId");
 
       const publicSpot = primarySpotForCity(city.id);
+      const publicDiscoveryCount = api.discoveryRequests.length;
       await submitPublicSpotMelon(page, city.name, publicSpot.name);
       expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id, location: expect.any(Object) });
       expect(api.createRequests.at(-1)).not.toHaveProperty("cityId");
-      expect(api.discoveryRequests.at(-1)).toEqual({ selectedCityId: city.id });
+      await expect.poll(() => api.discoveryRequests.slice(publicDiscoveryCount).some((request) => request.selectedCityId === city.id)).toBe(true);
+      expect(api.discoveryRequests.slice(publicDiscoveryCount)).toContainEqual({ selectedCityId: city.id });
     }
   });
 

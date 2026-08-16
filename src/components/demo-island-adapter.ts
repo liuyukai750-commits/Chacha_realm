@@ -115,8 +115,9 @@ const previewSeeds: Array<Omit<MelonPreview, "revealMode">> = [
   { id: "m-016", status: "mature", topic: "daily", cityId: "changsha", districtId: "furong", spot: changshaSpots[0], distanceBand: "within_1km", completedReads: 8, isRemote: false },
 ];
 
-const previews: MelonPreview[] = previewSeeds.map((melon) => ({
+const previews: MelonPreview[] = previewSeeds.map((melon, index) => ({
   ...melon,
+  createdAt: new Date(Date.now() - index * 60 * 1000).toISOString(),
   revealMode: "open",
 }));
 

@@ -29,7 +29,7 @@ test("安全复核中的瓜只对瓜主瓜田可见，不会被静默丢失", ()
   const substantive = definitions.map((match) => match[0]).reverse().find((body) => /m\.status\s*=\s*'held'/i.test(body));
   assert.ok(substantive, "瓜田视图实现必须保留 held 瓜主分支；身份包装函数不能掩盖该实现");
   assert.match(substantive, /p_include_private\s+and\s+m\.status\s*=\s*'held'/i);
-  assert.match(component, /安全复核中 · 点击查看原文/);
+  assert.match(component, /安全复核中 · 只有你能看到原文/);
 });
 
 test("安全复核触发器使用 Supabase extensions schema，不会回滚埋瓜", () => {

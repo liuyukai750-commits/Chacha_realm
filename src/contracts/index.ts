@@ -132,6 +132,7 @@ export interface MelonPreview {
   completedReads?: number;
   title?: string;
   commentCount?: number;
+  createdAt?: string;
   isRemote: boolean;
   revealMode: MelonRevealMode;
 }

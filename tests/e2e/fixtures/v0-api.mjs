@@ -130,6 +130,7 @@ export const discoveryMelons = Array.from({ length: 12 }, (_, index) => {
     content: isRemote
       ? "虽然隔着一座城，公开瓜棚里的故事、评论和轻反应仍然清楚可读。"
       : `这是五一广场瓜区第 ${number} 颗成熟瓜的完整正文。`,
+    createdAt: new Date(Date.parse(melon.createdAt) - index * 60_000).toISOString(),
   };
 });
 
@@ -237,6 +238,7 @@ export async function installV0Api(page, options = {}) {
     sessionAlias: options.sessionAlias ?? "巡城小猹 101",
     commentRequests: [],
     commentGetRequests: [],
+    openMelonRequests: [],
     commentsByMelon: new Map(),
     completeRequests: [],
     createRequests: [],
@@ -316,6 +318,7 @@ export async function installV0Api(page, options = {}) {
           distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
           completedReads: item.id === melon.id ? state.completedReads : item.completedReads,
           title: options.includeIncubating && index === 1 ? "还在长的后续瓜" : item.title,
+          createdAt: item.createdAt,
           commentCount: publicComments.length,
           isRemote: item.isRemote,
           revealMode: item.revealMode,
@@ -440,6 +443,7 @@ export async function installV0Api(page, options = {}) {
           distanceBand: options.noNearby && item.distanceBand === "within_1km" ? "within_3km" : item.distanceBand,
           completedReads: item.id === melon.id ? state.completedReads : item.completedReads,
           title: options.includeIncubating && index === 1 ? "还在长的后续瓜" : item.title,
+          createdAt: item.createdAt,
           commentCount: publicComments.length,
           isRemote: item.isRemote,
           revealMode: item.revealMode,
@@ -455,6 +459,8 @@ export async function installV0Api(page, options = {}) {
     ];
     const requestedMelon = requestMelons.find((item) => path === `/api/melons/${item.id}`);
     if (method === "GET" && requestedMelon) {
+      state.openMelonRequests.push({ melonId: requestedMelon.id, at: Date.now() });
+      if (options.openMelonDelayMs) await new Promise((resolve) => setTimeout(resolve, options.openMelonDelayMs));
       return json(route, {
         melon: {
           ...requestedMelon,
@@ -521,7 +527,7 @@ export async function installV0Api(page, options = {}) {
         await new Promise((resolve) => setTimeout(resolve, options.squatWriteDelayMs));
       }
       state.squatRequests.push(body);
-      if (body?.active) state.squats.set(melon.id, { melon, squattedAt: fixedNow, alertKind: null, unread: false });
+      if (body?.active) state.squats.set(melon.id, { melon: { ...melon, displayName: melon.displayName ?? melon.alias }, squattedAt: fixedNow, alertKind: null, unread: false });
       else state.squats.delete(melon.id);
       return json(route, { active: Boolean(body?.active), squatCount: state.squats.has(melon.id) ? 1 : 0 });
     }
@@ -532,7 +538,7 @@ export async function installV0Api(page, options = {}) {
         await new Promise((resolve) => setTimeout(resolve, options.squatWriteDelayMs));
       }
       state.squatRequests.push({ melonId: squatMelon.id, ...body });
-      if (body?.active) state.squats.set(squatMelon.id, { melon: squatMelon, squattedAt: fixedNow, alertKind: null, unread: false });
+      if (body?.active) state.squats.set(squatMelon.id, { melon: { ...squatMelon, displayName: squatMelon.displayName ?? squatMelon.alias }, squattedAt: fixedNow, alertKind: null, unread: false });
       else state.squats.delete(squatMelon.id);
       return json(route, { active: Boolean(body?.active), squatCount: state.squats.has(squatMelon.id) ? 1 : 0 });
     }
@@ -557,7 +563,8 @@ export async function installV0Api(page, options = {}) {
 
     const commentsMelon = requestMelons.find((item) => path === `/api/melons/${item.id}/comments`);
     if (method === "GET" && commentsMelon) {
-      state.commentGetRequests.push({ melonId: commentsMelon.id, search: url.search });
+      state.commentGetRequests.push({ melonId: commentsMelon.id, search: url.search, at: Date.now() });
+      if (options.commentsDelayMs) await new Promise((resolve) => setTimeout(resolve, options.commentsDelayMs));
       if (!state.commentsByMelon.has(commentsMelon.id)) {
         state.commentsByMelon.set(
           commentsMelon.id,

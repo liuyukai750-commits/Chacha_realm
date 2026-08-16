@@ -162,6 +162,7 @@ export async function discover(
         ...(candidate.completedReads !== undefined ? { completedReads: candidate.completedReads } : {}),
         ...(candidate.title ? { title: candidate.title } : {}),
         ...(typeof candidate.commentCount === "number" ? { commentCount: candidate.commentCount } : {}),
+        createdAt: candidate.createdAt,
         isRemote: candidate.cityId !== activeCityId,
         revealMode: "open",
       };
