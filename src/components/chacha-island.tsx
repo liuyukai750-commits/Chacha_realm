@@ -359,13 +359,11 @@ export function ChachaIsland() {
   };
 
   const createMelon = async (input: Omit<CreateMelonRequest, "location">) => {
-    const location = input.burialKind === "nearby_area"
-      ? mode === "demo"
-        ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString(), simulated: true, simulationLabel: "demo_nearby_life_circle" }
-        : await requestLocationProof()
-      : undefined;
-    if (location) lastLocatedProofRef.current = location;
-    const result = await islandAdapter.createMelon(location ? { ...input, location } : input);
+    const location = mode === "demo"
+      ? { ...demoNearbyCoordinates, capturedAt: new Date().toISOString(), simulated: true, simulationLabel: "demo_nearby_life_circle" }
+      : await requestLocationProof();
+    lastLocatedProofRef.current = location;
+    const result = await islandAdapter.createMelon({ ...input, location });
 
     // The create transaction is the source of truth. Reflect it before any
     // secondary refresh so a slow discovery request cannot hide a successful
@@ -397,10 +395,11 @@ export function ChachaIsland() {
         : `瓜已埋好，已归入${resultCityName} · 瓜田列表暂时没刷新，可点击重试`),
     );
 
-    void islandAdapter.discover(location ? { location } : { selectedCityId: result.cityId }).then(
+    const nearbyBurial = input.burialKind === "nearby_area";
+    void islandAdapter.discover(nearbyBurial ? { location } : { selectedCityId: result.cityId }).then(
       (discovery) => {
         setModel((current) => current ? { ...current, discovery } : current);
-        setDiscoveryScope(location && discovery.visitorType === "local" ? "nearby" : "city");
+        setDiscoveryScope(nearbyBurial && discovery.visitorType === "local" ? "nearby" : "city");
       },
       () => undefined,
     );

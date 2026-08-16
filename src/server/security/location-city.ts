@@ -25,12 +25,12 @@ export function resolveSupportedCityForBurial(location: Coordinates): CityId {
     accuracyM < 0 ||
     accuracyM > MAX_CITY_BURIAL_ACCURACY_M
   ) {
-    throw new ApiProblem(403, "nearby_city_unavailable", "当前生活圈尚未开放");
+    throw new ApiProblem(403, "nearby_city_unavailable", "当前位置尚未开放埋瓜");
   }
 
   const resolvedCityId = cityAt(location);
   if (!resolvedCityId) {
-    throw new ApiProblem(403, "nearby_city_unavailable", "当前生活圈尚未开放");
+    throw new ApiProblem(403, "nearby_city_unavailable", "当前位置尚未开放埋瓜");
   }
 
   const samples = [
@@ -40,7 +40,7 @@ export function resolveSupportedCityForBurial(location: Coordinates): CityId {
     offsetByMeters(location, 0, -accuracyM),
   ];
   if (samples.some((point) => cityAt(point) !== resolvedCityId)) {
-    throw new ApiProblem(403, "nearby_city_unavailable", "当前生活圈尚未开放");
+    throw new ApiProblem(403, "nearby_city_unavailable", "当前位置尚未开放埋瓜");
   }
 
   return resolvedCityId;

@@ -118,7 +118,7 @@ test.describe("五城同步发布门禁", () => {
       const publicSpot = primarySpotForCity(city.id);
       await submitPublicSpotMelon(page, city.name, publicSpot.name);
       const createPayload = api.createRequests.at(-1);
-      expect(createPayload).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id });
+      expect(createPayload).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id, location: expect.any(Object) });
       expect(createPayload).not.toHaveProperty("cityId");
       expect(api.discoveryRequests.at(-1)).toEqual({ selectedCityId: city.id });
 
@@ -148,7 +148,7 @@ test.describe("五城同步发布门禁", () => {
 
       const publicSpot = primarySpotForCity(city.id);
       await submitPublicSpotMelon(page, city.name, publicSpot.name);
-      expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id });
+      expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", spotId: publicSpot.id, location: expect.any(Object) });
       expect(api.createRequests.at(-1)).not.toHaveProperty("cityId");
       expect(api.discoveryRequests.at(-1)).toEqual({ selectedCityId: city.id });
     }
@@ -168,6 +168,24 @@ test.describe("五城同步发布门禁", () => {
     await expect(page.getByRole("button", { name: /当前城市长沙/ })).toBeVisible();
     await expect(page.locator(".live-notice")).toContainText(/已归入长沙/);
     expect(api.createdMelons[0]).toMatchObject({ cityId: "changsha", spot: { cityId: "changsha", name: "附近生活圈" } });
+  });
+
+  test("PUBLIC-CITY-P0：长沙定位不能把公区瓜远程埋进上海", async ({ baseURL, context, page }) => {
+    const api = await installV0Api(page, { fiveCities: true, realLocationCityId: "changsha" });
+    await allowLocation(context, baseURL);
+    await enterIsland(page);
+    await switchCity(page, "上海");
+    const trueSeedsBefore = api.wallet.trueSeedCount;
+
+    const dialog = await openBurySheet(page);
+    await dialog.getByRole("button", { name: primarySpotForCity("shanghai").name, exact: true }).click();
+    await fillBuryForm(dialog, "上海");
+    await dialog.getByRole("button", { name: /把秘密压进土里|模拟抵达并埋瓜/ }).click();
+
+    await expect(dialog.getByRole("alert")).toContainText(/只能选择当前所在城市/);
+    expect(api.createRequests.at(-1)).toMatchObject({ burialKind: "public_spot", location: expect.any(Object) });
+    expect(api.createdMelons).toEqual([]);
+    expect(api.wallet.trueSeedCount).toBe(trueSeedsBefore);
   });
 
   test("NEARBY-CITY：五城附近范围只显示生活圈瓜，当前 cityId 不暗跳长沙", async ({ baseURL, context, page }) => {
@@ -220,6 +238,21 @@ test.describe("五城同步发布门禁", () => {
 });
 
 test.describe("埋瓜能力失败门禁", () => {
+  test("BURY-GEO-PUBLIC-DENIED：未授权定位时公区也只能浏览，不能埋瓜", async ({ context, page }) => {
+    const api = await installV0Api(page, { fiveCities: true });
+    await mockLocationFailure(page, context, "denied");
+    await enterIsland(page);
+
+    const dialog = await openBurySheet(page);
+    await dialog.getByRole("button", { name: primarySpotForCity("changsha").name, exact: true }).click();
+    await fillBuryForm(dialog, "长沙");
+    await dialog.getByRole("button", { name: /把秘密压进土里/ }).click();
+
+    await expect(dialog.getByRole("alert")).toContainText(/定位已拒绝|授权|埋瓜需要本次定位/);
+    expect(api.createRequests).toEqual([]);
+    expect(api.wallet.trueSeedCount).toBe(0);
+  });
+
   for (const failure of [
     { mode: "denied", copy: /定位已拒绝|授权|埋瓜需要本次定位/ },
     { mode: "timeout", copy: /没有取到位置|重试|继续按城市浏览/ },

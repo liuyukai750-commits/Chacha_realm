@@ -194,8 +194,8 @@ export async function discover(
 
 export async function createMelon(input: CreateMelonRequest, actorId: string): Promise<CreateMelonResult> {
   const nearbyBurial = input.burialKind === "nearby_area";
-  if (nearbyBurial && !input.location) {
-    throw new ApiProblem(400, "invalid_location", "附近埋瓜需要本次手机定位。 ");
+  if (!input.location) {
+    throw new ApiProblem(400, "invalid_location", "埋瓜需要本次手机定位。 ");
   }
 
   const spot = nearbyBurial ? null : input.spotId ? await activePublicSpot(input.spotId) : null;
@@ -206,9 +206,11 @@ export async function createMelon(input: CreateMelonRequest, actorId: string): P
     throw new ApiProblem(400, "invalid_spot", "该公共地点尚未开放。");
   }
 
-  const cityId = nearbyBurial
-    ? resolveSupportedCityForBurial(input.location!)
-    : spot!.city_id;
+  const locatedCityId = resolveSupportedCityForBurial(input.location);
+  if (!nearbyBurial && spot!.city_id !== locatedCityId) {
+    throw new ApiProblem(403, "public_spot_city_mismatch", "公共地点只能选择当前所在城市。 ");
+  }
+  const cityId = nearbyBurial ? locatedCityId : spot!.city_id;
   const result = await serviceRpc<Omit<CreateMelonResult, "cityId">>(
     "create_melon_v4",
     {

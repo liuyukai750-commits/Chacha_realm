@@ -178,7 +178,7 @@ export interface CreateMelonRequest {
   title: string;
   content: string;
   revealMode: MelonRevealMode;
-  /** Required for nearby_area only. Public-zone burial is intentionally remote-capable. */
+  /** Required for every burial. Public-zone burial uses it only to authorize the current city and never persists it. */
   location?: LocationProof;
 }
 

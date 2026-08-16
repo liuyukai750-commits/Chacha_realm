@@ -59,13 +59,15 @@ test("melon create does not trust client cityId for public or nearby burial", ()
   assert.doesNotMatch(createRoute, /cityId\(body\.cityId\)\s*\?\?\s*"changsha"/);
   assert.match(createRoute, /operationId:\s*uuid\(body\.operationId, "operationId"\)/);
   assert.match(createRoute, /burialKind: "public_spot"[\s\S]*spotId: uuid\(body\.spotId, "spotId"\)/);
-  assert.match(repository, /resolveSupportedCityForBurial\(input\.location!\)/);
+  assert.match(createRoute, /const location = validateLocationProof\(body\.location\)/);
+  assert.match(repository, /const locatedCityId = resolveSupportedCityForBurial\(input\.location\)/);
   assert.match(repository, /activePublicSpot\(input\.spotId\)/);
   assert.match(repository, /select=id,city_id,district_id,name,latitude,longitude&id=eq\.\$\{encodeURIComponent\(spotId\)\}&active=eq\.true&limit=1/);
   assert.doesNotMatch(repository, /getPublicSpot\(input\.spotId\)/);
-  assert.match(repository, /const cityId = nearbyBurial[\s\S]*resolveSupportedCityForBurial\(input\.location!\)[\s\S]*spot!\.city_id/);
+  assert.match(repository, /const cityId = nearbyBurial \? locatedCityId : spot!\.city_id/);
   assert.match(repository, /p_city_id:\s*cityId/);
   assert.match(repository, /p_operation_id:\s*input\.operationId/);
+  assert.match(repository, /spot!\.city_id !== locatedCityId[\s\S]*public_spot_city_mismatch/);
 });
 
 test("current create path uses one RPC for public spots and nearby life circles", () => {

@@ -619,8 +619,11 @@ export async function installV0Api(page, options = {}) {
       }
       const previousCreateResult = state.createOperations.get(body.operationId);
       if (previousCreateResult) return json(route, structuredClone(previousCreateResult), 201);
+      if (!body?.location) {
+        return json(route, { error: { code: "invalid_location", message: "埋瓜需要本次手机定位" } }, 400);
+      }
       if (options.unopenedNearbyCity && body.burialKind === "nearby_area") {
-        return json(route, { error: { code: "nearby_city_unavailable", message: "当前生活圈尚未开放" } }, 403);
+        return json(route, { error: { code: "nearby_city_unavailable", message: "当前位置尚未开放埋瓜" } }, 403);
       }
       if (state.plantDistanceFailure && body.burialKind === "nearby_area") {
         return json(
@@ -629,12 +632,16 @@ export async function installV0Api(page, options = {}) {
           400,
         );
       }
+      const locatedCityId = options.realLocationCityId ?? state.activeCityId;
+      if (body.burialKind === "public_spot" && state.activeSpot.cityId !== locatedCityId) {
+        return json(route, { error: { code: "public_spot_city_mismatch", message: "公共地点只能选择当前所在城市" } }, 403);
+      }
       const status = state.createStatusSequence.shift() ?? "incubating";
       const trueSeedAwarded = status === "incubating";
       if (trueSeedAwarded) {
         state.wallet.trueSeedCount += 1;
       }
-      const resolvedCityId = body.burialKind === "nearby_area" ? options.realLocationCityId ?? state.activeCityId : state.activeSpot.cityId;
+      const resolvedCityId = body.burialKind === "nearby_area" ? locatedCityId : state.activeSpot.cityId;
       const createdSpot = body.burialKind === "nearby_area"
         ? {
             id: `nearby-area-${resolvedCityId}`,

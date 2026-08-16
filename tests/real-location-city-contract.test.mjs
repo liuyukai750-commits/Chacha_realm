@@ -21,12 +21,12 @@ test("public spot burial payload submits only spotId; the server owns spot city 
   assert.doesNotMatch(publicSubmit, /cityId/);
 });
 
-test("create melon route validates location only for nearby burial and never parses client cityId", async () => {
+test("create melon route requires one-time location for both burial modes and never parses client cityId", async () => {
   const route = await source("src/app/api/melons/route.ts");
-  const baseBlock = route.match(/const base = \{[\s\S]*?\n\s*\};/)?.[0] ?? "";
 
-  assert.match(route, /kind === "nearby_area"[\s\S]*location:\s*validateLocationProof\(body\.location\)/);
-  assert.doesNotMatch(baseBlock, /location:\s*validateLocationProof/);
+  assert.match(route, /const location = validateLocationProof\(body\.location\)/);
+  assert.match(route, /kind === "nearby_area"[\s\S]*burialKind: "nearby_area", location/);
+  assert.match(route, /burialKind: "public_spot", spotId:[\s\S]*location/);
   assert.doesNotMatch(route, /cityId\(body\.cityId\)/);
   assert.doesNotMatch(route, /parsedCityId|body\.cityId/);
 });
@@ -34,7 +34,7 @@ test("create melon route validates location only for nearby burial and never par
 test("repository resolves nearby city from real location and public spot city from the active database row", async () => {
   const repository = await source("src/server/repositories/island-repository.ts");
 
-  assert.match(repository, /resolveSupportedCityForBurial\(input\.location!\)/);
+  assert.match(repository, /const locatedCityId = resolveSupportedCityForBurial\(input\.location\)/);
   assert.match(repository, /activePublicSpot\(input\.spotId\)/);
   assert.match(repository, /id=eq\.\$\{encodeURIComponent\(spotId\)\}&active=eq\.true/);
   assert.match(repository, /p_city_id:\s*cityId/);
@@ -43,6 +43,10 @@ test("repository resolves nearby city from real location and public spot city fr
   assert.match(repository, /return \{ \.\.\.result, cityId \}/);
   assert.doesNotMatch(repository, /getPublicSpot\(input\.spotId\)/);
   assert.doesNotMatch(repository, /p_city_id:\s*input\.cityId/);
+  assert.match(repository, /spot!\.city_id !== locatedCityId/);
+  assert.match(repository, /public_spot_city_mismatch/);
+  assert.match(repository, /p_latitude:\s*nearbyBurial \? input\.location!\.latitude : null/);
+  assert.match(repository, /p_longitude:\s*nearbyBurial \? input\.location!\.longitude : null/);
 });
 
 test("nearby city resolver covers five configured city boundaries and blocks uncertain life circles", async () => {
@@ -55,13 +59,24 @@ test("nearby city resolver covers five configured city boundaries and blocks unc
   assert.match(resolver, /findCityForCoordinates\(point, cities\)/);
   assert.match(resolver, /MAX_CITY_BURIAL_ACCURACY_M = 100/);
   assert.match(resolver, /samples\.some\(\(point\) => cityAt\(point\) !== resolvedCityId\)/);
-  assert.match(resolver, /"nearby_city_unavailable", "当前生活圈尚未开放"/);
+  assert.match(resolver, /"nearby_city_unavailable", "当前位置尚未开放埋瓜"/);
 });
 
-test("successful create refreshes discovery by real location instead of browsing city", async () => {
+test("successful nearby create refreshes discovery by real location instead of browsing city", async () => {
   const component = await source("src/components/chacha-island.tsx");
 
-  assert.match(component, /islandAdapter\.discover\(\{ location \}\)/);
+  assert.match(component, /islandAdapter\.discover\(nearbyBurial \? \{ location \} : \{ selectedCityId: result\.cityId \}\)/);
   assert.match(component, /已归入\$\{resultCityName\}/);
   assert.doesNotMatch(component, /islandAdapter\.discover\(\{ location, selectedCityId/);
+});
+
+test("all burial modes request location, while public spot success stays in the city view", async () => {
+  const component = await source("src/components/chacha-island.tsx");
+  const burySheet = await source("src/components/bury-sheet-v1.tsx");
+
+  assert.match(component, /const location = mode === "demo"[\s\S]*await requestLocationProof\(\)/);
+  assert.match(component, /const nearbyBurial = input\.burialKind === "nearby_area"/);
+  assert.match(component, /islandAdapter\.discover\(nearbyBurial \? \{ location \} : \{ selectedCityId: result\.cityId \}\)/);
+  assert.match(burySheet, /公区瓜需要一次定位/);
+  assert.match(burySheet, /只用于确认你在这座城市，不保存坐标/);
 });
