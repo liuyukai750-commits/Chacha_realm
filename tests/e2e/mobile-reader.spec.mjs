@@ -116,3 +116,43 @@ test("正文与评论请求并行启动且评论只请求一次", async ({ page 
   expect(state.openMelonRequests).toHaveLength(1);
   expect(Math.abs(state.commentGetRequests[0].at - state.openMelonRequests[0].at)).toBeLessThan(150);
 });
+
+test("附近瓜篮、我的瓜和蹲瓜架都先即时打开详情壳层", async ({ page }) => {
+  const owned = {
+    ...melon,
+    id: "owned-slow-detail",
+    alias: "慢网狐狸",
+    displayName: "慢网狐狸",
+    animal: "狐狸",
+    title: "弱网也要立刻有反馈",
+    content: "服务端尚未返回时，详情壳层应当已经出现。",
+  };
+  await installV0Api(page, { createdMelons: [owned], openMelonDelayMs: 1_200, commentsDelayMs: 1_350 });
+  await enterIsland(page);
+
+  await page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "直接吃", exact: true }).click();
+  const basketLoading = page.getByRole("dialog", { name: "吃瓜详情" });
+  await expect(basketLoading).toBeVisible({ timeout: 350 });
+  await expect(basketLoading.getByRole("status", { name: `正在打开${melon.title}` })).toBeVisible();
+  await expect(basketLoading.getByText(melon.content, { exact: true })).toBeVisible({ timeout: 2_500 });
+  await basketLoading.getByRole("button", { name: "关闭" }).click();
+
+  await page.getByRole("button", { name: "瓜田", exact: true }).click();
+  await page.getByRole("button", { name: `查看${owned.title}的正文和评论` }).click();
+  const ownerLoading = page.getByRole("dialog", { name: "我的瓜详情" });
+  await expect(ownerLoading).toBeVisible({ timeout: 350 });
+  await expect(ownerLoading.getByRole("status", { name: `正在打开${owned.title}` })).toBeVisible();
+  await expect(ownerLoading.getByText(owned.content, { exact: true })).toBeVisible({ timeout: 2_500 });
+  await ownerLoading.getByRole("button", { name: "关闭" }).click();
+
+  await page.getByRole("button", { name: /听瓜，蹲瓜架/ }).click();
+  const emptyShelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
+  await emptyShelf.getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "添加蹲瓜", exact: true }).click();
+  await page.getByRole("button", { name: /听瓜，蹲瓜架/ }).click();
+  const shelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
+  await shelf.locator(".squat-shelf-main").filter({ hasText: melon.title }).click();
+  const shelfLoading = page.getByRole("dialog", { name: "吃瓜详情" });
+  await expect(shelfLoading).toBeVisible({ timeout: 350 });
+  await expect(shelfLoading.getByRole("status", { name: `正在打开${melon.title}` })).toBeVisible();
+});

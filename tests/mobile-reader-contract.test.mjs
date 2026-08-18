@@ -58,3 +58,12 @@ test("打开瓜时并行预取评论，避免正文后再串行等待", () => {
   assert.match(island, /prefetchComments\(preview\.id/);
   assert.match(island, /prefetchedComments=/);
 });
+
+test("三个瓜列表入口在服务端返回前先显示稳定详情壳层", () => {
+  assert.match(island, /type OpeningMelonTarget/);
+  assert.match(island, /setOpeningTarget\(\{ preview, asOwner: false \}\)/);
+  assert.match(island, /setOpeningTarget\(\{ preview, asOwner: true \}\)/);
+  assert.match(island, /function MelonReaderLoading/);
+  assert.match(island, /openingTarget && !opened && <MelonReaderLoading/);
+  assert.match(css, /\.melon-reader-loading/);
+});

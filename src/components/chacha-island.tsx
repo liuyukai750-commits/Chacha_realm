@@ -100,6 +100,10 @@ type DiscoveryScope = "nearby" | "city";
 type BuryFeedback = Pick<CreateMelonResult, "id" | "status" | "trueSeedAwarded" | "cityId"> & {
   burialKind: NonNullable<CreateMelonRequest["burialKind"]>;
 };
+type OpeningMelonTarget = {
+  preview: MelonPreview | FieldMelonPreview;
+  asOwner: boolean;
+};
 
 async function refreshOwnFieldAfterCreate(adapter: IslandAdapter): Promise<FieldView> {
   const delays = [0, 600, 1_800];
@@ -142,6 +146,7 @@ export function ChachaIsland() {
   const [opened, setOpened] = useState<OpenedMelon | null>(null);
   const [openedComments, setOpenedComments] = useState<Promise<MelonCommentsPage> | undefined>();
   const [openedAsOwner, setOpenedAsOwner] = useState(false);
+  const [openingTarget, setOpeningTarget] = useState<OpeningMelonTarget | null>(null);
   const [viewedField, setViewedField] = useState<FieldView | null>(null);
   const [quickSquats, setQuickSquats] = useState<string[]>([]);
   const [squatBusyIds, setSquatBusyIds] = useState<string[]>([]);
@@ -155,6 +160,7 @@ export function ChachaIsland() {
   const [buryFeedback, setBuryFeedback] = useState<BuryFeedback | null>(null);
   const [notice, setNotice] = useState("定位未开启 · 正在浏览公开瓜场");
   const commentsPrefetchRef = useRef(new Map<string, Promise<MelonCommentsPage>>());
+  const openingRequestRef = useRef(0);
   const modelReady = model !== null;
 
   const prefetchComments = (melonId: string, presenceToken?: string) => {
@@ -169,10 +175,13 @@ export function ChachaIsland() {
   };
 
   const closeOpenedMelon = () => {
+    openingRequestRef.current += 1;
     if (opened) commentsPrefetchRef.current.delete(opened.melon.id);
     setOpened(null);
+    setOpeningTarget(null);
     setOpenedComments(undefined);
     setOpenedAsOwner(false);
+    setOpeningMelon(false);
   };
 
   useLayoutEffect(() => {
@@ -294,7 +303,11 @@ export function ChachaIsland() {
       setNotice(`这颗瓜还在长，约 ${formatCountdown(preview.maturesAt)} 后成熟`);
       return false;
     }
+    const requestId = ++openingRequestRef.current;
     setOpeningMelon(true);
+    setOpeningTarget({ preview, asOwner: false });
+    setOpenedAsOwner(false);
+    setOpenedComments(undefined);
     try {
       let accessToken = presenceToken;
       if (preview.burialKind === "nearby_area" && !accessToken) {
@@ -311,15 +324,20 @@ export function ChachaIsland() {
         setZonePresence((current) => ({ ...current, [preview.id]: presence }));
         accessToken = presence.presenceToken;
       }
-      setOpenedAsOwner(false);
-      setOpenedComments(prefetchComments(preview.id, accessToken));
-      setOpened(await islandAdapter.openMelon(preview.id, accessToken));
+      const comments = prefetchComments(preview.id, accessToken);
+      const result = await islandAdapter.openMelon(preview.id, accessToken);
+      if (requestId !== openingRequestRef.current) return false;
+      setOpenedComments(comments);
+      setOpened(result);
+      setOpeningTarget(null);
       return true;
     } catch (error) {
+      if (requestId !== openingRequestRef.current) return false;
+      setOpeningTarget(null);
       setNotice(messageFrom(error));
       return false;
     } finally {
-      setOpeningMelon(false);
+      if (requestId === openingRequestRef.current) setOpeningMelon(false);
     }
   };
 
@@ -428,16 +446,25 @@ export function ChachaIsland() {
   };
 
   const openOwnedMelon = async (preview: FieldMelonPreview) => {
+    const requestId = ++openingRequestRef.current;
     setOpeningMelon(true);
+    setOpeningTarget({ preview, asOwner: true });
+    setOpenedAsOwner(true);
+    setOpenedComments(undefined);
     try {
-      setOpenedAsOwner(true);
-      if (preview.status === "mature") setOpenedComments(prefetchComments(preview.id));
-      setOpened(await islandAdapter.openMelon(preview.id));
+      const comments = preview.status === "mature" ? prefetchComments(preview.id) : undefined;
+      const result = await islandAdapter.openMelon(preview.id);
+      if (requestId !== openingRequestRef.current) return;
+      setOpenedComments(comments);
+      setOpened(result);
+      setOpeningTarget(null);
     } catch (error) {
+      if (requestId !== openingRequestRef.current) return;
+      setOpeningTarget(null);
       setOpenedAsOwner(false);
       setNotice(messageFrom(error));
     } finally {
-      setOpeningMelon(false);
+      if (requestId === openingRequestRef.current) setOpeningMelon(false);
     }
   };
 
@@ -512,29 +539,20 @@ export function ChachaIsland() {
       setNotice(`还在土里长 · 约 ${formatCountdown(item.melon.maturesAt)} 后成熟`);
       return;
     }
-    setOpeningMelon(true);
-    try {
-      const openedSuccessfully = await openMelon(item.melon);
-      if (!openedSuccessfully) return;
-      setShowSquatShelf(false);
-      if (item.unread) {
-        void islandAdapter.markSquatSeen(item.melon.id).then(() => {
-          setModel((current) => current ? {
-            ...current,
-            squatShelf: {
-              unreadCount: Math.max(0, current.squatShelf.unreadCount - 1),
-              items: current.squatShelf.items.map((shelfItem) => shelfItem.melon.id === item.melon.id
-                ? { ...shelfItem, unread: false, alertKind: null }
-                : shelfItem),
-            },
-          } : current);
-        }, () => undefined);
-      }
-    } catch (error) {
-      setNotice(messageFrom(error));
-    } finally {
-      setOpeningMelon(false);
-    }
+    setShowSquatShelf(false);
+    const openedSuccessfully = await openMelon(item.melon);
+    if (!openedSuccessfully || !item.unread) return;
+    void islandAdapter.markSquatSeen(item.melon.id).then(() => {
+      setModel((current) => current ? {
+        ...current,
+        squatShelf: {
+          unreadCount: Math.max(0, current.squatShelf.unreadCount - 1),
+          items: current.squatShelf.items.map((shelfItem) => shelfItem.melon.id === item.melon.id
+            ? { ...shelfItem, unread: false, alertKind: null }
+            : shelfItem),
+        },
+      } : current);
+    }, () => undefined);
   };
 
   const viewField = async (alias: string) => {
@@ -669,6 +687,7 @@ export function ChachaIsland() {
         <button className={tab === "field" ? "active" : ""} onClick={showOwnField} aria-current={tab === "field" ? "page" : undefined}><FieldIcon /><span>瓜田</span></button>
       </nav>
 
+      {openingTarget && !opened && <MelonReaderLoading target={openingTarget} onClose={closeOpenedMelon} />}
       {opened && (openedAsOwner
         ? <OwnerMelonReader adapter={islandAdapter} opened={opened} prefetchedComments={openedComments} onClose={closeOpenedMelon} />
         : <MelonReader adapter={islandAdapter} opened={opened} prefetchedComments={openedComments} onClose={closeOpenedMelon} onFinished={finishRead} onViewField={viewField} onSeek={seekZone} onSquatChanged={syncReaderSquat} readOnly={writesBlocked} initialPresence={zonePresence[opened.melon.id]} />)}
@@ -1162,6 +1181,31 @@ function SquatShelfSheet({ shelf, busy, onClose, onOpen, onCancel }: {
         </article>)}</div>}
       </>}
     </section>
+  </Sheet>;
+}
+
+function MelonReaderLoading({ target, onClose }: { target: OpeningMelonTarget; onClose: () => void }) {
+  const preview = target.preview;
+  const title = preview.title ?? `一颗${topicName[preview.topic]}瓜`;
+  const authorName = preview.displayName ?? "匿名小动物";
+  const animal = normalizeAnimalIdentity(preview.animal ?? "猹");
+
+  return <Sheet title={target.asOwner ? "我的瓜详情" : "吃瓜详情"} subtitle="正文与评论正在赶来" onClose={onClose} wide>
+    <article className="melon-reader-loading" aria-busy="true" aria-live="polite">
+      <header className="reader-loading-heading">
+        <span>标题</span>
+        <h2>{storyTitle(title)}</h2>
+        <div><AnimalAvatar animal={animal} size="small" /><strong>{authorName}</strong></div>
+      </header>
+      <div className="reader-loading-story" role="status" aria-label={`正在打开${title}`}>
+        <i /><i /><i />
+        <span>正在取回正文…</span>
+      </div>
+      <section className="reader-loading-comments" aria-label="正在加载评论">
+        <h3>评论</h3>
+        <div className="comment-loading"><i /><i /></div>
+      </section>
+    </article>
   </Sheet>;
 }
 
