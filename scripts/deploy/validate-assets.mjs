@@ -20,7 +20,10 @@ const contents = Object.fromEntries(
 );
 
 const checks = [
-  [contents.nextConfig.includes('output: "standalone"'), "next.config.ts enables standalone output"],
+  [
+    contents.nextConfig.includes('process.env.VERCEL ? undefined : "standalone"'),
+    "next.config.ts enables standalone output only outside Vercel",
+  ],
   [contents.service.includes("User=chacha"), "systemd service runs as a dedicated user"],
   [contents.service.includes("HOSTNAME=127.0.0.1"), "Next.js binds only to loopback"],
   [contents.service.includes("MemoryMax=1500M"), "2 GiB memory limit is present"],

@@ -13,7 +13,7 @@
 - Nginx 是唯一公网入口；Node.js 只监听 `127.0.0.1:3000`。
 - 单机部署使用 systemd 和持久磁盘，不引入 Docker、PM2、Redis 或多实例协调。
 - 数据库和账号迁移是另一项高风险工作；本部署不会迁库、改 RLS 或复制用户数据。
-- `output: "standalone"` 只增加 `.next/standalone` 产物，Vercel preview 的构建和路由语义不变。
+- 非 Vercel 构建会启用 `output: "standalone"` 并生成 `.next/standalone`；Vercel 构建保持平台默认输出，避免与其构建收尾流程冲突。
 
 ## 2. 部署前只读审计
 
