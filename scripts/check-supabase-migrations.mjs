@@ -3,8 +3,8 @@ import { spawnSync } from "node:child_process";
 const isWindows = process.platform === "win32";
 const executable = isWindows ? process.env.ComSpec ?? "cmd.exe" : "npx";
 const args = isWindows
-  ? ["/d", "/s", "/c", "npx.cmd supabase@2.114.0 migration list --linked"]
-  : ["supabase@2.114.0", "migration", "list", "--linked"];
+  ? ["/d", "/s", "/c", "npx.cmd supabase@2.114.0 db push --linked --dry-run"]
+  : ["supabase@2.114.0", "db", "push", "--linked", "--dry-run"];
 function readMigrationList() {
   return spawnSync(executable, args, {
     cwd: process.cwd(),
@@ -40,16 +40,13 @@ if (!jsonLine) {
 
 const payload = JSON.parse(jsonLine);
 const migrations = Array.isArray(payload.migrations) ? payload.migrations : [];
-const localPending = migrations.filter((migration) => migration.local && !migration.remote);
-const remoteOnly = migrations.filter((migration) => migration.remote && !migration.local);
 
-if (localPending.length || remoteOnly.length) {
-  if (localPending.length) {
-    console.error(`测试 Supabase 缺少迁移：${localPending.map((item) => item.local).join(", ")}`);
-  }
-  if (remoteOnly.length) {
-    console.error(`测试 Supabase 存在本地缺失迁移：${remoteOnly.map((item) => item.remote).join(", ")}`);
-  }
+if (!payload.upToDate || migrations.length) {
+  console.error(
+    migrations.length
+      ? `测试 Supabase 缺少迁移：${migrations.join(", ")}`
+      : "测试 Supabase 迁移状态未齐平。",
+  );
   process.exit(1);
 }
 
