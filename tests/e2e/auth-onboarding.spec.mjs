@@ -74,6 +74,23 @@ test.describe("猹号密码登录与身份流程", () => {
     await expect(page.getByRole("button", { name: /打开我的账号/ })).toBeVisible();
   });
 
+  test("旧永久账号原地设置密码并保留同一猹号", async ({ page }) => {
+    await installV0Api(page);
+    const auth = await installAuthApi(page, {
+      session: { authenticated: true, anonymous: false, authKind: "phone", needsProfile: false, profile: permanentProfile },
+    });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: /给现有瓜田设置密码/ })).toBeVisible();
+    await expect(page.getByText(`晚风小猹 · ${permanentProfile.publicId}`)).toBeVisible();
+    await page.getByLabel("设置登录密码").fill("street-pass-2026");
+    await page.getByRole("button", { name: "给现有瓜田设置密码" }).click();
+    expect(auth.upgradeCalls).toEqual([{ password: "street-pass-2026" }]);
+    expect(auth.registerCalls).toHaveLength(0);
+    await expect(page.getByText(permanentProfile.publicId, { exact: true })).toBeVisible();
+    await expect(page.getByText("UPGD-2345-6789-ABCD", { exact: true })).toBeVisible();
+    await expect(page.getByText(/原来的猹号、瓜田、瓜籽和互动数据都已保留/)).toBeVisible();
+  });
+
   test("账号页展示猹号密码，不展示内部邮箱，并明确确认注销", async ({ page }) => {
     await installV0Api(page); const auth = await installAuthApi(page, { session: { authenticated: true, anonymous: false, needsProfile: false, profile: permanentProfile } });
     await page.goto("/", { waitUntil: "domcontentloaded" }); await page.getByRole("button", { name: /打开我的账号/ }).click();

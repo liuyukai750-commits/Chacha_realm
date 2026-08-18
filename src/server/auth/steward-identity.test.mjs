@@ -50,7 +50,7 @@ test("private session and public community identity expose only the badge code",
 test("the public badge is accessible and appears across community identity surfaces", () => {
   assert.match(badgeComponent, /aria-label="猹猹街主理人"/);
   assert.match(badgeComponent, />\s*主理人\s*</);
-  assert.match(community, /badge=\{opened\.melon\.identityBadge\}/);
+  assert.match(community, /badge=\{melon\.identityBadge\}/);
   assert.match(community, /badge=\{item\.identityBadge\}/);
   assert.match(community, /badge=\{field\.identityBadge\}/);
 });

@@ -1,4 +1,14 @@
-# 手机认证运行边界
+# 认证运行边界
+
+## 当前入口：猹号 + 密码
+
+- 新注册、登录、恢复和旧账号原地升级都不调用短信接口。
+- 旧永久账号在有效会话内设置密码时保持原 Supabase UUID，因此瓜田、瓜籽、帖子、评论和蹲瓜不迁移也不复制。
+- 16 位恢复码只在创建、升级或恢复成功后展示一次；数据库只保存带服务端密钥的摘要。
+- `account_login_credentials` 是当前 Supabase 适配器的私有登录句柄映射。未来切换标准 PostgreSQL 时，由 `PasswordAuthRepository` 对接 `local_auth_credentials`、`local_auth_sessions` 和 `local_auth_security_events`，API 与公开 DTO 不变。
+- 登录状态通过 `HttpOnly + SameSite=Lax` Cookie 保存；生产环境使用 `Secure`，刷新凭据最长保留 30 天。
+
+## 未来兼容：手机号 OTP
 
 应用只调用 Supabase Auth 的 Phone OTP 接口，不直接持有腾讯云短信密钥，也不会在开发环境伪造“短信已发送”。上线前需在目标 Supabase 项目完成：
 
@@ -7,7 +17,7 @@
 3. 在 Supabase Auth 中配置 OTP 有效期、发送频率限制和 CAPTCHA。前端取得 CAPTCHA token 后，通过 `captchaToken` 传入 `/api/auth/phone/request`。
 4. Vercel 服务端配置独立的 `CHACHA_AUTH_HMAC_SECRET`（至少 32 个字符）。它用于恢复码、账号/IP 摘要及兼容期短时流程签名，不得暴露给浏览器。
 
-## 当前正式入口：猹号 + 密码
+## 猹号凭据细节
 
 - 新用户由服务端创建 Supabase 永久用户，公开登录名是随机 `CC-XXXXXXXX` 猹号；内部邮箱仅作为 Supabase Auth 凭据，不进入公开 DTO 或普通日志。
 - 旧匿名用户在原 `auth.users.id` 上补齐密码身份，因此瓜田、瓜籽、帖子、评论和蹲瓜无需迁移。

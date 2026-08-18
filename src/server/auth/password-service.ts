@@ -13,23 +13,18 @@ import {
   recoverySecretDigest,
   requestIpDigest,
 } from "@/server/auth/security";
+import { passwordAuthRepository } from "@/server/auth/password-repository";
 import { getSupabaseAdminConfig, getSupabaseConfig } from "@/server/supabase/config";
-import { rpc, serviceRpc } from "@/server/supabase/http";
+import { rpc } from "@/server/supabase/http";
 import {
   type AuthSessionResponse,
   getOptionalSession,
   publicSessionFor,
+  requireActiveSession,
   saveAuthSession,
 } from "@/server/supabase/session";
 
 type AuthAction = "register" | "login" | "recover";
-
-interface AccountTarget {
-  userId: string;
-  publicId: string;
-  accountStatus: "active" | "banned";
-  loginEmail?: string | null;
-}
 
 interface AdminUserResult {
   id?: string;
@@ -141,19 +136,11 @@ async function verifyCaptcha(token: string | undefined, request: Request): Promi
 }
 
 async function reserveAttempt(request: Request, identity: string, action: AuthAction): Promise<void> {
-  await serviceRpc("reserve_account_auth_attempt", {
-    p_identity_digest: accountIdentityDigest(identity),
-    p_ip_digest: requestIpDigest(request),
-    p_action: action,
+  await passwordAuthRepository.reserveAttempt({
+    identityDigest: accountIdentityDigest(identity),
+    ipDigest: requestIpDigest(request),
+    action,
   });
-}
-
-async function targetByPublicId(publicId: string): Promise<AccountTarget | null> {
-  return serviceRpc<AccountTarget | null>("account_auth_target", { p_public_id: publicId });
-}
-
-async function targetByUserId(userId: string): Promise<AccountTarget | null> {
-  return serviceRpc<AccountTarget | null>("account_auth_target_by_user", { p_user_id: userId });
 }
 
 async function signIn(loginEmail: string, password: string): Promise<AuthSessionResponse> {
@@ -192,10 +179,16 @@ async function deleteUserQuietly(userId: string): Promise<void> {
 }
 
 async function setRecovery(userId: string, publicId: string, normalizedCode: string): Promise<void> {
-  await serviceRpc("set_account_recovery_secret", {
-    p_actor_id: userId,
-    p_secret_digest: recoverySecretDigest(publicId, normalizedCode),
-  });
+  await set_account_recovery_secret(
+    userId,
+    recoverySecretDigest(publicId, normalizedCode),
+  );
+}
+
+// Keep the persistent operation named after the current database RPC while the
+// repository adapter is introduced; callers do not depend on Supabase itself.
+async function set_account_recovery_secret(userId: string, secretDigest: string): Promise<void> {
+  await passwordAuthRepository.saveRecoverySecret(userId, secretDigest);
 }
 
 export async function registerPasswordAccount(input: {
@@ -222,12 +215,12 @@ export async function registerPasswordAccount(input: {
     createdUser = true;
   }
   try {
-    const target = await targetByUserId(userId);
+    const target = await passwordAuthRepository.findTargetByUserId(userId);
     if (!target) throw unavailable();
     if (target.accountStatus !== "active") throw new ApiProblem(403, "account_banned", "该账号已被暂停使用。" );
     loginEmail = loginEmail ?? target.loginEmail ?? generateInternalEmail();
     await updatePasswordIdentity(userId, loginEmail, input.password);
-    await serviceRpc("set_account_login_credential", { p_actor_id: userId, p_login_email: loginEmail });
+    await passwordAuthRepository.saveLoginCredential(userId, loginEmail);
     const session = await signIn(loginEmail, input.password);
     await rpc("complete_current_profile", {
       p_display_name: input.displayName,
@@ -256,7 +249,7 @@ export async function loginPasswordAccount(input: {
 }): Promise<{ session: AnonymousSession }> {
   await verifyCaptcha(input.captchaToken, input.request);
   await reserveAttempt(input.request, input.publicId, "login");
-  const target = await targetByPublicId(input.publicId);
+  const target = await passwordAuthRepository.findTargetByPublicId(input.publicId);
   if (!target) throw new ApiProblem(401, "invalid_credentials", "猹号或密码不正确。" );
   if (target.accountStatus !== "active") throw new ApiProblem(403, "account_banned", "该账号已被暂停使用。" );
   if (!target.loginEmail) throw new ApiProblem(401, "invalid_credentials", "猹号或密码不正确。" );
@@ -275,7 +268,7 @@ export async function recoverPasswordAccount(input: {
   await verifyCaptcha(input.captchaToken, input.request);
   await reserveAttempt(input.request, input.publicId, "recover");
   const nextRecovery = generateRecoveryCode();
-  const rotated = await serviceRpc<{ userId: string; loginEmail?: string | null } | null>("rotate_account_recovery_secret", {
+  const rotated = await passwordAuthRepository.rotateRecoverySecret({
     p_public_id: input.publicId,
     p_current_digest: recoverySecretDigest(input.publicId, input.recoveryCode),
     p_new_digest: recoverySecretDigest(input.publicId, nextRecovery.normalized),
@@ -293,10 +286,60 @@ export async function recoverPasswordAccount(input: {
       existingDataPreserved: true,
     };
   } catch (error) {
-    await serviceRpc("set_account_recovery_secret", {
-      p_actor_id: rotated.userId,
-      p_secret_digest: recoverySecretDigest(input.publicId, input.recoveryCode),
-    });
+    await set_account_recovery_secret(
+      rotated.userId,
+      recoverySecretDigest(input.publicId, input.recoveryCode),
+    );
     throw error;
   }
+}
+
+/**
+ * Converts an already authenticated legacy permanent account in place. The
+ * Supabase user id remains unchanged, so every existing melon, field plant,
+ * seed and interaction continues to belong to the same profile.
+ */
+export async function upgradeLegacyAccountToPassword(input: {
+  request: Request;
+  password: string;
+  captchaToken?: string;
+}): Promise<PasswordAccountProvisionResult> {
+  await verifyCaptcha(input.captchaToken, input.request);
+  const existing = await requireActiveSession();
+  const target = await passwordAuthRepository.findTargetByUserId(existing.userId);
+  if (!target || target.userId !== existing.userId) throw unavailable();
+  if (target.accountStatus !== "active") {
+    throw new ApiProblem(403, "account_banned", "该账号已被暂停使用。" );
+  }
+  if (target.loginEmail) {
+    throw new ApiProblem(409, "password_already_set", "这个猹号已经设置过密码，请直接登录。" );
+  }
+
+  await reserveAttempt(input.request, existing.userId, "register");
+  const loginEmail = generateInternalEmail();
+  const recovery = generateRecoveryCode();
+
+  // `account_login_credentials` is the completion marker consumed by
+  // get_current_profile(). Keep it as the final durable write so every failure
+  // before that point remains retryable as a legacy account. No awaited work
+  // may be added after the marker: once it exists, the recovery code must be
+  // ready to return to the user in this response.
+  await updatePasswordIdentity(existing.userId, loginEmail, input.password);
+  const passwordSession = await signIn(loginEmail, input.password);
+  await passwordAuthRepository.saveRecoverySecret(
+    existing.userId,
+    recoverySecretDigest(target.publicId, recovery.normalized),
+  );
+  await saveAuthSession(passwordSession);
+  const session = await publicSessionFor({
+    userId: existing.userId,
+    accessToken: passwordSession.access_token,
+    isAnonymous: false,
+  });
+  await passwordAuthRepository.saveLoginCredential(existing.userId, loginEmail);
+  return {
+    session: { ...session, authKind: "password" },
+    recoveryCode: recovery.display,
+    existingDataPreserved: true,
+  };
 }

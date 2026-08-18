@@ -7,7 +7,7 @@ import styles from "./auth-gate.module.css";
 import { IdentityBadge } from "./identity-badge";
 
 type AnimalCode = "猹" | "水豚" | "狐狸" | "熊猫" | "青蛙" | "仓鼠";
-type AuthStep = "welcome" | "register" | "login" | "recover" | "reveal";
+type AuthStep = "welcome" | "register" | "login" | "recover" | "upgrade" | "reveal";
 
 interface AuthProfile {
   displayName: string;
@@ -179,7 +179,10 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   const isPermanent = session?.authenticated === true && !session.anonymous;
-  const isReady = isPermanent && session.needsProfile === false && Boolean(session.profile);
+  const isReady = isPermanent
+    && session.authKind !== "phone"
+    && session.needsProfile === false
+    && Boolean(session.profile);
 
   useEffect(() => {
     if (!required) return;
@@ -189,6 +192,7 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
         if (!active) return;
         const next = normalizeSession(payload);
         setSession(next);
+        if (next.authKind === "phone") setStep("upgrade");
       })
       .catch(() => active && setSession({ authenticated: false, anonymous: false, needsProfile: false }))
       .finally(() => active && setChecking(false));
@@ -263,6 +267,30 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
       setNotice("密码已重置，旧恢复码已作废。请保存这枚新恢复码。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "账号没有恢复成功，请重试。"); resetCaptcha();
+    } finally { setBusy(false); }
+  };
+
+  const upgrade = async (event: FormEvent) => {
+    event.preventDefault(); setError(""); setNotice("");
+    if (password.length < 8) return setError("密码至少需要 8 个字符。");
+    if (turnstileSiteKey && !captchaToken) return setError("请先完成安全验证。");
+    setBusy(true);
+    try {
+      const result = await requestJson<ProvisionResult>("/api/auth/account/upgrade", {
+        method: "POST",
+        body: JSON.stringify({ password, captchaToken: captchaToken || undefined }),
+      });
+      const next = normalizeSession(result.session);
+      if (!next.profile) throw new Error("原来的瓜田没有恢复成功，请重试。");
+      setSession(next);
+      setIssuedRecoveryCode(result.recoveryCode);
+      setPublicId(next.profile.publicId);
+      setSavedRecovery(false);
+      setStep("reveal");
+      setNotice("原来的猹号、瓜田、瓜籽和互动数据都已保留。");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "密码没有设置成功，请重试。");
+      resetCaptcha();
     } finally { setBusy(false); }
   };
 
@@ -386,6 +414,32 @@ export function AuthGate({ children, required = false }: { children: ReactNode; 
               {turnstileSiteKey && <TurnstileWidget key={captchaEpoch} siteKey={turnstileSiteKey} onToken={setCaptchaToken} />}
               {error && <p className={styles.formError} role="alert">{error}</p>}
               <button className={styles.primaryAction} disabled={busy || Boolean(turnstileSiteKey && !captchaToken)} type="submit">{busy ? "正在找回…" : "重置密码并回到瓜田"}</button>
+            </form>
+          )}
+
+          {step === "upgrade" && session?.profile && (
+            <form className={styles.authForm} onSubmit={upgrade}>
+              <div className={styles.authTitle}>
+                <p>旧账号原地升级</p>
+                <h1 id="auth-title">给现有瓜田设置密码，<em>以后只凭猹号回来。</em></h1>
+              </div>
+              <div className={styles.legacyNotice} role="note">
+                <AnimalAvatar animal={session.profile.animal} size="small" />
+                <div>
+                  <strong>{session.profile.displayName} · {session.profile.publicId}</strong>
+                  <p>不会新建账号；原来的瓜田、瓜籽、帖子、评论和蹲瓜都会保留。</p>
+                </div>
+              </div>
+              <label className={styles.fieldLabel}>
+                <span>设置登录密码</span>
+                <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="至少 8 个字符" />
+              </label>
+              <p className={styles.fieldHelp}>设置完成后使用“猹号 + 密码”登录，不再需要短信验证码。</p>
+              {turnstileSiteKey && <TurnstileWidget key={captchaEpoch} siteKey={turnstileSiteKey} onToken={setCaptchaToken} />}
+              {error && <p className={styles.formError} role="alert">{error}</p>}
+              <button className={styles.primaryAction} disabled={busy || Boolean(turnstileSiteKey && !captchaToken)} type="submit">
+                {busy ? "正在保护瓜田…" : "给现有瓜田设置密码"}
+              </button>
             </form>
           )}
 

@@ -9,14 +9,14 @@ function json(route, body, status = 200) {
   return route.fulfill({ status, contentType: "application/json; charset=utf-8", body: JSON.stringify(body) });
 }
 
-function publicSession(profile = permanentProfile) {
-  return { ...profile, authKind: "password", onboardingComplete: true };
+function publicSession(profile = permanentProfile, authKind = "password") {
+  return { ...profile, authKind, onboardingComplete: true };
 }
 
 export async function installAuthApi(page, options = {}) {
   const state = {
     session: structuredClone(options.session ?? { authenticated: false, anonymous: Boolean(options.anonymous), needsProfile: false }),
-    registerCalls: [], loginCalls: [], recoverCalls: [], logoutCalls: [], deleteCalls: [],
+    registerCalls: [], loginCalls: [], recoverCalls: [], upgradeCalls: [], logoutCalls: [], deleteCalls: [],
     registerFailuresRemaining: options.registerFailures ?? 0,
   };
 
@@ -29,7 +29,11 @@ export async function installAuthApi(page, options = {}) {
     if (method === "GET" && path === "/api/auth/session") {
       if (!state.session.authenticated && !state.session.anonymous) return json(route, { status: "required", required: true, needsProfile: true });
       if (state.session.anonymous) return json(route, { status: "anonymous", session: { alias: "旧设备小猹 101", animal: "猹", authKind: "anonymous", onboardingComplete: false }, needsProfile: true });
-      return json(route, { status: "authenticated", session: publicSession(state.session.profile ?? permanentProfile), needsProfile: false });
+      return json(route, {
+        status: "authenticated",
+        session: publicSession(state.session.profile ?? permanentProfile, state.session.authKind ?? "password"),
+        needsProfile: false,
+      });
     }
     if (method === "POST" && path === "/api/auth/account/register") {
       state.registerCalls.push(body);
@@ -52,6 +56,11 @@ export async function installAuthApi(page, options = {}) {
       if (options.recoverFailure) return json(route, { error: options.recoverFailure }, 401);
       state.session = { authenticated: true, anonymous: false, needsProfile: false, profile: permanentProfile };
       return json(route, { session: publicSession(), recoveryCode: "WXYZ-2345-6789-ABCD", existingDataPreserved: true });
+    }
+    if (method === "POST" && path === "/api/auth/account/upgrade") {
+      state.upgradeCalls.push(body);
+      state.session = { authenticated: true, anonymous: false, authKind: "password", needsProfile: false, profile: permanentProfile };
+      return json(route, { session: publicSession(), recoveryCode: "UPGD-2345-6789-ABCD", existingDataPreserved: true });
     }
     if (method === "POST" && path === "/api/auth/logout") {
       state.logoutCalls.push(body); state.session = { authenticated: false, anonymous: false, needsProfile: false }; return json(route, { loggedOut: true });
