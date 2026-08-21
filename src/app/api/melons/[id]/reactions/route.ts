@@ -1,6 +1,6 @@
-import { readJson, requireSameOrigin, route } from "@/server/api";
+import { ApiProblem, readJson, requireSameOrigin, route } from "@/server/api";
 import { setReaction } from "@/server/repositories/island-repository";
-import { requireSession } from "@/server/supabase/session";
+import { requireActiveSession } from "@/server/supabase/session";
 import { object, reaction, uuid } from "@/server/validation";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +10,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     requireSameOrigin(request);
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
-    const session = await requireSession();
+    const session = await requireActiveSession();
     const body = object(await readJson(request));
-    return setReaction(id, reaction(body.reaction), session.accessToken);
+    if (typeof body.active !== "boolean") throw new ApiProblem(400, "invalid_request", "active 必须是布尔值。");
+    return setReaction(id, reaction(body.reaction), body.active, session.userId);
   });
 }

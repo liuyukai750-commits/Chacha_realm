@@ -19,9 +19,11 @@
 
 # production
 /build
+/artifacts/
 
 # misc
 .DS_Store
+/.codex-temp/
 *.pem
 
 # debug
@@ -36,6 +38,9 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# supabase CLI local state
+supabase/.temp/
 
 # typescript
 *.tsbuildinfo

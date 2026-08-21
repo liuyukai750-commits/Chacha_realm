@@ -10,6 +10,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ali
     const { alias: rawAlias } = await params;
     const alias = text(rawAlias, "alias", 40);
     const session = await requireSession();
-    return getField(alias, session.accessToken);
+    return getField(alias, session.userId);
   });
 }

@@ -4,7 +4,9 @@ export type {
   GeoBoundary,
   GeoPoint,
   GeoRing,
+  PublicSpotCategory,
   PublicSpotRecord,
+  SeekSafetyMetadata,
 } from "./types";
 export { boundaryContainsPoint, findCityForCoordinates } from "./boundary";
 export {
@@ -13,3 +15,4 @@ export {
   haversineDistanceM,
   isValidCoordinates,
 } from "./distance";
+export { isSeekTargetAllowed } from "./seek-safety";

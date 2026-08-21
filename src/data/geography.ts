@@ -1,5 +1,5 @@
 import type { CityId } from "../contracts";
-import type { CityGeography, DistrictGeography, GeoBoundary, PublicSpotRecord } from "../lib/geo";
+import type { CityGeography, DistrictGeography, GeoBoundary, PublicSpotRecord, SeekSafetyMetadata } from "../lib/geo";
 
 const rectangle = (
   south: number,
@@ -17,6 +17,31 @@ const rectangle = (
 
 const districts = (entries: readonly (readonly [string, string])[]): readonly DistrictGeography[] =>
   entries.map(([id, name]) => ({ id, name }));
+
+const allowedPublicSquare = {
+  category: "public_square",
+  publicAccess: "open_public_space",
+  status: "allowed",
+} as const satisfies SeekSafetyMetadata;
+
+const allowedPublicPark = {
+  category: "public_park",
+  publicAccess: "open_public_space",
+  status: "allowed",
+} as const satisfies SeekSafetyMetadata;
+
+const allowedCulturalVenue = {
+  category: "cultural_venue",
+  publicAccess: "public_entrance",
+  status: "allowed",
+} as const satisfies SeekSafetyMetadata;
+
+const publicParkPendingArrivalReview = {
+  category: "public_park",
+  publicAccess: "open_public_space",
+  status: "review_required",
+  reason: "arrival_point_unverified",
+} as const satisfies SeekSafetyMetadata;
 
 export const cities: readonly CityGeography[] = [
   {
@@ -80,35 +105,35 @@ export const cities: readonly CityGeography[] = [
 ] as const;
 
 export const publicSpots: readonly PublicSpotRecord[] = [
-  { id: "cs-orange-isle", cityId: "changsha", districtId: "cs-yuelu", name: "橘子洲", coordinates: { latitude: 28.1896845, longitude: 112.9561264 }, verification: "verified" },
-  { id: "cs-yuelu-mountain", cityId: "changsha", districtId: "cs-yuelu", name: "岳麓山", coordinates: { latitude: 28.1869583, longitude: 112.9283216 }, verification: "verified" },
-  { id: "cs-wuyi-square", cityId: "changsha", districtId: "cs-furong", name: "五一广场", coordinates: { latitude: 28.1985991, longitude: 112.9709227 }, verification: "verified" },
-  { id: "cs-hunan-museum", cityId: "changsha", districtId: "cs-kaifu", name: "湖南博物院", coordinates: { latitude: 28.21526, longitude: 112.988 }, verification: "verified" },
-  { id: "cs-tianxin-pavilion", cityId: "changsha", districtId: "cs-tianxin", name: "天心阁", coordinates: { latitude: 28.1871623, longitude: 112.9758666 }, verification: "verified" },
+  { id: "cs-orange-isle", cityId: "changsha", districtId: "cs-yuelu", name: "橘子洲", coordinates: { latitude: 28.1896845, longitude: 112.9561264 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "cs-yuelu-mountain", cityId: "changsha", districtId: "cs-yuelu", name: "岳麓山", coordinates: { latitude: 28.1869583, longitude: 112.9283216 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "cs-wuyi-square", cityId: "changsha", districtId: "cs-furong", name: "五一广场", coordinates: { latitude: 28.1985991, longitude: 112.9709227 }, verification: "verified", seekSafety: allowedPublicSquare },
+  { id: "cs-hunan-museum", cityId: "changsha", districtId: "cs-kaifu", name: "湖南博物院", coordinates: { latitude: 28.21526, longitude: 112.988 }, verification: "verified", seekSafety: allowedCulturalVenue },
+  { id: "cs-tianxin-pavilion", cityId: "changsha", districtId: "cs-tianxin", name: "天心阁", coordinates: { latitude: 28.1871623, longitude: 112.9758666 }, verification: "verified", seekSafety: allowedCulturalVenue },
 
-  { id: "bj-temple-of-heaven", cityId: "beijing", districtId: "bj-dongcheng", name: "天坛公园", coordinates: { latitude: 39.8799066, longitude: 116.4028716 }, verification: "verified" },
-  { id: "bj-olympic-forest", cityId: "beijing", districtId: "bj-chaoyang", name: "奥林匹克森林公园", coordinates: { latitude: 40.0207203, longitude: 116.3849388 }, verification: "verified" },
-  { id: "bj-summer-palace", cityId: "beijing", districtId: "bj-haidian", name: "颐和园", coordinates: { latitude: 39.9900983, longitude: 116.2647403 }, verification: "verified" },
-  { id: "bj-zoo", cityId: "beijing", districtId: "bj-xicheng", name: "北京动物园", coordinates: { latitude: 39.941041, longitude: 116.3295423 }, verification: "verified" },
-  { id: "bj-garden-expo", cityId: "beijing", districtId: "bj-fengtai", name: "北京园博园", coordinates: { latitude: 39.8744679, longitude: 116.1906716 }, verification: "verified" },
+  { id: "bj-temple-of-heaven", cityId: "beijing", districtId: "bj-dongcheng", name: "天坛公园", coordinates: { latitude: 39.8799066, longitude: 116.4028716 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "bj-olympic-forest", cityId: "beijing", districtId: "bj-chaoyang", name: "奥林匹克森林公园", coordinates: { latitude: 40.0207203, longitude: 116.3849388 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "bj-summer-palace", cityId: "beijing", districtId: "bj-haidian", name: "颐和园", coordinates: { latitude: 39.9900983, longitude: 116.2647403 }, verification: "verified", seekSafety: allowedCulturalVenue },
+  { id: "bj-zoo", cityId: "beijing", districtId: "bj-xicheng", name: "北京动物园", coordinates: { latitude: 39.941041, longitude: 116.3295423 }, verification: "verified", seekSafety: allowedCulturalVenue },
+  { id: "bj-garden-expo", cityId: "beijing", districtId: "bj-fengtai", name: "北京园博园", coordinates: { latitude: 39.8744679, longitude: 116.1906716 }, verification: "verified", seekSafety: allowedPublicPark },
 
-  { id: "sh-peoples-square", cityId: "shanghai", districtId: "sh-huangpu", name: "人民广场", coordinates: { latitude: 31.2349378, longitude: 121.4705704 }, verification: "verified" },
-  { id: "sh-xujiahui-park", cityId: "shanghai", districtId: "sh-xuhui", name: "徐家汇公园", coordinates: { latitude: 31.2004153, longitude: 121.4383511 }, verification: "verified" },
-  { id: "sh-zhongshan-park", cityId: "shanghai", districtId: "sh-changning", name: "中山公园", coordinates: { latitude: 31.2233192, longitude: 121.4156242 }, verification: "verified" },
-  { id: "sh-natural-history-museum", cityId: "shanghai", districtId: "sh-jingan", name: "上海自然博物馆", coordinates: { latitude: 31.2368655, longitude: 121.4577002 }, verification: "verified" },
-  { id: "sh-gongqing-forest-park", cityId: "shanghai", districtId: "sh-yangpu", name: "共青森林公园", coordinates: { latitude: 31.3208192, longitude: 121.5479883 }, verification: "verified" },
+  { id: "sh-peoples-square", cityId: "shanghai", districtId: "sh-huangpu", name: "人民广场", coordinates: { latitude: 31.2349378, longitude: 121.4705704 }, verification: "verified", seekSafety: allowedPublicSquare },
+  { id: "sh-xujiahui-park", cityId: "shanghai", districtId: "sh-xuhui", name: "徐家汇公园", coordinates: { latitude: 31.2004153, longitude: 121.4383511 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "sh-zhongshan-park", cityId: "shanghai", districtId: "sh-changning", name: "中山公园", coordinates: { latitude: 31.2233192, longitude: 121.4156242 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "sh-natural-history-museum", cityId: "shanghai", districtId: "sh-jingan", name: "上海自然博物馆", coordinates: { latitude: 31.2368655, longitude: 121.4577002 }, verification: "verified", seekSafety: allowedCulturalVenue },
+  { id: "sh-gongqing-forest-park", cityId: "shanghai", districtId: "sh-yangpu", name: "共青森林公园", coordinates: { latitude: 31.3208192, longitude: 121.5479883 }, verification: "verified", seekSafety: allowedPublicPark },
 
-  { id: "gz-yuexiu-park", cityId: "guangzhou", districtId: "gz-yuexiu", name: "越秀公园", coordinates: { latitude: 23.1425136, longitude: 113.2604084 }, verification: "verified" },
-  { id: "gz-shamian-park", cityId: "guangzhou", districtId: "gz-liwan", name: "沙面公园", coordinates: { latitude: 23.1083501, longitude: 113.2395608 }, verification: "verified" },
-  { id: "gz-library", cityId: "guangzhou", districtId: "gz-tianhe", name: "广州图书馆", coordinates: { latitude: 23.1188425, longitude: 113.320569 }, verification: "verified" },
-  { id: "gz-haizhu-lake", cityId: "guangzhou", districtId: "gz-haizhu", name: "海珠湖公园", coordinates: { latitude: 23.073, longitude: 113.323 }, verification: "prelaunch_review" },
-  { id: "gz-baiyun-south-gate", cityId: "guangzhou", districtId: "gz-baiyun", name: "白云山南门（云台花园）", coordinates: { latitude: 23.1583491, longitude: 113.2888053 }, verification: "prelaunch_review" },
+  { id: "gz-yuexiu-park", cityId: "guangzhou", districtId: "gz-yuexiu", name: "越秀公园", coordinates: { latitude: 23.1425136, longitude: 113.2604084 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "gz-shamian-park", cityId: "guangzhou", districtId: "gz-liwan", name: "沙面公园", coordinates: { latitude: 23.1083501, longitude: 113.2395608 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "gz-library", cityId: "guangzhou", districtId: "gz-tianhe", name: "广州图书馆", coordinates: { latitude: 23.1188425, longitude: 113.320569 }, verification: "verified", seekSafety: allowedCulturalVenue },
+  { id: "gz-haizhu-lake", cityId: "guangzhou", districtId: "gz-haizhu", name: "海珠湖公园", coordinates: { latitude: 23.073, longitude: 113.323 }, verification: "prelaunch_review", seekSafety: publicParkPendingArrivalReview },
+  { id: "gz-baiyun-south-gate", cityId: "guangzhou", districtId: "gz-baiyun", name: "白云山南门（云台花园）", coordinates: { latitude: 23.1583491, longitude: 113.2888053 }, verification: "prelaunch_review", seekSafety: publicParkPendingArrivalReview },
 
-  { id: "sz-lianhuashan-park", cityId: "shenzhen", districtId: "sz-futian", name: "莲花山公园", coordinates: { latitude: 22.5566275, longitude: 114.0532386 }, verification: "verified" },
-  { id: "sz-talent-park", cityId: "shenzhen", districtId: "sz-nanshan", name: "深圳人才公园", coordinates: { latitude: 22.5175, longitude: 113.9977 }, verification: "prelaunch_review" },
-  { id: "sz-donghu-park", cityId: "shenzhen", districtId: "sz-luohu", name: "东湖公园", coordinates: { latitude: 22.5656286, longitude: 114.1436852 }, verification: "verified" },
-  { id: "sz-baoan-park", cityId: "shenzhen", districtId: "sz-baoan", name: "宝安公园", coordinates: { latitude: 22.5892592, longitude: 113.8978036 }, verification: "prelaunch_review" },
-  { id: "sz-longcheng-park", cityId: "shenzhen", districtId: "sz-longgang", name: "龙城公园", coordinates: { latitude: 22.70725, longitude: 114.21357 }, verification: "prelaunch_review" },
+  { id: "sz-lianhuashan-park", cityId: "shenzhen", districtId: "sz-futian", name: "莲花山公园", coordinates: { latitude: 22.5566275, longitude: 114.0532386 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "sz-talent-park", cityId: "shenzhen", districtId: "sz-nanshan", name: "深圳人才公园", coordinates: { latitude: 22.5175, longitude: 113.9977 }, verification: "prelaunch_review", seekSafety: publicParkPendingArrivalReview },
+  { id: "sz-donghu-park", cityId: "shenzhen", districtId: "sz-luohu", name: "东湖公园", coordinates: { latitude: 22.5656286, longitude: 114.1436852 }, verification: "verified", seekSafety: allowedPublicPark },
+  { id: "sz-baoan-park", cityId: "shenzhen", districtId: "sz-baoan", name: "宝安公园", coordinates: { latitude: 22.5892592, longitude: 113.8978036 }, verification: "prelaunch_review", seekSafety: publicParkPendingArrivalReview },
+  { id: "sz-longcheng-park", cityId: "shenzhen", districtId: "sz-longgang", name: "龙城公园", coordinates: { latitude: 22.70725, longitude: 114.21357 }, verification: "prelaunch_review", seekSafety: publicParkPendingArrivalReview },
 ] as const;
 
 export function getCity(cityId: CityId): CityGeography | undefined {

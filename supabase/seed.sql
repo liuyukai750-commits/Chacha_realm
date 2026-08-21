@@ -106,3 +106,15 @@ on conflict (id) do update set
   latitude = excluded.latitude,
   longitude = excluded.longitude,
   active = true;
+
+-- Pending arrival points stay out of all public APIs until an on-site GPS
+-- review records a safe, unambiguous entrance coordinate.
+update public.public_spots
+set active = false
+where id in (
+  '40000000-0000-4000-8000-000000000004',
+  '40000000-0000-4000-8000-000000000005',
+  '50000000-0000-4000-8000-000000000002',
+  '50000000-0000-4000-8000-000000000004',
+  '50000000-0000-4000-8000-000000000005'
+);

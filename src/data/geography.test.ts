@@ -27,4 +27,20 @@ test("public summaries cannot expose coordinates or verification metadata", () =
   assert.deepEqual(Object.keys(summary).sort(), ["cityId", "districtId", "id", "name"]);
   assert.equal("coordinates" in summary, false);
   assert.equal("verification" in summary, false);
+  assert.equal("seekSafety" in summary, false);
+});
+
+test("all 25 spots carry conservative seek-safety metadata", () => {
+  const allowedCategories = new Set(["public_square", "public_park", "cultural_venue"]);
+  for (const spot of publicSpots) {
+    assert.ok(allowedCategories.has(spot.seekSafety.category), spot.id);
+    assert.notEqual(spot.seekSafety.publicAccess, "restricted_or_private", spot.id);
+    assert.equal(
+      spot.seekSafety.status,
+      spot.verification === "verified" ? "allowed" : "review_required",
+      spot.id,
+    );
+  }
+  assert.equal(publicSpots.filter((spot) => spot.seekSafety.status === "allowed").length, 20);
+  assert.equal(publicSpots.filter((spot) => spot.seekSafety.status === "review_required").length, 5);
 });

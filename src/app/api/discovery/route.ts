@@ -15,6 +15,6 @@ export async function POST(request: Request) {
       ...(body.location === undefined ? {} : { location: validateLocationProof(body.location) }),
       ...(body.selectedCityId === undefined ? {} : { selectedCityId: cityId(body.selectedCityId) }),
     };
-    return discover(input, session.accessToken);
+    return discover(input, session.accessToken, session.userId);
   });
 }

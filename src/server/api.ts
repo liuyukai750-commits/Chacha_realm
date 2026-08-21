@@ -20,12 +20,35 @@ export function apiError(problem: ApiProblem): NextResponse<ApiError> {
   );
 }
 
-export async function route<T>(work: () => Promise<T>): Promise<NextResponse<T | ApiError>> {
+function applyHeaders(response: NextResponse, responseHeaders?: () => HeadersInit): void {
+  if (!responseHeaders) return;
+  const headers = new Headers(responseHeaders());
+  headers.forEach((value, key) => response.headers.set(key, value));
+}
+
+export async function route<T>(
+  work: () => Promise<T>,
+  responseHeaders?: () => HeadersInit,
+): Promise<NextResponse<T | ApiError>> {
   try {
-    return NextResponse.json(await work());
+    const response = NextResponse.json(await work());
+    applyHeaders(response, responseHeaders);
+    return response;
   } catch (error) {
-    if (error instanceof ApiProblem) return apiError(error);
-    return apiError(new ApiProblem(500, "internal_error", "服务暂时开小差了，请稍后再试。"));
+    if (error instanceof ApiProblem) {
+      // Log only the status and stable error code. Request bodies, content,
+      // tokens and one-time coordinates must never enter application logs.
+      console.warn("[api] request rejected", { status: error.status, code: error.code });
+      const response = apiError(error);
+      applyHeaders(response, responseHeaders);
+      return response;
+    }
+    console.error("[api] internal error", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    const response = apiError(new ApiProblem(500, "internal_error", "服务暂时开小差了，请稍后再试。"));
+    applyHeaders(response, responseHeaders);
+    return response;
   }
 }
 
@@ -45,9 +68,29 @@ export async function readJson(request: Request, maxBytes = 16_384): Promise<unk
   }
 }
 
+function firstForwardedValue(value: string | null): string | undefined {
+  return value?.split(",", 1)[0]?.trim() || undefined;
+}
+
+function forwardedRequestOrigin(request: Request): string | undefined {
+  const protocol = firstForwardedValue(request.headers.get("x-forwarded-proto"));
+  const host = firstForwardedValue(request.headers.get("x-forwarded-host"));
+  if ((protocol !== "http" && protocol !== "https") || !host) return undefined;
+
+  try {
+    const forwardedUrl = new URL(`${protocol}://${host}`);
+    if (forwardedUrl.username || forwardedUrl.password || forwardedUrl.pathname !== "/") return undefined;
+    return forwardedUrl.origin;
+  } catch {
+    return undefined;
+  }
+}
+
 export function requireSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
+  const requestOrigin = new URL(request.url).origin;
+  const forwardedOrigin = forwardedRequestOrigin(request);
+  if (origin && origin !== requestOrigin && origin !== forwardedOrigin) {
     throw new ApiProblem(403, "cross_origin_denied", "跨站写入请求已拒绝。 ");
   }
 }

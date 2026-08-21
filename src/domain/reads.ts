@@ -1,4 +1,4 @@
-import { chinaDateKey, timestampMs } from "./time";
+import { chinaDateKey, timestampMs } from "./time.ts";
 
 export interface ValidReadRecord {
   melonId: string;
@@ -19,12 +19,13 @@ export interface ReadRewardInput {
 export interface ReadRewardResult {
   counted: boolean;
   reason: "self_read" | "duplicate_read" | null;
-  readerSeedAwarded: boolean;
-  authorSeedAwarded: boolean;
+  smallSeedAwarded: boolean;
+  autoConverted: boolean;
+  authorExperienceAwarded: 0 | 1;
   readerDailyValidReadCount: number;
 }
 
-export const DAILY_READER_SEED_LIMIT = 3;
+export const DAILY_READER_SEED_LIMIT = 5;
 
 export function evaluateReadReward(input: ReadRewardInput): ReadRewardResult {
   timestampMs(input.completedAt, "completedAt");
@@ -43,12 +44,15 @@ export function evaluateReadReward(input: ReadRewardInput): ReadRewardResult {
   }
 
   const priorDailyValidReads = countDailyReads(priorCountedReads, input.readerId, input.completedAt);
+  const nextDailyValidReadCount = priorDailyValidReads + 1;
+  const smallSeedAwarded = nextDailyValidReadCount <= DAILY_READER_SEED_LIMIT;
   return {
     counted: true,
     reason: null,
-    readerSeedAwarded: priorDailyValidReads < DAILY_READER_SEED_LIMIT,
-    authorSeedAwarded: true,
-    readerDailyValidReadCount: priorDailyValidReads + 1,
+    smallSeedAwarded,
+    autoConverted: smallSeedAwarded && nextDailyValidReadCount === DAILY_READER_SEED_LIMIT,
+    authorExperienceAwarded: 1,
+    readerDailyValidReadCount: nextDailyValidReadCount,
   };
 }
 
@@ -70,8 +74,9 @@ function noReward(
   return {
     counted: false,
     reason,
-    readerSeedAwarded: false,
-    authorSeedAwarded: false,
+    smallSeedAwarded: false,
+    autoConverted: false,
+    authorExperienceAwarded: 0,
     readerDailyValidReadCount,
   };
 }

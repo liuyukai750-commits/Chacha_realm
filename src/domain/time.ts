@@ -1,4 +1,5 @@
-export const HOUR_MS = 60 * 60 * 1_000;
+export const MINUTE_MS = 60 * 1_000;
+export const HOUR_MS = 60 * MINUTE_MS;
 export const DAY_MS = 24 * HOUR_MS;
 
 const CHINA_UTC_OFFSET_MS = 8 * HOUR_MS;

@@ -1,6 +1,6 @@
-# 猹猹王国
+# 猹猹街
 
-一个基于公共地点和模糊距离层级的匿名吃瓜社区。V0 覆盖长沙、北京、上海、广州和深圳，核心循环是吃瓜、留籽、瓜田成长、蹲后续和埋瓜。
+一个基于公共地点和模糊距离层级的匿名吃瓜社区。V1 覆盖长沙、北京、上海、广州和深圳，核心循环是吃瓜、五籽合一、三片地播种、蹲后续和埋瓜。
 
 ## 本地运行
 
@@ -17,19 +17,27 @@ npm run dev
 真实模式需要在 `.env.local` 中填写新的 Supabase 项目配置：
 
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
+- `SUPABASE_PUBLISHABLE_KEY`，新 Supabase publishable API key，仅作为 `apikey` 使用；未登录请求不发送 `Authorization`
+- `SUPABASE_SECRET_KEY`，新 Supabase secret API key，仅服务端使用且仅作为 `apikey` 使用，绝不能作为 Bearer、提交或暴露给浏览器
 - `CHACHA_READ_TOKEN_SECRET`，至少 32 个随机字符，仅服务端使用
+- `CHACHA_PRESENCE_TOKEN_SECRET`，至少 32 个随机字符，必须不同于 `CHACHA_READ_TOKEN_SECRET`
+- `CHACHA_LOCATION_HMAC_SECRET`，至少 32 个随机字符，仅服务端使用，用于附近生活圈模糊 cell
 
-不要提交 `.env.local`、service role key 或真实用户数据。未配置 Supabase 时，界面会明确说明服务未连接，并允许用户主动进入本地试玩；不会把试玩数据伪装成真实附近内容。
+不要提交 `.env.local`、Supabase secret key、legacy service role key、HMAC secrets、浏览器数据或真实用户数据。旧 `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` 仅保留本地兼容，预发布默认不使用 legacy JWT key。未配置 Supabase 时，界面会明确说明服务未连接，并允许用户主动进入本地试玩；不会把试玩数据伪装成真实附近内容。
 
 ## 数据库初始化
 
 按顺序在目标 Supabase 项目执行：
 
 1. `supabase/migrations/202608040001_v0_schema.sql`
-2. `supabase/seed.sql`
+2. `supabase/migrations/202608090001_presence_comments_moderation.sql`
+3. `supabase/migrations/202608090002_melon_reveal_mode.sql`
+4. `supabase/migrations/202608100001_field_economy_v1.sql`
+5. `supabase/seed.sql`
 
 Schema 默认启用 RLS。用户精确坐标只参与单次服务端距离判断，不持久化，也不返回其他用户坐标。
+
+发布前 Supabase 接入、回滚点和真实数据库验收见 `docs/coordination/SUPABASE_PRELAUNCH.md`；HTTPS 预发布、手机定位和托管环境变量隔离见 `docs/coordination/HTTPS_PRELAUNCH.md`。
 
 ## 验证
 

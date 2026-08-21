@@ -1,15 +1,22 @@
 import type {
-  AnonymousSession,
   ApiError,
-  CitySummary,
   CompleteReadResult,
   CreateMelonResult,
+  CreateReportRequest,
+  DeleteOwnMelonResult,
   DiscoveryResponse,
   FieldView,
+  HarvestFieldResult,
   MelonComment,
-  MelonDetail,
+  MelonBasketDismissResult,
+  MelonCommentsPage,
   OpenedMelon,
-  ReactionType,
+  PlantFieldRequest,
+  PlantFieldResult,
+  ReactionResult,
+  SquatResult,
+  SquatShelf,
+  ZonePresenceResult,
 } from "@/contracts";
 import type { IslandAdapter, IslandBootstrap } from "./demo-island-adapter";
 
@@ -26,67 +33,73 @@ export function isExplicitServiceUnavailable(error: unknown): error is IslandHtt
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body !== undefined;
-  const response = await fetch(path, {
-    ...init,
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: hasBody ? { "content-type": "application/json" } : undefined,
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: init?.signal ?? controller.signal,
+      headers: hasBody ? { "content-type": "application/json" } : init?.headers,
+    });
+  } catch {
+    if (!init?.signal && controller.signal.aborted) {
+      throw new IslandHttpError(408, "request_timeout", "街上的信号有点慢，本次操作没有确认成功，请重试。");
+    }
+    throw new IslandHttpError(503, "network_error", "网络连接中断了，请检查信号后重试。");
+  } finally {
+    window.clearTimeout(timeout);
+  }
   const payload = await response.json().catch(() => null) as T | ApiError | null;
   if (!response.ok) {
     const problem = payload && typeof payload === "object" && "error" in payload ? (payload as ApiError).error : null;
-    throw new IslandHttpError(response.status, problem?.code ?? "http_error", problem?.message ?? "王国里的信号中断了，请稍后重试。" );
+    throw new IslandHttpError(response.status, problem?.code ?? "http_error", problem?.message ?? "街上的信号中断了，请稍后重试。" );
   }
-  if (payload === null) throw new IslandHttpError(response.status, "invalid_response", "王国里传回了无法辨认的消息。" );
+  if (payload === null) throw new IslandHttpError(response.status, "invalid_response", "街上送回了无法辨认的消息。" );
   return payload as T;
-}
-
-async function readDetails(discovery: DiscoveryResponse): Promise<Record<string, MelonDetail>> {
-  const opened = await Promise.all(
-    discovery.items
-      .filter((melon) => melon.status === "mature")
-      .map((melon) => requestJson<OpenedMelon>(`/api/melons/${encodeURIComponent(melon.id)}`)),
-  );
-  return Object.fromEntries(opened.map(({ melon }) => [melon.id, melon]));
-}
-
-function emptyField(session: AnonymousSession): FieldView {
-  const stage = session.seedCount >= 21 ? "ripe_melon" : session.seedCount >= 12 ? "green_melon" : session.seedCount >= 7 ? "flower" : session.seedCount >= 3 ? "vine" : session.seedCount >= 1 ? "sprout" : "bare";
-  const nextStageAt = [1, 3, 7, 12, 21].find((goal) => goal > session.seedCount);
-  return { alias: session.alias, animal: session.animal, progress: { seedCount: session.seedCount, stage, ...(nextStageAt ? { nextStageAt } : {}) }, melons: [] };
 }
 
 export const httpIslandAdapter: IslandAdapter = {
   async bootstrap(): Promise<IslandBootstrap> {
-    const [session, cities] = await Promise.all([
-      requestJson<AnonymousSession>("/api/session/anonymous", { method: "POST" }),
-      requestJson<CitySummary[]>("/api/cities"),
-    ]);
-    const selectedCityId = cities[0]?.id;
-    const discovery = await requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(selectedCityId ? { selectedCityId } : {}) });
-    const melonDetails = await readDetails(discovery);
-    return { session, cities, discovery, field: emptyField(session), melonDetails };
+    return requestJson<IslandBootstrap>("/api/bootstrap", { method: "POST" });
   },
   discover(request) {
     return requestJson<DiscoveryResponse>("/api/discovery", { method: "POST", body: JSON.stringify(request) });
   },
-  openMelon(id) {
-    return requestJson<OpenedMelon>(`/api/melons/${encodeURIComponent(id)}`);
+  openMelon(id, presenceToken) {
+    return requestJson<OpenedMelon>(`/api/melons/${encodeURIComponent(id)}`, presenceToken ? { headers: { "x-chacha-presence-token": presenceToken } } : undefined);
   },
   completeRead(id, input) {
     return requestJson<CompleteReadResult>(`/api/melons/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify(input) });
   },
+  dismissFromBasket(id, hidden) {
+    return requestJson<MelonBasketDismissResult>(`/api/melons/${encodeURIComponent(id)}/dismiss`, { method: "POST", body: JSON.stringify({ hidden }) });
+  },
+  deleteOwnMelon(id) {
+    return requestJson<DeleteOwnMelonResult>(`/api/melons/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
   setSquat(id, active) {
-    return requestJson<{ active: boolean }>(`/api/melons/${encodeURIComponent(id)}/squat`, { method: "POST", body: JSON.stringify({ active }) });
+    return requestJson<SquatResult>(`/api/melons/${encodeURIComponent(id)}/squat`, { method: "POST", body: JSON.stringify({ active }) });
   },
-  react(id, reaction) {
-    return requestJson<Record<ReactionType, number>>(`/api/melons/${encodeURIComponent(id)}/reactions`, { method: "POST", body: JSON.stringify({ reaction }) });
+  squatShelf() {
+    return requestJson<SquatShelf>("/api/squats");
   },
-  comments() {
-    return Promise.resolve<MelonComment[]>([]);
+  markSquatSeen(id) {
+    return requestJson<{ seen: true }>(`/api/squats/${encodeURIComponent(id)}/seen`, { method: "POST" });
   },
-  comment(id, content) {
-    return requestJson<MelonComment>(`/api/melons/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify({ content }) });
+  react(id, reaction, active) {
+    return requestJson<ReactionResult>(`/api/melons/${encodeURIComponent(id)}/reactions`, { method: "POST", body: JSON.stringify({ reaction, active }) });
+  },
+  comments(id, presenceToken) {
+    return requestJson<MelonCommentsPage>(`/api/melons/${encodeURIComponent(id)}/comments?limit=20`, presenceToken ? { headers: { "x-chacha-presence-token": presenceToken } } : undefined);
+  },
+  verifyZonePresence(input) {
+    return requestJson<ZonePresenceResult>("/api/presence/verify", { method: "POST", body: JSON.stringify(input) });
+  },
+  comment(id, content, presenceToken) {
+    return requestJson<MelonComment>(`/api/melons/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify({ content, ...(presenceToken ? { presenceToken } : {}) }) });
   },
   field() {
     return requestJson<FieldView>("/api/fields/me");
@@ -94,7 +107,16 @@ export const httpIslandAdapter: IslandAdapter = {
   fieldByAlias(alias) {
     return requestJson<FieldView>(`/api/fields/${encodeURIComponent(alias)}`);
   },
+  plant(input: PlantFieldRequest) {
+    return requestJson<PlantFieldResult>("/api/fields/me/plant", { method: "POST", body: JSON.stringify(input) });
+  },
+  harvest() {
+    return requestJson<HarvestFieldResult>("/api/fields/me/harvest", { method: "POST" });
+  },
   createMelon(input) {
     return requestJson<CreateMelonResult>("/api/melons", { method: "POST", body: JSON.stringify(input) });
+  },
+  report(input: CreateReportRequest) {
+    return requestJson<{ accepted: true }>("/api/reports", { method: "POST", body: JSON.stringify(input) });
   },
 };

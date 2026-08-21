@@ -126,8 +126,11 @@ test.describe("V0 核心循环", () => {
     await expect(page.getByRole("dialog").filter({ hasText: /定位|位置|公共地点.*500\s*米/ }).first()).toBeVisible();
   });
 
-  test("READ-5S / READ-FIRST：满 5 秒后首次完成并奖励 1 粒瓜籽", async ({ page }) => {
-    const api = await installV0Api(page, { seedCount: 2 });
+  test("READ-5S / READ-FIFTH：满 5 秒后第 5 颗小籽自动换成真瓜籽", async ({ page }) => {
+    const api = await installV0Api(page, {
+      wallet: { smallSeedCount: 4, trueSeedCount: 0 },
+      validReadsToday: 4,
+    });
     await enterIsland(page);
     const dialog = await openMelon(page);
     const complete = completeReadControl(dialog);
@@ -135,19 +138,25 @@ test.describe("V0 核心循环", () => {
 
     await expect(readingStatus).toHaveAccessibleName(/还需.*秒/);
     await expect(complete).toBeDisabled();
-    await page.clock.fastForward(4_000);
-    await expect(complete).toBeDisabled();
-    await page.clock.fastForward(1_100);
+    await page.clock.fastForward(5_100);
     await expect(complete).toBeEnabled();
 
     await complete.click();
     await expect.poll(() => api.completeRequests).toEqual([{ readToken: "short-lived-read-token" }]);
-    await expect(page.getByRole("status").filter({ hasText: /瓜籽.*\+1|获得.*1.*瓜籽/ }).first()).toBeVisible();
-    await expect(page.getByLabel(/拥有 3 (粒|颗)瓜籽/)).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /真瓜籽.*\+1|自动.*真瓜籽|五.*变成/ }).first()).toBeVisible();
+    await expect(page.getByText(/真瓜籽\s*1|1\s*颗真瓜籽/).first()).toBeVisible();
+
+    await dialog.getByRole("button", { name: /关闭/ }).click();
+    await page.getByRole("navigation").getByRole("button", { name: "瓜田", exact: true }).click();
+    await expect(page.getByRole("region", { name: /我的瓜田/ }).getByText(/真瓜籽[^\d]*1|1[^\d]*真瓜籽/).first()).toBeVisible();
   });
 
   test("READ-REPEAT：服务端判定重复阅读时不重复奖励", async ({ page }) => {
-    const api = await installV0Api(page, { seedCount: 3, alreadyCompleted: true });
+    const api = await installV0Api(page, {
+      wallet: { smallSeedCount: 3, trueSeedCount: 1 },
+      validReadsToday: 3,
+      alreadyCompleted: true,
+    });
     await enterIsland(page);
     const dialog = await openMelon(page);
     await page.clock.fastForward(5_000);
@@ -155,10 +164,11 @@ test.describe("V0 核心循环", () => {
 
     await expect.poll(() => api.completeRequests).toHaveLength(1);
     await expect(page.getByRole("status").filter({ hasText: /已经吃过|不重复奖励|本次不计数/ }).first()).toBeVisible();
-    await expect(page.getByLabel(/拥有 3 (粒|颗)瓜籽/)).toBeVisible();
+    await expect(page.getByText(/小瓜籽\s*3|3\s*颗小瓜籽/).first()).toBeVisible();
+    await expect(page.getByText(/真瓜籽\s*1|1\s*颗真瓜籽/).first()).toBeVisible();
   });
 
-  test("SQUAT：蹲瓜状态可开启和取消", async ({ page }) => {
+  test("SQUAT：蹲后续状态可开启和取消", async ({ page }) => {
     const api = await installV0Api(page);
     await enterIsland(page);
     const dialog = await openMelon(page);
@@ -171,7 +181,102 @@ test.describe("V0 核心循环", () => {
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
   });
 
-  test("PLANT-DISTANCE：距离失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
+  test("SQUAT-SHELF：瓜篮按钮蹲后续后立即进入我的蹲瓜架", async ({ page }) => {
+    const api = await installV0Api(page);
+    await enterIsland(page);
+
+    const basket = page.getByRole("region", { name: "瓜篮" });
+    const row = basket.getByRole("article", { name: melon.title });
+    const squat = row.getByRole("button", { name: "添加蹲后续", exact: true });
+    const squatBackground = await squat.evaluate((element) => getComputedStyle(element).backgroundColor);
+    await squat.click();
+
+    await expect(row).toContainText("蹲后续");
+    await expect(row).not.toContainText("已蹲瓜");
+    await expect(row).not.toContainText("正在更新");
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    const cancel = row.getByRole("button", { name: "取消蹲后续", exact: true });
+    await expect(cancel).toBeVisible();
+    await expect(cancel).not.toHaveCSS("background-color", squatBackground);
+    await expect(cancel).toHaveAttribute("aria-pressed", "true");
+    await cancel.click();
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
+    await expect(row.getByRole("button", { name: "添加蹲后续", exact: true })).toHaveCSS("background-color", squatBackground);
+    await expect(row.getByRole("button", { name: "添加蹲后续", exact: true })).toHaveAttribute("aria-pressed", "false");
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    await expect(page.getByRole("heading", { name: "我的蹲瓜架" })).toBeVisible();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toHaveCount(0);
+  });
+
+  test("SQUAT-BASKET-DETAIL：瓜篮蹲后续与详情状态、颜色和计数保持一致", async ({ page }) => {
+    const api = await installV0Api(page);
+    await enterIsland(page);
+
+    const row = page.getByRole("region", { name: "瓜篮" }).getByRole("article", { name: melon.title });
+    const basketSquat = row.getByRole("button", { name: "添加蹲后续", exact: true });
+    await basketSquat.click();
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+
+    const activeBasketSquat = row.getByRole("button", { name: "取消蹲后续", exact: true });
+    await expect(activeBasketSquat).toHaveAttribute("aria-pressed", "true");
+    const activeBackground = await activeBasketSquat.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+    await row.getByRole("button", { name: "直接吃", exact: true }).click();
+    const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: melon.title, exact: true }) }).first();
+    const detailSquat = dialog.getByRole("button", { name: /取消蹲后续，当前 1 人/ });
+    await expect(detailSquat).toHaveAttribute("aria-pressed", "true");
+    await expect(detailSquat).toHaveCSS("background-color", activeBackground);
+    await expect(api.squatRequests).toHaveLength(1);
+  });
+
+  test("SQUAT-INCUBATING：未成熟瓜蹲后续后移出瓜篮并进入蹲瓜架", async ({ page }) => {
+    const api = await installV0Api(page, { includeIncubating: true });
+    await enterIsland(page);
+
+    const basket = page.getByRole("region", { name: "瓜篮" });
+    const row = basket.getByRole("article", { name: "还在长的后续瓜" });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: "添加蹲后续", exact: true }).click();
+
+    await expect.poll(() => api.squatRequests).toContainEqual({ melonId: expect.any(String), active: true });
+    await expect(row).toHaveCount(0);
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    const shelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
+    await expect(shelf.locator(".squat-shelf-main")).toHaveCount(1);
+    await expect(shelf.locator(".squat-shelf-main")).toContainText("还在长的后续瓜");
+    await expect(shelf.locator(".squat-shelf-main")).not.toContainText("一颗日常瓜");
+  });
+
+  test("SQUAT-NO-HANG：瓜篮后台刷新很慢时写入成功仍立即结束忙碌态", async ({ page }) => {
+    const api = await installV0Api(page, { squatShelfDelayMs: 2_000, squatWriteDelayMs: 800 });
+    await enterIsland(page);
+
+    const row = page.getByRole("region", { name: "瓜篮" }).getByRole("article", { name: melon.title });
+    await row.getByRole("button", { name: "添加蹲后续", exact: true }).click();
+
+    await expect(row).toContainText("蹲后续", { timeout: 300 });
+    await expect(row).not.toContainText("正在更新");
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    await expect(row.getByRole("button", { name: "取消蹲后续", exact: true })).toBeVisible({ timeout: 1_000 });
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
+  });
+
+  test("SQUAT-READER-NO-HANG：详情页蹲后续立即同步到瓜篮", async ({ page }) => {
+    const api = await installV0Api(page, { squatShelfDelayMs: 2_000 });
+    await enterIsland(page);
+    const dialog = await openMelon(page);
+
+    await (await squatControl(dialog, false)).click();
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+    await expect(await squatControl(dialog, true)).toBeVisible({ timeout: 1_000 });
+    await dialog.getByRole("button", { name: /关闭/ }).click();
+
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
+  });
+
+  test("PLANT-LOCATION：附近定位失败保留草稿并展示可恢复错误", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page, { plantDistanceFailure: true });
     await allowLocation(context, baseURL);
     await enterIsland(page);
@@ -179,27 +284,27 @@ test.describe("V0 核心循环", () => {
 
     const buryDialog = page.getByRole("dialog").filter({ has: page.locator("form") }).first();
     const form = buryDialog.locator("form");
-    await chooseOption(buryDialog, { label: /公共地点/, optionName: spot.name, optionValue: spot.id });
+    await buryDialog.getByRole("button", { name: /附近生活圈/ }).click();
     await chooseOption(buryDialog, { label: /话题|瓜/, optionName: "日常", optionValue: "daily" });
     await form.getByRole("textbox", { name: /标题|瓜.*名字/ }).fill("广场边遇到的一件小事");
     await form.getByRole("textbox", { name: /故事|内容/ }).fill("今天路过广场时，有人替陌生人挡住了一场突然的大雨。这里是保留的完整草稿。");
     await form.getByRole("button", { name: /埋.*瓜|种.*瓜/ }).click();
 
     await expect.poll(() => api.createRequests).toHaveLength(1);
-    await expect(buryDialog.getByRole("alert")).toContainText(/500\s*米|距离|公共地点/);
+    await expect(buryDialog.getByRole("alert")).toContainText(/定位精度|精确位置/);
     await expect(form.getByRole("textbox", { name: /标题|瓜.*名字/ })).toHaveValue("广场边遇到的一件小事");
     await expect(form.getByRole("textbox", { name: /故事|内容/ })).toHaveValue(/这里是保留的完整草稿/);
   });
 
-  test("COMMENT-140：空评论禁用，最多提交 140 字", async ({ page }) => {
+  test("COMMENT-140：现场凭证点亮后空评论禁用，最多提交 140 字", async ({ baseURL, context, page }) => {
     const api = await installV0Api(page);
+    await allowLocation(context, baseURL);
     await enterIsland(page);
     const dialog = await openMelon(page);
-    let input = dialog.getByRole("textbox", { name: /评论/ });
-    if (!(await input.count())) {
-      await dialog.getByRole("button", { name: /评论/ }).click();
-      input = page.getByRole("textbox", { name: /评论/ }).last();
-    }
+    await expect(dialog.getByRole("textbox", { name: /评论/ })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "验证现场评论资格" }).click();
+    const input = dialog.getByRole("textbox", { name: /评论/ });
+    await expect(input).toBeVisible();
     const commentForm = input.locator("xpath=ancestor::form[1]");
     const submit = commentForm.getByRole("button", { name: /评论|回声|留下/ });
     await expect(input).toHaveAttribute("maxlength", "140");
@@ -208,7 +313,10 @@ test.describe("V0 核心循环", () => {
     await input.pressSequentially("瓜".repeat(141));
     await expect(input).toHaveValue("瓜".repeat(140));
     await submit.click();
-    await expect.poll(() => api.commentRequests).toEqual([{ content: "瓜".repeat(140) }]);
+    await expect.poll(() => api.commentRequests).toEqual([{
+      content: "瓜".repeat(140),
+      presenceToken: "presence-token-inside_zone",
+    }]);
   });
 
   test("FIELD-OTHER：他人瓜田只展示公开资料和成长状态", async ({ page }) => {
@@ -217,10 +325,13 @@ test.describe("V0 核心循环", () => {
     const dialog = await openMelon(page);
     await dialog.getByRole("link", { name: new RegExp(melon.alias) }).click();
 
-    await expect(page.getByText(melon.alias, { exact: true })).toBeVisible();
-    await expect(page.locator('[aria-label*="阶段"], [aria-label*="stage" i]').first()).toHaveAttribute("aria-label", /花|flower/);
+    await expect(page.getByRole("heading", { level: 1, name: new RegExp(melon.alias) })).toBeVisible();
+    const publicPlot = page.locator('.field-plot-hotspot.is-public[aria-label^="第1片土地"]');
+    await expect(publicPlot).toBeVisible();
+    await expect(publicPlot).toHaveJSProperty("tagName", "DIV");
     await expect(page.getByText(spot.name)).toBeVisible();
-    await expect(page.getByText(/supabase|user id/i)).toHaveCount(0);
+    await expect(page.getByText(/小瓜籽\s*\d|真瓜籽\s*\d|XP\s*\d|\d\s*XP|supabase|user id/i)).toHaveCount(0);
+    await expect(page.locator(".field-ledger, .field-cycle-card, .field-plant-confirm")).toHaveCount(0);
     await expect(page.getByRole("main").getByRole("button", { name: /埋.*瓜|种.*瓜/ })).toHaveCount(0);
   });
 });

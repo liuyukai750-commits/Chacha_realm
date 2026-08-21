@@ -1,6 +1,6 @@
-import type { CityId, CityOpeningState } from "../contracts/index";
+import type { CityId, CityOpeningState } from "../contracts/index.ts";
 
-import { nextChinaEightPm, timestampMs } from "./time";
+import { nextChinaEightPm, timestampMs } from "./time.ts";
 
 export const V0_CITY_IDS: readonly CityId[] = [
   "changsha",

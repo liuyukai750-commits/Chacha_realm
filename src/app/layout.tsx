@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { SiteFooter } from "@/components/site-footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "猹猹王国｜晴日瓜田里的附近故事",
-  description: "在晴日瓜田雷达中发现附近成熟的匿名生活故事，吃完留下一粒瓜籽。",
+  title: "猹猹街｜附近城市的匿名故事",
+  description: "在城市瓜区发现附近的匿名生活故事，成熟瓜可直接打开，现场范围只用于文字评论资格。",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>{children}<SiteFooter /></body>
     </html>
   );
 }
