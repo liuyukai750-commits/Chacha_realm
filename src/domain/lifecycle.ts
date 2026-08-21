@@ -1,9 +1,10 @@
 import type { MelonStatus } from "../contracts/index.ts";
 
-import { DAY_MS, HOUR_MS, MINUTE_MS, addMilliseconds, timestampMs } from "./time.ts";
+import { HOUR_MS, MINUTE_MS, addMilliseconds, timestampMs } from "./time.ts";
 
 export const INCUBATION_MS = 3 * MINUTE_MS;
-export const UNREAD_ARCHIVE_MS = 24 * HOUR_MS;
+export const DISCOVERY_VISIBILITY_MS = 48 * HOUR_MS;
+export const MAX_VISIBLE_MELONS_PER_LOCATION = 25;
 
 export interface MelonLifecycleInput {
   status: MelonStatus;
@@ -15,7 +16,7 @@ export interface MelonLifecycleInput {
 export interface MelonLifecycle {
   status: MelonStatus;
   maturesAt: string;
-  unreadArchivesAt: string;
+  discoveryExpiresAt: string;
 }
 
 export function resolveMelonLifecycle(input: MelonLifecycleInput): MelonLifecycle {
@@ -24,21 +25,21 @@ export function resolveMelonLifecycle(input: MelonLifecycleInput): MelonLifecycl
   const createdAtMs = timestampMs(input.createdAt, "createdAt");
   const nowMs = timestampMs(input.now, "now");
   const maturesAt = addMilliseconds(input.createdAt, INCUBATION_MS);
-  const unreadArchivesAt = addMilliseconds(maturesAt, UNREAD_ARCHIVE_MS);
+  const discoveryExpiresAt = addMilliseconds(input.createdAt, DISCOVERY_VISIBILITY_MS);
 
   if (input.status === "held" || input.status === "removed" || input.status === "archived") {
-    return { status: input.status, maturesAt, unreadArchivesAt };
+    return { status: input.status, maturesAt, discoveryExpiresAt };
   }
 
   if (nowMs < createdAtMs + INCUBATION_MS) {
-    return { status: "incubating", maturesAt, unreadArchivesAt };
+    return { status: "incubating", maturesAt, discoveryExpiresAt };
   }
 
-  if (input.validReadCount === 0 && nowMs >= createdAtMs + INCUBATION_MS + DAY_MS) {
-    return { status: "archived", maturesAt, unreadArchivesAt };
-  }
+  return { status: "mature", maturesAt, discoveryExpiresAt };
+}
 
-  return { status: "mature", maturesAt, unreadArchivesAt };
+export function isWithinDiscoveryWindow(createdAt: string, now: string): boolean {
+  return timestampMs(now, "now") < timestampMs(createdAt, "createdAt") + DISCOVERY_VISIBILITY_MS;
 }
 
 export type SpreadRadiusKm = 1 | 3 | 8 | 20;

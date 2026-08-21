@@ -9,10 +9,15 @@ import {
   getFieldPlantStage,
   getNextSlotIndex,
 } from "./field.ts";
-import { getMelonSpreadRadiusKm, resolveMelonLifecycle } from "./lifecycle.ts";
+import {
+  MAX_VISIBLE_MELONS_PER_LOCATION,
+  getMelonSpreadRadiusKm,
+  isWithinDiscoveryWindow,
+  resolveMelonLifecycle,
+} from "./lifecycle.ts";
 import { evaluateReadReward, type ValidReadRecord } from "./reads.ts";
 
-test("瓜在创建三分钟后成熟，成熟后 24 小时零有效阅读归档", () => {
+test("瓜在创建三分钟后成熟，发布满 48 小时只退出普通发现，不自动归档", () => {
   const createdAt = "2026-08-04T00:00:00.000Z";
 
   assert.equal(
@@ -24,13 +29,12 @@ test("瓜在创建三分钟后成熟，成熟后 24 小时零有效阅读归档"
     "mature",
   );
   assert.equal(
-    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 0, now: "2026-08-05T00:03:00.000Z" }).status,
-    "archived",
-  );
-  assert.equal(
-    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 1, now: "2026-08-05T00:03:00.000Z" }).status,
+    resolveMelonLifecycle({ status: "mature", createdAt, validReadCount: 0, now: "2026-08-06T00:00:00.000Z" }).status,
     "mature",
   );
+  assert.equal(isWithinDiscoveryWindow(createdAt, "2026-08-05T23:59:59.999Z"), true);
+  assert.equal(isWithinDiscoveryWindow(createdAt, "2026-08-06T00:00:00.000Z"), false);
+  assert.equal(MAX_VISIBLE_MELONS_PER_LOCATION, 25);
 });
 
 test("held 与 removed 状态不会被时间推进覆盖", () => {

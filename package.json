@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
-    "qa:contracts": "node --test --test-isolation=none tests/unified-burial-reward-contract.test.mjs tests/ambient-audio-contract.test.mjs tests/bury-entry-consistency.test.mjs tests/five-city-gate.test.mjs tests/mobile-reader-contract.test.mjs tests/melon-incubation-contract.test.mjs",
+    "qa:contracts": "node --test --test-isolation=none tests/unified-burial-reward-contract.test.mjs tests/ambient-audio-contract.test.mjs tests/bury-entry-consistency.test.mjs tests/five-city-gate.test.mjs tests/mobile-reader-contract.test.mjs tests/melon-incubation-contract.test.mjs tests/melon-visibility-window-contract.test.mjs",
     "qa:db": "node scripts/check-supabase-migrations.mjs",
     "qa:mobile": "npx playwright test --config tests/e2e/mobile-reader.config.mjs",
     "qa:five-city": "npx playwright test --config tests/e2e/five-city-release.config.mjs",
