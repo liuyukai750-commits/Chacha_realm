@@ -62,8 +62,8 @@ test("melon create does not trust client cityId for public or nearby burial", ()
   assert.match(createRoute, /const location = validateLocationProof\(body\.location\)/);
   assert.match(repository, /const locatedCityId = resolveSupportedCityForBurial\(input\.location\)/);
   assert.match(repository, /activePublicSpot\(input\.spotId\)/);
-  assert.match(repository, /select=id,city_id,district_id,name,latitude,longitude&id=eq\.\$\{encodeURIComponent\(spotId\)\}&active=eq\.true&limit=1/);
-  assert.doesNotMatch(repository, /getPublicSpot\(input\.spotId\)/);
+  assert.match(repository, /const catalog = await getCities\(\)/);
+  assert.doesNotMatch(repository, /getPublicSpot\(input\.spotId\)|encodeURIComponent\(spotId\)/);
   assert.match(repository, /const cityId = nearbyBurial \? locatedCityId : spot!\.city_id/);
   assert.match(repository, /p_city_id:\s*cityId/);
   assert.match(repository, /p_operation_id:\s*input\.operationId/);

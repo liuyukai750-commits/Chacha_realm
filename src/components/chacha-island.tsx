@@ -161,6 +161,7 @@ export function ChachaIsland() {
   const [notice, setNotice] = useState("定位未开启 · 正在浏览公开瓜场");
   const commentsPrefetchRef = useRef(new Map<string, Promise<MelonCommentsPage>>());
   const openingRequestRef = useRef(0);
+  const quickSquatLocksRef = useRef(new Set<string>());
   const modelReady = model !== null;
 
   const prefetchComments = (melonId: string, presenceToken?: string) => {
@@ -234,7 +235,11 @@ export function ChachaIsland() {
     const sync = () => {
       if (document.visibilityState !== "visible") return;
       void islandAdapter.squatShelf().then(
-        (squatShelf) => active && setModel((current) => current ? { ...current, squatShelf } : current),
+        (squatShelf) => {
+          if (!active) return;
+          setModel((current) => current ? { ...current, squatShelf } : current);
+          setQuickSquats(squatShelf.items.map((item) => item.melon.id));
+        },
         () => undefined,
       );
     };
@@ -499,14 +504,16 @@ export function ChachaIsland() {
 
   const quickSquat = async (id: string) => {
     if (writesBlocked) return setNotice("当前匿名身份已被封禁，只能阅读公开内容。申诉入口即将开放。");
-    if (squatBusyIds.includes(id)) return;
-    const active = !(model?.squatShelf.items.some((item) => item.melon.id === id) ?? quickSquats.includes(id));
+    if (quickSquatLocksRef.current.has(id)) return;
+    quickSquatLocksRef.current.add(id);
+    const currentlySquatted = quickSquats.includes(id) || (model?.squatShelf.items.some((item) => item.melon.id === id) ?? false);
+    const active = !currentlySquatted;
     setSquatBusyIds((current) => [...new Set([...current, id])]);
     applySquatLocally(id, active);
     try {
       const result = await islandAdapter.setSquat(id, active);
       if (result.active !== active) applySquatLocally(id, result.active);
-      setNotice(result.active ? "已放进蹲瓜架 · 成熟后会在听瓜入口亮起提醒" : "已经从蹲瓜架移除");
+      setNotice(result.active ? "已蹲后续 · 成熟后会在听瓜入口亮起提醒" : "已取消蹲后续");
       void islandAdapter.squatShelf().then((squatShelf) => {
         setModel((current) => current ? { ...current, squatShelf } : current);
         setQuickSquats(squatShelf.items.map((item) => item.melon.id));
@@ -515,6 +522,7 @@ export function ChachaIsland() {
       applySquatLocally(id, !active);
       setNotice(messageFrom(error));
     } finally {
+      quickSquatLocksRef.current.delete(id);
       setSquatBusyIds((current) => current.filter((value) => value !== id));
     }
   };
@@ -604,7 +612,7 @@ export function ChachaIsland() {
 
       <main className="island-main">
         {writesBlocked && <div className="account-readonly" role="status"><strong>当前为只读状态</strong><span>匿名身份已被封禁，仍可读瓜和查看公开评论。申诉入口即将开放。</span></div>}
-        {!opened && !showBury && !showCities && <div className="live-notice" role="status"><span aria-hidden="true" />{notice}</div>}
+        {tab === "radar" && !opened && !showBury && !showCities && <div className="live-notice" role="status"><span aria-hidden="true" />{notice}</div>}
         {buryFeedback && !opened && !showBury && !showCities && <section className="bury-success-panel" aria-label="埋瓜结果">
           <div role="status" aria-live="polite">
             <strong>{buryFeedback.status === "held" ? "瓜已送去安全复核" : "这颗瓜已经埋好"}</strong>
@@ -675,7 +683,7 @@ export function ChachaIsland() {
             onHarvest={() => islandAdapter.harvest()}
             onHarvested={(result) => {
               setModel((current) => current ? { ...current, field: result.field, session: { ...current.session, experience: result.experience } } : current);
-              setNotice("九个瓜已经收好 · XP +9");
+              setNotice("九个瓜已经收好 · 经验值 +9");
             }}
           />
         )}
@@ -783,7 +791,7 @@ function StoryFocus({ melon, authorName, fieldLookup, onViewField }: {
       <h2 id={`story-title-${melon.id}`}>{melon.title}</h2>
       <div className="story-author">
         <AnimalAvatar animal={animal} size="medium" />
-        <p><small>瓜主</small><strong>{authorName} <IdentityBadge badge={melon.identityBadge} /></strong></p>
+        <p><small>作者</small><strong>{authorName} <IdentityBadge badge={melon.identityBadge} /></strong></p>
       </div>
     </header>
     <div className="story-focus-body"><p>{melon.content}</p></div>
@@ -823,7 +831,8 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
   const cityItems = items.filter((melon) => melon.cityId === cityId && (melon.burialKind ?? "public_spot") === "public_spot");
   const nearbyItems = nearbyItemsForScene(items);
   const scopedItems = scope === "nearby" ? nearbyItems : cityItems;
-  const spotGroups = Array.from(scopedItems.reduce((groups, melon) => {
+  const basketItems = scopedItems.filter((melon) => melon.status === "mature" || !quickSquats.includes(melon.id));
+  const spotGroups = Array.from(basketItems.reduce((groups, melon) => {
     const group = groups.get(melon.spot.id) ?? [];
     group.push(melon);
     groups.set(melon.spot.id, group);
@@ -959,9 +968,9 @@ function RadarView({ items, details, quickSquats, squatBusyIds, cityId, cityName
               </div>
               <div className="basket-actions">
                 {melon.status === "mature" ? <>
-                  <button className="basket-primary" onClick={() => onOpen(melon)}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
-                  {!readOnly && <button onClick={() => onSquat(melon.id)} disabled={squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={`${squatted ? "取消" : "添加"}蹲瓜`}>{squatted ? "已蹲瓜" : "蹲瓜"}</button>}
-                </> : <button className="basket-primary" onClick={() => onSquat(melon.id)} disabled={readOnly || squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={readOnly ? "只读" : `${squatted ? "取消" : "添加"}蹲瓜`}>{readOnly ? "只读" : squatted ? "已蹲瓜" : "蹲瓜"}</button>}
+                  <button className={`basket-primary${melon.isRemote ? "" : " basket-direct-eat"}`} onClick={() => onOpen(melon)} disabled={squatBusy} aria-busy={squatBusy}>{melon.isRemote ? "远方围观" : "直接吃"}</button>
+                  {!readOnly && <button className="basket-squat" onClick={() => onSquat(melon.id)} disabled={squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={`${squatted ? "取消" : "添加"}蹲后续`}>蹲后续</button>}
+                </> : <button className="basket-primary basket-squat" onClick={() => onSquat(melon.id)} disabled={readOnly || squatBusy} aria-busy={squatBusy} aria-pressed={squatted} aria-label={readOnly ? "只读" : `${squatted ? "取消" : "添加"}蹲后续`}>{readOnly ? "只读" : "蹲后续"}</button>}
               </div>
             </article>
             </SwipeActionRow>;
@@ -1067,16 +1076,25 @@ function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, o
   };
 
   return (
-    <section className="field-view" aria-labelledby="field-title" aria-label={isOwn ? "我的瓜田" : `${fieldOwnerName}的瓜田`}>
-      <p className="utility-label"><SproutIcon /> {isOwn ? "MY THREE PATCHES" : "VISITING PATCH"}</p>
-      <h1 id="field-title">{isOwn ? <>我的瓜田，<em>九个坑，慢慢长。</em></> : <>{fieldOwnerName} <IdentityBadge badge={field.identityBadge} /> <em>的瓜田</em></>}</h1>
+    <section
+      className="field-view"
+      aria-labelledby={isOwn ? undefined : "field-title"}
+      aria-label={isOwn ? "我的瓜田" : undefined}
+    >
+      {!isOwn && <><p className="utility-label"><SproutIcon /> VISITING PATCH</p><h1 id="field-title">{fieldOwnerName} <IdentityBadge badge={field.identityBadge} /> <em>的瓜田</em></h1></>}
 
-      {ownField && <div className="field-ledger" aria-label="瓜田资产">
-        <div><span>田里</span><strong>{field.plantedCount}<small>/9</small></strong></div>
-        <div><span>小瓜籽</span><strong>{ownField.wallet.smallSeedCount}<small>/5</small></strong></div>
-        <div><span>真瓜籽</span><strong>{ownField.wallet.trueSeedCount}</strong></div>
-        <div><span>XP</span><strong>{ownField.experience.total}</strong></div>
-      </div>}
+      {ownField && <section className="field-profile-summary" aria-label="用户与瓜田数据">
+        <div className="field-profile-heading">
+          <div className="field-profile-card"><span>用户名</span><h1 id="field-title">{fieldOwnerName}</h1></div>
+          <div className="field-profile-card is-level"><span>用户等级</span><strong>待开发</strong></div>
+        </div>
+        <div className="field-ledger" aria-label="瓜田资产">
+          <div><span>田里</span><strong>{field.plantedCount}<small>/9</small></strong></div>
+          <div><span>小瓜籽</span><strong>{ownField.wallet.smallSeedCount}<small>/5</small></strong></div>
+          <div><span>真瓜籽</span><strong>{ownField.wallet.trueSeedCount}</strong></div>
+          <div><span>经验值</span><strong>{ownField.experience.total}</strong></div>
+        </div>
+      </section>}
 
       <div className={`field-illustration field-v1 ${harvesting ? "is-harvesting" : ""}`} data-testid="field-stage" aria-label={`三片瓜田，已经种下 ${field.plantedCount} 个瓜`}>
         <div className="field-sun" /><div className="field-soil" />
@@ -1120,12 +1138,12 @@ function MyField({ field, isOwn, onBury, onOpen, onDelete, onPlant, onRefresh, o
         <div><span>吃 5 颗瓜</span><i aria-hidden="true">→</i><span>1 颗真瓜籽</span><i aria-hidden="true">→</i><span>种 12 小时</span></div>
         <p>{ownField.nextMaturesAt ? `下一颗约 ${formatDuration(Math.max(0, new Date(ownField.nextMaturesAt).getTime() - clock))} 后成熟。` : "吃瓜攒籽，或者分享今天第一颗原创瓜，然后选一片土地种下。"}</p>
         {visuallyHarvestable
-          ? <button className="harvest-all" onClick={harvestAll} disabled={busy}>{busy ? "正在收瓜…" : "一键收瓜 · +9 XP"}</button>
+          ? <button className="harvest-all" onClick={harvestAll} disabled={busy}>{busy ? "正在收瓜…" : "一键收瓜 · +9 经验值"}</button>
           : <small>{field.plantedCount === 9 ? `还差 ${9 - visualMatureCount} 个瓜成熟` : `再种 ${9 - field.plantedCount} 个，集齐后一起收`}</small>}
-        <div className="xp-source"><span>阅读所得 {ownField.experience.fromReads} XP</span><span>收获所得 {ownField.experience.fromHarvests} XP</span></div>
+        <div className="xp-source"><span>阅读所得 {ownField.experience.fromReads} 经验值</span><span>收获所得 {ownField.experience.fromHarvests} 经验值</span></div>
       </div>}
 
-      {!isOwn && <p className="visiting-field-note">串门只能看这片地长到哪儿；瓜籽、XP 和种植操作只有瓜田主人能看到。</p>}
+      {!isOwn && <p className="visiting-field-note">串门只能看这片地长到哪儿；瓜籽、经验值和种植操作只有瓜田主人能看到。</p>}
 
       {selectedPlot !== null && ownField && <aside className="field-plant-confirm" role="dialog" aria-label="确认播种">
         <div><span>第 {selectedPlot + 1} 片土地</span><strong>消耗 1 颗真瓜籽</strong></div>
@@ -1163,7 +1181,7 @@ function SquatShelfSheet({ shelf, busy, onClose, onOpen, onCancel }: {
   return <Sheet title="我的蹲瓜架" subtitle="成熟提醒只在猹猹街站内出现，不会发系统推送" onClose={onClose} wide>
     <section className="squat-shelf" aria-label="蹲瓜提醒">
       <header><span><strong>{shelf.unreadCount}</strong><small>刚成熟</small></span><p>回来逛街时自动检查成熟状态。<br />作者追加后续会在后续版本接入同一架子。</p></header>
-      {shelf.items.length === 0 ? <div className="squat-shelf-empty"><SproutIcon /><strong>架子还是空的</strong><span>遇到还在孵化的瓜，点“蹲瓜”就会收进这里。</span></div> : <>
+      {shelf.items.length === 0 ? <div className="squat-shelf-empty"><SproutIcon /><strong>架子还是空的</strong><span>遇到想继续关注的瓜，点“蹲后续”就会收进这里。</span></div> : <>
         {mature.length > 0 && <div className="squat-shelf-group"><h3>已经成熟 <span>{mature.length}</span></h3>{mature.map((item) => <article className={item.unread ? "is-unread" : ""} key={item.melon.id}>
           <button className="squat-shelf-main" onClick={() => onOpen(item)} disabled={busy}>
             <span className="squat-shelf-avatar"><AnimalAvatar animal={item.melon.animal ?? "猹"} size="small" /></span>
@@ -1211,6 +1229,8 @@ function MelonReaderLoading({ target, onClose }: { target: OpeningMelonTarget; o
 
 function OwnerMelonReader({ adapter, opened, prefetchedComments, onClose }: { adapter: IslandAdapter; opened: OpenedMelon; prefetchedComments?: Promise<MelonCommentsPage>; onClose: () => void }) {
   const [comments, setComments] = useState<MelonComment[]>([]);
+  const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(opened.melon.status === "mature");
   const [error, setError] = useState<string | null>(null);
 
@@ -1232,6 +1252,22 @@ function OwnerMelonReader({ adapter, opened, prefetchedComments, onClose }: { ad
 
   const authorName = opened.melon.displayName ?? opened.melon.alias;
 
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const comment = content.trim();
+    if (!comment || submitting) return;
+    setSubmitting(true); setError(null);
+    try {
+      const created = await adapter.comment(opened.melon.id, comment);
+      setComments((current) => [created, ...current]);
+      setContent("");
+    } catch (caught) {
+      setError(`${messageFrom(caught)} 草稿已保留。`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return <Sheet title="我的瓜详情" subtitle="正文与公开评论" onClose={onClose} wide>
     <article className="owner-melon-reader">
       <div className={`owner-melon-status is-${opened.melon.status}`} role="status"><strong>{statusCopy}</strong></div>
@@ -1239,7 +1275,13 @@ function OwnerMelonReader({ adapter, opened, prefetchedComments, onClose }: { ad
       <div className="owner-melon-stats" aria-label="这颗瓜的数据"><span>吃完 <strong>{opened.melon.completedReads ?? 0}</strong> 只猹</span>{reactionMeta.map(([key, label]) => <span key={key}>{label} <strong>{opened.melon.reactions[key]}</strong></span>)}</div>
       <section className="comments owner-comments" aria-labelledby="owner-comments-title">
         <header><div><span>公开回声</span><h3 id="owner-comments-title">吃瓜猹的评论</h3></div><strong>{comments.length}</strong></header>
-        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias} <IdentityBadge badge={item.identityBadge} /></strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
+        {opened.melon.status !== "mature" ? <p className="comment-empty">这颗瓜公开成熟后，吃瓜猹的评论会显示在这里。</p> : loading ? <div className="comment-loading" aria-label="正在加载评论"><i/><i/><i/></div> : comments.length ? <CommentList adapter={adapter} comments={comments} /> : <p className="comment-empty">还没有公开评论。有人吃瓜并留言后会出现在这里。</p>}
+        {opened.melon.status === "mature" && <form onSubmit={submit}>
+          <label htmlFor={`owner-comment-content-${opened.melon.id}`}>作为作者留一条公开回复</label>
+          <textarea id={`owner-comment-content-${opened.melon.id}`} value={content} onChange={(event) => setContent(event.target.value)} maxLength={140} enterKeyHint="send" placeholder="回应评论区，但不形成楼中楼" />
+          <div><small>{content.length}/140</small><button disabled={!content.trim() || submitting}>{submitting ? "发送中" : "作者回复"}</button></div>
+          <p className="comment-rules">回复会作为一条平铺评论公开显示，并带有珊瑚色“作者”标识。</p>
+        </form>}
         {error && <p className="form-error" role="alert">{error}</p>}
       </section>
     </article>
@@ -1260,6 +1302,7 @@ function MelonReader({ adapter, opened, prefetchedComments, onClose, onFinished,
   const [liked, setLiked] = useState(Boolean(opened.melon.liked));
   const [interactionBusy, setInteractionBusy] = useState<"like" | "squat" | null>(null);
   const [interactionError, setInteractionError] = useState<string | null>(null);
+  const interactionLockRef = useRef(false);
 
   useEffect(() => {
     const start = window.performance.now();
@@ -1280,7 +1323,8 @@ function MelonReader({ adapter, opened, prefetchedComments, onClose, onFinished,
   };
 
   const toggleSquat = async () => {
-    if (interactionBusy) return;
+    if (interactionLockRef.current) return;
+    interactionLockRef.current = true;
     const priorActive = squatted;
     const priorCount = squatCount;
     const nextActive = !priorActive;
@@ -1298,12 +1342,14 @@ function MelonReader({ adapter, opened, prefetchedComments, onClose, onFinished,
       setSquatCount(priorCount);
       setInteractionError(messageFrom(caught));
     } finally {
+      interactionLockRef.current = false;
       setInteractionBusy(null);
     }
   };
 
   const react = async (reaction: ReactionType) => {
-    if (interactionBusy) return;
+    if (interactionLockRef.current) return;
+    interactionLockRef.current = true;
     const priorActive = liked;
     const priorReactions = reactions;
     const nextActive = !priorActive;
@@ -1320,6 +1366,7 @@ function MelonReader({ adapter, opened, prefetchedComments, onClose, onFinished,
       setReactions(priorReactions);
       setInteractionError(messageFrom(caught));
     } finally {
+      interactionLockRef.current = false;
       setInteractionBusy(null);
     }
   };
@@ -1336,7 +1383,7 @@ function MelonReader({ adapter, opened, prefetchedComments, onClose, onFinished,
           <button className={finished ? `finish-button finished ${completionResult?.smallSeedAwarded ? "seed-launch" : ""}` : "finish-button"} aria-label="完成吃瓜" onClick={complete} disabled={!ready || busy || finished}>{finished ? <><CheckIcon /> {completionResult ? readRewardLabel(completionResult) : "已吃完"}</> : busy ? "正在留籽…" : "完成吃瓜"}</button>
           {error && <p className="form-error" role="alert">{error}</p>}
         </div>
-        {!readOnly && <div className="reader-interactions"><div className="reaction-row" aria-label="点赞与蹲后续">{reactionMeta.map(([key, label, glyph]) => <button key={key} onClick={() => react(key)} disabled={Boolean(interactionBusy)} aria-busy={interactionBusy === "like"} aria-pressed={liked} aria-label={`${liked ? "取消点赞" : label}，当前 ${reactions[key] ?? 0} 次`}><span aria-hidden="true">{glyph}</span>{liked ? "已点赞" : label}<small>{reactions[key] ?? 0}</small></button>)}<button onClick={toggleSquat} disabled={Boolean(interactionBusy)} aria-busy={interactionBusy === "squat"} aria-pressed={squatted} aria-label={`${squatted ? "取消蹲后续" : "蹲后续"}，当前 ${squatCount} 人`}><span aria-hidden="true">⌛</span>{squatted ? "已蹲后续" : "蹲后续"}<small>{squatCount}</small></button></div>{interactionError && <p className="form-error interaction-error" role="alert">{interactionError}</p>}</div>}
+        {!readOnly && <div className="reader-interactions"><div className="reaction-row" aria-label="点赞与蹲后续">{reactionMeta.map(([key, label, glyph]) => <button className="reaction-like" key={key} onClick={() => react(key)} disabled={Boolean(interactionBusy)} aria-busy={interactionBusy === "like"} aria-pressed={liked} aria-label={`${liked ? "取消点赞" : label}，当前 ${reactions[key] ?? 0} 次`}><span aria-hidden="true">{glyph}</span>{label}<small>{reactions[key] ?? 0}</small></button>)}<button className="reaction-squat" onClick={toggleSquat} disabled={Boolean(interactionBusy)} aria-busy={interactionBusy === "squat"} aria-pressed={squatted} aria-label={`${squatted ? "取消蹲后续" : "蹲后续"}，当前 ${squatCount} 人`}><span aria-hidden="true">⌛</span>蹲后续<small>{squatCount}</small></button></div>{interactionError && <p className="form-error interaction-error" role="alert">{interactionError}</p>}</div>}
         {readOnly && <p className="readonly-note">当前匿名身份只能阅读，不能轻反应、蹲瓜或评论。申诉入口即将开放。</p>}
         <InlineComments adapter={adapter} melon={opened.melon} prefetchedComments={prefetchedComments} onSeek={onSeek} readOnly={readOnly} initialPresence={initialPresence} />
       </article>
@@ -1407,7 +1454,7 @@ function InlineComments({ adapter, melon, prefetchedComments, onSeek, readOnly, 
   const canComment = presence?.presence === "local" && Boolean(presence.presenceToken);
   return <section className="comments inline-comments" aria-labelledby="comments-title">
     <header><div><span>公开回声</span><h3 id="comments-title">评论</h3></div><strong>{comments.length}</strong></header>
-    {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <div className="comment-list">{comments.map((item) => <article key={item.id}><strong>{item.displayName ?? item.alias} <IdentityBadge badge={item.identityBadge} /></strong><div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div><p>{item.content}</p></article>)}</div> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
+    {loading ? <div className="comment-loading" aria-label="正在加载评论"><i /><i /><i /></div> : comments.length ? <CommentList adapter={adapter} comments={comments} /> : <p className="comment-empty">还没有公开评论。远方围观者也能看到之后的全部回声。</p>}
     <div className={`comment-gate ${canComment ? "is-local" : ""}`}>
       <div className="comment-gate-copy"><LocationIcon /><p><strong>{readOnly ? "当前为只读状态" : canComment ? "现场凭证已点亮" : "远方围观模式"}</strong><small>{readOnly ? "仍可阅读全部公开评论。申诉入口即将开放。" : canComment ? "可以留下 140 字以内的平铺评论。" : "可读全部评论、轻反应和蹲瓜，不显示评论输入框。"}</small></p></div>
       {!readOnly && !canComment && <button onClick={seek} disabled={seeking}>{seeking ? "正在验证" : presence ? "重新验证位置" : "验证现场评论资格"}</button>}
@@ -1421,6 +1468,14 @@ function InlineComments({ adapter, melon, prefetchedComments, onSeek, readOnly, 
     </form>}
     {error && <p className="form-error" role="alert">{error}</p>}
   </section>;
+}
+
+function CommentList({ adapter, comments }: { adapter: IslandAdapter; comments: MelonComment[] }) {
+  return <div className="comment-list">{comments.map((item) => <article key={item.id}>
+    <strong>{item.displayName ?? item.alias}{item.isOwner && <span className="comment-owner-badge">作者</span>} <IdentityBadge badge={item.identityBadge} /></strong>
+    <div className="comment-tools"><time dateTime={item.createdAt}>{formatRelativeTime(item.createdAt)}</time><ReportControl adapter={adapter} targetType="comment" targetId={item.id} label="举报评论" /></div>
+    <p>{item.content}</p>
+  </article>)}</div>;
 }
 
 const reportReasons: Array<[CreateReportRequest["reason"], string]> = [
@@ -1463,7 +1518,7 @@ function CityPicker({ model, onClose, onSelect }: { model: IslandBootstrap; onCl
   return <Sheet title="换一个城市瓜域逛逛" subtitle="五城地标是象征景观，不是导航地图" onClose={onClose}><div className="city-list">{model.cities.map((city) => {
     const landmark = cityLandmarks[city.id] ?? fallbackLandmark;
     return <button key={city.id} onClick={() => onSelect(city.id)} className={city.id === model.discovery.activeCityId ? "selected" : ""} aria-label={`${city.name}城市瓜域，象征地标${landmark.name}，${city.opening.status === "open" ? "城门已开" : `${city.opening.safeMelons}/30 颗安全瓜`}`}><CityIsland cityId={city.id} cityName={city.name} compact /><span className="city-copy"><strong>{city.name}</strong><small>{landmark.name} · {landmark.atmosphere}</small><small>{city.opening.status === "open" ? "城门已开" : `${city.opening.safeMelons}/30 颗安全瓜`}</small></span>{city.id === model.discovery.activeCityId && <i>正在逛</i>}<ChevronIcon /></button>;
-  })}</div><p className="privacy-copy"><LocationIcon />定位被拒绝时仍可按城市浏览和蹲瓜；只有埋瓜需要在公共地点附近完成一次距离验证。</p></Sheet>;
+  })}</div><p className="privacy-copy"><LocationIcon />定位被拒绝时仍可按城市浏览和蹲后续；只有埋瓜需要在公共地点附近完成一次距离验证。</p></Sheet>;
 }
 
 function CityIsland({ cityId, cityName, radar = false, compact = false }: { cityId: CityId; cityName: string; radar?: boolean; compact?: boolean }) {

@@ -14,7 +14,7 @@ test("nearby burial payload cannot submit or override cityId from the active bro
 
 test("public spot burial payload submits only spotId; the server owns spot city attribution", async () => {
   const burySheet = await source("src/components/bury-sheet-v1.tsx");
-  const publicSubmit = burySheet.match(/: \{ operationId, burialKind: "public_spot"[\s\S]*?\}/)?.[0] ?? "";
+const publicSubmit = burySheet.match(/: \{ operationId, burialKind: "public_spot"[\s\S]*?\}/)?.[0] ?? "";
 
   assert.match(publicSubmit, /burialKind: "public_spot"/);
   assert.match(publicSubmit, /spotId/);
@@ -31,12 +31,20 @@ test("create melon route requires one-time location for both burial modes and ne
   assert.doesNotMatch(route, /parsedCityId|body\.cityId/);
 });
 
-test("repository resolves nearby city from real location and public spot city from the active database row", async () => {
+test("公共地点列表变化后不会提交失效的旧地点", async () => {
+  const burySheet = await source("src/components/bury-sheet-v1.tsx");
+  assert.match(burySheet, /spots\.find\(\(spot\) => spot\.id === spotId\) \?\? spots\[0\]/);
+  assert.match(burySheet, /spotId: selectedSpot!\.id/);
+  assert.match(burySheet, /buryMode === "public_spot" && !selectedSpot/);
+});
+
+test("repository resolves nearby city from real location and public spot city from the active database catalog", async () => {
   const repository = await source("src/server/repositories/island-repository.ts");
 
   assert.match(repository, /const locatedCityId = resolveSupportedCityForBurial\(input\.location\)/);
   assert.match(repository, /activePublicSpot\(input\.spotId\)/);
-  assert.match(repository, /id=eq\.\$\{encodeURIComponent\(spotId\)\}&active=eq\.true/);
+  assert.match(repository, /const catalog = await getCities\(\)/);
+  assert.match(repository, /city\.spots\.find\(\(candidate\) => candidate\.id === spotId\)/);
   assert.match(repository, /p_city_id:\s*cityId/);
   assert.match(repository, /p_latitude:\s*nearbyBurial \? input\.location!\.latitude : null/);
   assert.match(repository, /p_longitude:\s*nearbyBurial \? input\.location!\.longitude : null/);

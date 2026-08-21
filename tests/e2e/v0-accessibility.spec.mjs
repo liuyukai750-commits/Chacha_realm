@@ -139,7 +139,7 @@ test.describe("V0 响应式与无障碍门槛", () => {
       expect(value, `${selector} needs at least 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
     }
 
-    await page.getByRole("button", { name: "关闭" }).click();
+    await page.getByRole("button", { name: "关闭", exact: true }).click();
     const dialog = await openMelon(page);
     const readerContrast = await contrast([
       ".read-clock>span",

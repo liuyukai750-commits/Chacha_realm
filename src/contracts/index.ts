@@ -372,6 +372,8 @@ export interface MelonComment {
   displayName?: string;
   publicId?: string;
   identityBadge?: IdentityBadge;
+  /** True only when this comment was written by this melon's author. */
+  isOwner?: boolean;
   content: string;
   createdAt: string;
 }
@@ -410,7 +412,7 @@ export interface ZonePresenceResult {
 
 export interface CreateCommentRequest {
   content: string;
-  presenceToken: string;
+  presenceToken?: string;
 }
 
 export interface CreateReportRequest {

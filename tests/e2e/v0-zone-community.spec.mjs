@@ -204,7 +204,9 @@ test.describe("瓜区承载、筛选与远程围观", () => {
 
     await topicFilter.getByRole("button", { name: "全部", exact: true }).click();
     const localRow = page.getByRole("article", { name: melon.title, exact: true });
-    await expect(localRow.getByRole("button", { name: "直接吃", exact: true })).toBeVisible();
+    const directEat = localRow.getByRole("button", { name: "直接吃", exact: true });
+    await expect(directEat).toBeVisible();
+    await expect(directEat).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(localRow.getByRole("button", { name: "顺藤摸瓜", exact: true })).toHaveCount(0);
 
     const secondLocal = discoveryMelons.find((item) => !item.isRemote && item.id !== melon.id && item.status === "mature");
@@ -259,39 +261,53 @@ test.describe("瓜区承载、筛选与远程围观", () => {
     await like.click();
     await expect.poll(() => api.reactionRequests).toEqual([{ melonId: remote.id, reaction: "like", active: true }]);
     await expect(like).toContainText("4");
-    await expect(like).toContainText("已点赞");
+    await expect(like).toContainText("点赞");
+    await expect(like).not.toContainText("已点赞");
     await expect(like).not.toContainText("正在更新");
     await expect(like).toHaveCSS("background-color", likeBackground);
     await expect(like).toHaveAttribute("aria-pressed", "true");
 
-    await like.click();
+    await dialog.getByRole("button", { name: "关闭" }).click();
+    const likedReopened = await openRemoteMelon(page);
+    const persistedLike = likedReopened.dialog.getByRole("button", { name: /点赞/ }).first();
+    await expect(persistedLike).toContainText("4");
+    await expect(persistedLike).toContainText("点赞");
+    await expect(persistedLike).not.toContainText("已点赞");
+    await expect(persistedLike).toHaveAttribute("aria-pressed", "true");
+
+    await persistedLike.click();
     await expect.poll(() => api.reactionRequests).toEqual([
       { melonId: remote.id, reaction: "like", active: true },
       { melonId: remote.id, reaction: "like", active: false },
     ]);
-    await expect(like).toContainText("3");
-    await expect(like).toContainText("点赞");
-    await expect(like).toHaveAttribute("aria-pressed", "false");
+    await expect(persistedLike).toContainText("3");
+    await expect(persistedLike).toContainText("点赞");
+    await expect(persistedLike).toHaveAttribute("aria-pressed", "false");
 
-    const squat = dialog.getByRole("button", { name: /蹲/ }).first();
+    const squat = likedReopened.dialog.getByRole("button", { name: /蹲/ }).first();
     const squatBackground = await squat.evaluate((element) => getComputedStyle(element).backgroundColor);
     await squat.click();
     await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: true });
     await expect(squat).toContainText("1");
-    await expect(squat).toContainText("已蹲后续");
-    await expect(squat).not.toContainText("正在更新");
-    await expect(squat).toHaveCSS("background-color", squatBackground);
-    await expect(squat).toHaveAttribute("aria-pressed", "true");
-    await squat.click();
-    await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: false });
-    await expect(squat).toContainText("0");
     await expect(squat).toContainText("蹲后续");
-    await expect(squat).toHaveAttribute("aria-pressed", "false");
+    await expect(squat).not.toContainText("已蹲后续");
+    await expect(squat).not.toContainText("正在更新");
+    await expect(squat).not.toHaveCSS("background-color", squatBackground);
+    await expect(squat).toHaveAttribute("aria-pressed", "true");
 
-    await dialog.getByRole("button", { name: "关闭" }).click();
-    const reopened = await openRemoteMelon(page);
-    await expect(reopened.dialog.getByRole("button", { name: /^点赞/ })).toContainText("3");
-    await expect(reopened.dialog.getByRole("button", { name: /蹲/ }).first()).toContainText("0");
+    await likedReopened.dialog.getByRole("button", { name: "关闭" }).click();
+    const squattedReopened = await openRemoteMelon(page);
+    const persistedSquat = squattedReopened.dialog.getByRole("button", { name: /蹲/ }).first();
+    await expect(persistedSquat).toContainText("1");
+    await expect(persistedSquat).toContainText("蹲后续");
+    await expect(persistedSquat).toHaveAttribute("aria-pressed", "true");
+
+    await persistedSquat.click();
+    await expect.poll(() => api.squatRequests).toContainEqual({ melonId: remote.id, active: false });
+    await expect(persistedSquat).toContainText("0");
+    await expect(persistedSquat).toContainText("蹲后续");
+    await expect(persistedSquat).toHaveCSS("background-color", squatBackground);
+    await expect(persistedSquat).toHaveAttribute("aria-pressed", "false");
   });
 
   test("LIKE-FAILURE：点赞失败会回滚计数并明确提示，不再像点击没反应", async ({ page }) => {

@@ -9,6 +9,6 @@ export async function POST(request: Request) {
   return route(async () => {
     requireSameOrigin(request);
     const session = await requireActiveSession();
-    return createReport(report(await readJson(request)), session.accessToken);
+    return createReport(report(await readJson(request)), session.userId);
   });
 }

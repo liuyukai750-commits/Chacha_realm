@@ -11,6 +11,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id: rawId } = await params;
     const id = uuid(rawId, "id");
     const session = await requireActiveSession();
-    return markSquatAlertSeen(id, session.accessToken);
+    return markSquatAlertSeen(id, session.userId);
   });
 }

@@ -456,7 +456,9 @@ export async function installV0Api(page, options = {}) {
     const requestMelons = [
       ...(state.fiveCities ? cityMelons(state.activeCityId, state.activeSpot, options) : discoveryMelons),
       ...state.createdMelons,
-    ];
+    ].map((item, index) => options.includeIncubating && index === 1
+      ? { ...item, title: "还在长的后续瓜", maturesAt: "2026-08-04T14:00:00.000Z" }
+      : item);
     const requestedMelon = requestMelons.find((item) => path === `/api/melons/${item.id}`);
     if (method === "GET" && requestedMelon) {
       state.openMelonRequests.push({ melonId: requestedMelon.id, at: Date.now() });
@@ -469,6 +471,7 @@ export async function installV0Api(page, options = {}) {
           spot: requestedMelon.spot ?? state.activeSpot,
           completedReads: requestedMelon.id === melon.id ? state.completedReads : requestedMelon.completedReads,
           liked: state.likes.has(requestedMelon.id),
+          squatted: state.squats.has(requestedMelon.id),
           squatCount: state.squats.has(requestedMelon.id) ? 1 : requestedMelon.squatCount ?? 0,
           reactions: {
             like: (requestedMelon.reactions.like ?? 0) + (state.likes.has(requestedMelon.id) ? 1 : 0),

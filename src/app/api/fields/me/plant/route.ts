@@ -15,6 +15,6 @@ export async function POST(request: Request) {
       plotIndex: fieldPlotIndex(body.plotIndex),
       operationId: uuid(body.operationId, "operationId"),
     };
-    return plantField(input.plotIndex, input.operationId, session.accessToken);
+    return plantField(input.plotIndex, input.operationId, session.userId);
   });
 }

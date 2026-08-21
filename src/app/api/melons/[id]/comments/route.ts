@@ -43,8 +43,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const session = await requireActiveSession();
     const body = object(await readJson(request));
     const content = text(body.content, "content", 140);
-    const presenceToken = text(body.presenceToken, "presenceToken", 2_048);
-    requirePresenceCredential(presenceToken, session.userId, { spotId: id });
+    const policy = await getMelonReadPolicy(id, session.userId);
+    if (!policy.isOwner) {
+      const presenceToken = text(body.presenceToken, "presenceToken", 2_048);
+      requirePresenceCredential(presenceToken, session.userId, { spotId: id });
+    }
     return addComment(id, content, session.userId);
   });
 }

@@ -7,6 +7,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return route(async () => {
     const session = await requireSession();
-    return getSquatShelf(session.accessToken);
+    return getSquatShelf(session.userId);
   });
 }

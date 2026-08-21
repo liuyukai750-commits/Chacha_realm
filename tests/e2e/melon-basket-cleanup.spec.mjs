@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { enterIsland, installV0Api, melon } from "./fixtures/v0-api.mjs";
 
-test("吃完后从发现瓜篮消失，但已蹲瓜仍保留在蹲瓜架", async ({ page }) => {
+test("吃完后从发现瓜篮消失，但已蹲后续仍保留在蹲瓜架", async ({ page }) => {
   const state = await installV0Api(page);
   await enterIsland(page);
   const row = page.getByRole("article", { name: melon.title, exact: true });
-  await row.getByRole("button", { name: "添加蹲瓜" }).click();
+  await row.getByRole("button", { name: "添加蹲后续" }).click();
   await row.getByRole("button", { name: "直接吃", exact: true }).click();
   const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: melon.title, exact: true }) });
   const finish = dialog.getByRole("button", { name: "完成吃瓜" });

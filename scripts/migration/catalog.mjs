@@ -78,14 +78,37 @@ export function buildManifestQuery() {
   select ${index + 1} as ordinal, '${table}' as "table",
          count(*)::bigint as count,
          coalesce(
-           encode(digest(string_agg(row_digest, '' order by row_digest), 'sha256'), 'hex'),
-           encode(digest('', 'sha256'), 'hex')
+           encode(extensions.digest(string_agg(row_digest, '' order by row_digest), 'sha256'), 'hex'),
+           encode(extensions.digest('', 'sha256'), 'hex')
          ) as digest
-  from (select md5(to_jsonb(t)::text) as row_digest from public.${table} t) rows`).join("\n  union all\n");
+  from (
+    select md5(normalized.row_json::text) as row_digest
+    from public.${table} t
+    cross join lateral (
+      select jsonb_object_agg(
+        entry.key,
+        case
+          when attribute.atttypid = 'timestamptz'::regtype
+               and entry.value <> 'null'::jsonb
+            then to_jsonb(to_char(
+              (entry.value #>> '{}')::timestamptz at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US'
+            ))
+          else entry.value
+        end
+      ) as row_json
+      from jsonb_each(to_jsonb(t)) entry
+      join pg_attribute attribute
+        on attribute.attrelid = 'public.${table}'::regclass
+       and attribute.attname = entry.key
+       and attribute.attnum > 0
+       and not attribute.attisdropped
+    ) normalized
+  ) rows`).join("\n  union all\n");
   return `-- Read-only count/hash manifest; contains no row data or secrets.
 begin transaction read only;
 select jsonb_pretty(jsonb_build_object(
-  'version', 1,
+  'version', 2,
   'tables', jsonb_agg(to_jsonb(summary) - 'ordinal' order by ordinal)
 )) from (
 ${tableQueries}
@@ -117,7 +140,7 @@ export function assertSafeExecutionEnvironment(environment) {
 }
 
 function normalizeRows(manifest) {
-  if (!manifest || manifest.version !== 1 || !Array.isArray(manifest.tables)) {
+  if (!manifest || manifest.version !== 2 || !Array.isArray(manifest.tables)) {
     throw new Error("invalid migration manifest");
   }
   const result = new Map();

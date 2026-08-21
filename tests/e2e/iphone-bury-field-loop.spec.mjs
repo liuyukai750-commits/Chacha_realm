@@ -56,9 +56,7 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
     await expect(field).toBeVisible();
     await expect(field.getByText(/真瓜籽[^\d]*1|1[^\d]*真瓜籽/).first()).toBeVisible();
     const ownMelons = field.locator(".my-melons");
-    await expect(ownMelons.getByText("日常瓜", { exact: true })).toBeVisible();
-    await expect(ownMelons.getByText("附近生活圈", { exact: true })).toBeVisible();
-    await expect(ownMelons.getByText(/后成熟/)).toBeVisible();
+    await expect(ownMelons.getByRole("button", { name: "查看下班路上遇到一件暖心小事的正文和评论", exact: true })).toBeVisible();
     expect(api.fieldRequests.length, "发布完成后必须重新读取服务端瓜田").toBeGreaterThanOrEqual(2);
 
     const firstPlot = field.getByRole("button", { name: /第[1一]片土地.*0\/3/ });
@@ -88,8 +86,7 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
     await expect(page.getByRole("main")).toBeVisible();
     await openOwnField(page);
     const ownMelons = page.getByRole("region", { name: /我的瓜田/ }).locator(".my-melons");
-    await expect(ownMelons.getByText("日常瓜", { exact: true })).toBeVisible();
-    await expect(ownMelons.getByText("附近生活圈", { exact: true })).toBeVisible();
+    await expect(ownMelons.getByRole("button", { name: "查看下班路上遇到一件暖心小事，刷新后也要看得见的正文和评论", exact: true })).toBeVisible();
     expect(api.fieldRequests.length, "页面刷新后必须再次读取服务端瓜田").toBeGreaterThanOrEqual(2);
   });
 
@@ -139,16 +136,18 @@ test.describe("iPhone 埋瓜—真籽—瓜田闭环", () => {
 
     await page.getByRole("button", { name: "查看我埋下的瓜", exact: true }).click();
     await expect(page.getByRole("region", { name: /我的瓜田/ })).toBeVisible();
-    await page.getByRole("button", { name: /查看日常瓜的正文和评论/ }).click();
+    await page.getByRole("button", { name: `查看${expectedTitle}的正文和评论`, exact: true }).click();
 
-    const reader = page.getByRole("dialog", { name: expectedTitle });
+    const reader = page.getByRole("dialog", { name: "我的瓜详情", exact: true });
     await expect(reader).toBeVisible();
-    await expect(reader.getByText("我的瓜 · 瓜主管理视图")).toBeVisible();
+    await expect(reader.getByRole("heading", { name: expectedTitle, exact: true })).toBeVisible();
+    await expect(reader.getByText("作为作者留一条公开回复")).toBeVisible();
     await expect(reader.getByText(expectedContent)).toBeVisible();
     await expect(reader.getByRole("heading", { name: "吃瓜猹的评论" })).toBeVisible();
     await expect(reader.getByText("这是从评论 GET fixture 读取的第一条公开回声。")).toBeVisible();
     await expect(reader.getByText("远方围观也应该看得到这条评论。")).toBeVisible();
-    expect(api.commentGetRequests).toEqual([{ melonId: api.createdMelons[0].id, search: "?limit=20" }]);
+    expect(api.commentGetRequests).toHaveLength(1);
+    expect(api.commentGetRequests[0]).toMatchObject({ melonId: api.createdMelons[0].id, search: "?limit=20" });
   });
 
   test("SHARE-LEDGER：held 不奖励，每颗新安全瓜各奖励一次，幂等重放不多发", async ({ page }) => {

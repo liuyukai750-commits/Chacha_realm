@@ -29,8 +29,8 @@ export async function POST(request: Request) {
   return route<IslandBootstrap>(async () => {
     requireSameOrigin(request);
     const { serverSession, publicSession } = await timed("auth", createOrResumeAnonymousSessionBundle);
-    const fieldPromise = timed("field", () => getField(null, serverSession.accessToken));
-    const squatsPromise = timed("squats", () => getSquatShelf(serverSession.accessToken));
+    const fieldPromise = timed("field", () => getField(null, serverSession.userId));
+    const squatsPromise = timed("squats", () => getSquatShelf(serverSession.userId));
     const citiesPromise = timed("cities", getCities);
     const discoveryPromise = citiesPromise.then((cities) => {
       const selectedCityId: CityId | undefined = cities[0]?.id;

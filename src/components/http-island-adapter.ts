@@ -99,7 +99,7 @@ export const httpIslandAdapter: IslandAdapter = {
     return requestJson<ZonePresenceResult>("/api/presence/verify", { method: "POST", body: JSON.stringify(input) });
   },
   comment(id, content, presenceToken) {
-    return requestJson<MelonComment>(`/api/melons/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify({ content, presenceToken }) });
+    return requestJson<MelonComment>(`/api/melons/${encodeURIComponent(id)}/comments`, { method: "POST", body: JSON.stringify({ content, ...(presenceToken ? { presenceToken } : {}) }) });
   },
   field() {
     return requestJson<FieldView>("/api/fields/me");

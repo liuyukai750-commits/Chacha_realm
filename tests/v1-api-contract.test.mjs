@@ -13,13 +13,13 @@ test("播种 API 只接受活动会话、同源写入、0..2 土地编号与 UUI
   assert.match(route, /requireActiveSession\(\)/);
   assert.match(route, /fieldPlotIndex\(body\.plotIndex\)/);
   assert.match(route, /operationId:\s*uuid\(body\.operationId, "operationId"\)/);
-  assert.match(route, /plantField\(input\.plotIndex, input\.operationId, session\.accessToken\)/);
+  assert.match(route, /plantField\(input\.plotIndex, input\.operationId, session\.userId\)/);
   assert.match(validation, /value !== 0 && value !== 1 && value !== 2/);
 });
 
 test("播种 repository 把客户端 operationId 原样传给事务 RPC，用于安全重试", async () => {
   const repository = await source("src/server/repositories/island-repository.ts");
-  assert.match(repository, /plantField\([\s\S]*operationId:\s*string[\s\S]*rpc<PlantFieldResult>\([\s\S]*"plant_field_melon"[\s\S]*p_operation_id:\s*operationId/);
+  assert.match(repository, /plantField\([\s\S]*operationId:\s*string[\s\S]*actorRpc<PlantFieldResult>\([\s\S]*"plant_field_melon_for_actor"[\s\S]*actorId[\s\S]*p_operation_id:\s*operationId/);
 });
 
 test("收获 API 只允许活动会话，并把事务交给数据库 RPC", async () => {
@@ -29,8 +29,8 @@ test("收获 API 只允许活动会话，并把事务交给数据库 RPC", async
   ]);
   assert.match(route, /requireSameOrigin\(request\)/);
   assert.match(route, /requireActiveSession\(\)/);
-  assert.match(route, /harvestField\(session\.accessToken\)/);
-  assert.match(repository, /rpc<HarvestFieldResult>\("harvest_field", \{\}, accessToken\)/);
+  assert.match(route, /harvestField\(session\.userId\)/);
+  assert.match(repository, /actorRpc<HarvestFieldResult>\("harvest_field_for_actor", actorId\)/);
 });
 
 test("本人瓜田与他人瓜田走同一服务端视图，但用 null/alias 明确区分私有字段", async () => {
@@ -38,8 +38,8 @@ test("本人瓜田与他人瓜田走同一服务端视图，但用 null/alias �
     source("src/app/api/fields/me/route.ts"),
     source("src/app/api/fields/[alias]/route.ts"),
   ]);
-  assert.match(ownRoute, /getField\(null, session\.accessToken\)/);
-  assert.match(publicRoute, /getField\(alias, session\.accessToken\)/);
+  assert.match(ownRoute, /getField\(null, session\.userId\)/);
+  assert.match(publicRoute, /getField\(alias, session\.userId\)/);
   assert.match(publicRoute, /text\(rawAlias, "alias", 40\)/);
 });
 

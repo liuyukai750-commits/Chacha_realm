@@ -29,7 +29,10 @@ test("an authenticated legacy permanent account can set a password without SMS",
 
 test("legacy upgrade records its password completion marker only after every retryable step", () => {
   const start = service.indexOf("export async function upgradeLegacyAccountToPassword");
-  const upgrade = service.slice(start);
+  const upgradeFunction = service.slice(start);
+  const supabasePathStart = upgradeFunction.indexOf("// `account_login_credentials` is the completion marker");
+  const upgrade = upgradeFunction.slice(supabasePathStart);
+  assert.ok(supabasePathStart > 0);
   const identity = upgrade.indexOf("await updatePasswordIdentity");
   const signIn = upgrade.indexOf("await signIn");
   const recovery = upgrade.indexOf("await passwordAuthRepository.saveRecoverySecret");

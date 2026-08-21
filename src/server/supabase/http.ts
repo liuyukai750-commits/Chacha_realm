@@ -1,6 +1,8 @@
 import "server-only";
 
 import { ApiProblem, unavailable } from "@/server/api";
+import { getBackendProvider } from "@/server/backend/provider";
+import { postgresDataTransport } from "@/server/postgres/data-transport";
 import { getSupabaseAdminConfig, getSupabaseConfig } from "@/server/supabase/config";
 
 interface SupabaseErrorBody {
@@ -8,6 +10,19 @@ interface SupabaseErrorBody {
   error_code?: string;
   message?: string;
   msg?: string;
+}
+
+/**
+ * Central data access boundary used by the existing repositories. The first
+ * replacement seam intentionally preserves the current PostgREST query shape;
+ * a PostgreSQL adapter must translate it internally while keeping route and
+ * DTO semantics unchanged.
+ */
+export interface DataTransport {
+  rpc<T>(name: string, input: Record<string, unknown>, accessToken?: string): Promise<T>;
+  serviceRpc<T>(name: string, input: Record<string, unknown>): Promise<T>;
+  actorRpc<T>(name: string, actorId: string, input: Record<string, unknown>): Promise<T>;
+  selectRows<T>(table: string, query: string, accessToken?: string): Promise<T>;
 }
 
 function requestHeaders(
@@ -93,11 +108,7 @@ export async function supabaseFetch<T>(
   return body as T;
 }
 
-export function rpc<T>(name: string, input: Record<string, unknown>, accessToken?: string): Promise<T> {
-  return supabaseFetch<T>(`/rest/v1/rpc/${name}`, { method: "POST", body: JSON.stringify(input) }, accessToken);
-}
-
-export async function serviceRpc<T>(name: string, input: Record<string, unknown>): Promise<T> {
+async function supabaseServiceRpc<T>(name: string, input: Record<string, unknown>): Promise<T> {
   const config = getSupabaseAdminConfig();
   if (!config) throw unavailable();
   let response: Response;
@@ -109,7 +120,9 @@ export async function serviceRpc<T>(name: string, input: Record<string, unknown>
       body: JSON.stringify(input),
       headers: {
         apikey: config.secretKey,
-        ...(config.secretKeySource === "legacy_service_role" ? { Authorization: `Bearer ${config.secretKey}` } : {}),
+        ...(config.secretKeySource === "legacy_service_role"
+          ? { Authorization: `Bearer ${config.secretKey}` }
+          : {}),
         "Content-Type": "application/json",
       },
     });
@@ -124,6 +137,47 @@ export async function serviceRpc<T>(name: string, input: Record<string, unknown>
   return body as T;
 }
 
+export const supabaseDataTransport: DataTransport = {
+  rpc<T>(name: string, input: Record<string, unknown>, accessToken?: string): Promise<T> {
+    return supabaseFetch<T>(
+      `/rest/v1/rpc/${name}`,
+      { method: "POST", body: JSON.stringify(input) },
+      accessToken,
+    );
+  },
+  serviceRpc<T>(name: string, input: Record<string, unknown>): Promise<T> {
+    return supabaseServiceRpc<T>(name, input);
+  },
+  actorRpc<T>(name: string, actorId: string, input: Record<string, unknown>): Promise<T> {
+    return supabaseServiceRpc<T>(name, { ...input, p_actor_id: actorId });
+  },
+  selectRows<T>(table: string, query: string, accessToken?: string): Promise<T> {
+    return supabaseFetch<T>(`/rest/v1/${table}?${query}`, { method: "GET" }, accessToken);
+  },
+};
+
+// One atomic backend switch prevents a mixed Supabase-session/PostgreSQL-data
+// deployment. Supabase remains the safe default until the target rehearsal.
+const activeDataTransport: DataTransport = getBackendProvider() === "postgres"
+  ? postgresDataTransport
+  : supabaseDataTransport;
+
+export function rpc<T>(name: string, input: Record<string, unknown>, accessToken?: string): Promise<T> {
+  return activeDataTransport.rpc<T>(name, input, accessToken);
+}
+
+export function serviceRpc<T>(name: string, input: Record<string, unknown>): Promise<T> {
+  return activeDataTransport.serviceRpc<T>(name, input);
+}
+
+export function actorRpc<T>(
+  name: string,
+  actorId: string,
+  input: Record<string, unknown> = {},
+): Promise<T> {
+  return activeDataTransport.actorRpc<T>(name, actorId, input);
+}
+
 export function selectRows<T>(table: string, query: string, accessToken?: string): Promise<T> {
-  return supabaseFetch<T>(`/rest/v1/${table}?${query}`, { method: "GET" }, accessToken);
+  return activeDataTransport.selectRows<T>(table, query, accessToken);
 }

@@ -29,10 +29,14 @@ test("public-zone melons are city-wide readable while nearby melons require a lo
   assert.doesNotMatch(repository, /nearbyCellIdForLocation\(activeCityId/);
 });
 
-test("public-zone publication does not request or validate the publisher location", () => {
+test("public-zone publication validates city eligibility without persisting the publisher location", () => {
   const baseBlock = createRoute.match(/const base = \{[\s\S]*?\n\s*\};/)?.[0] ?? "";
-  assert.match(createRoute, /kind === "nearby_area"[\s\S]*validateLocationProof\(body\.location\)/);
+  assert.match(createRoute, /const location = validateLocationProof\(body\.location\)/);
+  assert.match(createRoute, /burialKind: "public_spot"[\s\S]*spotId:[^}]+location/);
   assert.doesNotMatch(baseBlock, /location:\s*validateLocationProof/);
+  assert.match(repository, /resolveSupportedCityForBurial\(input\.location\)/);
+  assert.match(repository, /p_latitude:\s*nearbyBurial \? input\.location!\.latitude : null/);
+  assert.match(repository, /p_longitude:\s*nearbyBurial \? input\.location!\.longitude : null/);
   assert.doesNotMatch(repository, /requireSafeSeek\(input\.spotId, input\.location\)/);
   assert.match(burySheet, /公共地点[\s\S]*无需到场/);
 });

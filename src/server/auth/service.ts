@@ -8,6 +8,7 @@ import type {
   PhoneOtpVerifyResult,
 } from "@/contracts";
 import { ApiProblem, unavailable } from "@/server/api";
+import { getBackendProvider } from "@/server/backend/provider";
 import {
   clearPendingPhoneAuth,
   clearPhoneSwitchCandidate,
@@ -19,12 +20,14 @@ import {
   savePhoneSwitchCandidate,
 } from "@/server/auth/security";
 import { getSupabaseAdminConfig, getSupabaseConfig } from "@/server/supabase/config";
-import { rpc, serviceRpc } from "@/server/supabase/http";
+import { postgresLocalPasswordRepository } from "@/server/postgres/local-password-repository";
+import { actorRpc, serviceRpc } from "@/server/supabase/http";
 import {
   type AuthSessionResponse,
   clearAuthSession,
   getOptionalSession,
   publicSessionFor,
+  revokeCurrentLocalSession,
   requireSession,
   saveAuthSession,
 } from "@/server/supabase/session";
@@ -37,6 +40,16 @@ interface AuthErrorBody {
 }
 
 const CAPTCHA_REQUIRED = process.env.CHACHA_CAPTCHA_REQUIRED?.trim().toLowerCase() === "true";
+
+function requirePhoneAuthProvider(): void {
+  if (getBackendProvider() === "postgres") {
+    throw new ApiProblem(
+      409,
+      "phone_auth_unavailable",
+      "手机号登录迁移期间暂不可用，请使用猹号和密码登录。",
+    );
+  }
+}
 
 interface VerifyResponse extends Partial<AuthSessionResponse> {
   user?: AuthSessionResponse["user"];
@@ -130,6 +143,7 @@ export async function requestPhoneOtp(
   phone: string,
   captchaToken?: string,
 ): Promise<PhoneOtpRequestResult> {
+  requirePhoneAuthProvider();
   if (CAPTCHA_REQUIRED && !captchaToken) {
     throw new ApiProblem(400, "captcha_required", "请先完成人机验证。");
   }
@@ -178,6 +192,7 @@ export async function verifyPhoneOtp(
   phone: string,
   code: string,
 ): Promise<PhoneOtpVerifyResult> {
+  requirePhoneAuthProvider();
   const pending = await requirePendingPhoneAuth(phone);
   await reserveAttempt(request, phone, "verify");
   let verified: VerifyResponse;
@@ -244,6 +259,7 @@ export async function confirmPhoneAccountSwitch(confirm: boolean): Promise<{
   session: AnonymousSession;
   needsProfile: boolean;
 }> {
+  requirePhoneAuthProvider();
   const current = await requireSession();
   if (!confirm) {
     await clearPhoneSwitchCandidate();
@@ -278,14 +294,22 @@ export async function completeProfile(displayName: string, animal: AnimalIdentit
   if (session.isAnonymous) {
     throw new ApiProblem(409, "phone_required", "请先绑定手机号，再创建公开身份。");
   }
-  await rpc<AnonymousSession>("complete_current_profile", {
+  await actorRpc<AnonymousSession>("complete_profile_for_actor", session.userId, {
     p_display_name: displayName,
     p_animal: animal,
-  }, session.accessToken);
+  });
   return publicSessionFor(session);
 }
 
 export async function logout(): Promise<void> {
+  if (getBackendProvider() === "postgres") {
+    try {
+      await revokeCurrentLocalSession("logout");
+    } finally {
+      await Promise.all([clearAuthSession(), clearPendingPhoneAuth(), clearPhoneSwitchCandidate()]);
+    }
+    return;
+  }
   const session = await getOptionalSession();
   if (session) {
     try {
@@ -300,6 +324,11 @@ export async function logout(): Promise<void> {
 
 export async function deleteCurrentAccount(): Promise<void> {
   const session = await requireSession();
+  if (getBackendProvider() === "postgres") {
+    await postgresLocalPasswordRepository.deleteAccount(session.userId);
+    await Promise.all([clearAuthSession(), clearPendingPhoneAuth(), clearPhoneSwitchCandidate()]);
+    return;
+  }
   const config = getSupabaseAdminConfig();
   if (!config) throw unavailable();
   let response: Response;

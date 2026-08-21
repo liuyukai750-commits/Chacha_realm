@@ -168,7 +168,7 @@ test.describe("V0 核心循环", () => {
     await expect(page.getByText(/真瓜籽\s*1|1\s*颗真瓜籽/).first()).toBeVisible();
   });
 
-  test("SQUAT：蹲瓜状态可开启和取消", async ({ page }) => {
+  test("SQUAT：蹲后续状态可开启和取消", async ({ page }) => {
     const api = await installV0Api(page);
     await enterIsland(page);
     const dialog = await openMelon(page);
@@ -181,29 +181,70 @@ test.describe("V0 核心循环", () => {
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
   });
 
-  test("SQUAT-SHELF：瓜篮按钮蹲瓜后立即进入我的蹲瓜架", async ({ page }) => {
+  test("SQUAT-SHELF：瓜篮按钮蹲后续后立即进入我的蹲瓜架", async ({ page }) => {
     const api = await installV0Api(page);
     await enterIsland(page);
 
     const basket = page.getByRole("region", { name: "瓜篮" });
     const row = basket.getByRole("article", { name: melon.title });
-    const squat = row.getByRole("button", { name: "添加蹲瓜", exact: true });
+    const squat = row.getByRole("button", { name: "添加蹲后续", exact: true });
     const squatBackground = await squat.evaluate((element) => getComputedStyle(element).backgroundColor);
     await squat.click();
 
-    await expect(row).toContainText("已蹲瓜");
+    await expect(row).toContainText("蹲后续");
+    await expect(row).not.toContainText("已蹲瓜");
     await expect(row).not.toContainText("正在更新");
-    await expect(row.getByRole("button", { name: "取消蹲瓜", exact: true })).toHaveCSS("background-color", squatBackground);
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
-    const cancel = row.getByRole("button", { name: "取消蹲瓜", exact: true });
+    const cancel = row.getByRole("button", { name: "取消蹲后续", exact: true });
     await expect(cancel).toBeVisible();
+    await expect(cancel).not.toHaveCSS("background-color", squatBackground);
     await expect(cancel).toHaveAttribute("aria-pressed", "true");
     await cancel.click();
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }, { active: false }]);
-    await expect(row.getByRole("button", { name: "添加蹲瓜", exact: true })).toHaveAttribute("aria-pressed", "false");
+    await expect(row.getByRole("button", { name: "添加蹲后续", exact: true })).toHaveCSS("background-color", squatBackground);
+    await expect(row.getByRole("button", { name: "添加蹲后续", exact: true })).toHaveAttribute("aria-pressed", "false");
     await page.getByRole("button", { name: /听瓜/ }).click();
     await expect(page.getByRole("heading", { name: "我的蹲瓜架" })).toBeVisible();
     await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toHaveCount(0);
+  });
+
+  test("SQUAT-BASKET-DETAIL：瓜篮蹲后续与详情状态、颜色和计数保持一致", async ({ page }) => {
+    const api = await installV0Api(page);
+    await enterIsland(page);
+
+    const row = page.getByRole("region", { name: "瓜篮" }).getByRole("article", { name: melon.title });
+    const basketSquat = row.getByRole("button", { name: "添加蹲后续", exact: true });
+    await basketSquat.click();
+    await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
+
+    const activeBasketSquat = row.getByRole("button", { name: "取消蹲后续", exact: true });
+    await expect(activeBasketSquat).toHaveAttribute("aria-pressed", "true");
+    const activeBackground = await activeBasketSquat.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+    await row.getByRole("button", { name: "直接吃", exact: true }).click();
+    const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: melon.title, exact: true }) }).first();
+    const detailSquat = dialog.getByRole("button", { name: /取消蹲后续，当前 1 人/ });
+    await expect(detailSquat).toHaveAttribute("aria-pressed", "true");
+    await expect(detailSquat).toHaveCSS("background-color", activeBackground);
+    await expect(api.squatRequests).toHaveLength(1);
+  });
+
+  test("SQUAT-INCUBATING：未成熟瓜蹲后续后移出瓜篮并进入蹲瓜架", async ({ page }) => {
+    const api = await installV0Api(page, { includeIncubating: true });
+    await enterIsland(page);
+
+    const basket = page.getByRole("region", { name: "瓜篮" });
+    const row = basket.getByRole("article", { name: "还在长的后续瓜" });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: "添加蹲后续", exact: true }).click();
+
+    await expect.poll(() => api.squatRequests).toContainEqual({ melonId: expect.any(String), active: true });
+    await expect(row).toHaveCount(0);
+    await page.getByRole("button", { name: /听瓜/ }).click();
+    const shelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
+    await expect(shelf.locator(".squat-shelf-main")).toHaveCount(1);
+    await expect(shelf.locator(".squat-shelf-main")).toContainText("还在长的后续瓜");
+    await expect(shelf.locator(".squat-shelf-main")).not.toContainText("一颗日常瓜");
   });
 
   test("SQUAT-NO-HANG：瓜篮后台刷新很慢时写入成功仍立即结束忙碌态", async ({ page }) => {
@@ -211,12 +252,12 @@ test.describe("V0 核心循环", () => {
     await enterIsland(page);
 
     const row = page.getByRole("region", { name: "瓜篮" }).getByRole("article", { name: melon.title });
-    await row.getByRole("button", { name: "添加蹲瓜", exact: true }).click();
+    await row.getByRole("button", { name: "添加蹲后续", exact: true }).click();
 
-    await expect(row).toContainText("已蹲瓜", { timeout: 300 });
+    await expect(row).toContainText("蹲后续", { timeout: 300 });
     await expect(row).not.toContainText("正在更新");
     await expect.poll(() => api.squatRequests).toEqual([{ active: true }]);
-    await expect(row.getByRole("button", { name: "取消蹲瓜", exact: true })).toBeVisible({ timeout: 1_000 });
+    await expect(row.getByRole("button", { name: "取消蹲后续", exact: true })).toBeVisible({ timeout: 1_000 });
     await page.getByRole("button", { name: /听瓜/ }).click();
     await expect(page.locator(".squat-shelf-main").filter({ hasText: melon.title })).toBeVisible({ timeout: 1_000 });
   });

@@ -30,7 +30,9 @@ test("新访客 bootstrap 不再自动创建匿名 Supabase 用户", async () =>
   assert.match(bootstrap, /requireSession|createOrResumeAnonymousSessionBundle|authenticated/i);
   assert.doesNotMatch(session, /\/auth\/v1\/signup/);
 
-  const activePath = session.slice(session.indexOf("async function currentSession"));
+  const activeStart = session.indexOf("export const supabaseAuthSessionProvider");
+  assert.ok(activeStart >= 0, "缺少活动 Supabase Session provider");
+  const activePath = session.slice(activeStart, session.indexOf("export function createSessionService"));
   assert.doesNotMatch(activePath, /is_anonymous\s*===\s*false[\s\S]{0,100}(?:throw|unauthorized)/i);
 });
 
@@ -182,18 +184,31 @@ test("旧匿名账号请求验证码时不暴露手机号是否已有瓜田", as
   assert.match(contracts, /requiresAccountSwitchConfirmation/);
 });
 
-test("登录闸门关闭时首页绕过 AuthGate，避免会话请求阻塞刷新", async () => {
+test("登录闸门默认开启，只有显式 false 时首页才绕过 AuthGate", async () => {
   const [page, envExample] = await Promise.all([
     source("src/app/page.tsx"),
     source(".env.example"),
   ]);
   assert.match(envExample, /AUTH_GATE_ENABLED=false/);
-  assert.match(page, /process\.env\.AUTH_GATE_ENABLED\s*===\s*["']true["']/);
+  assert.match(page, /process\.env\.AUTH_GATE_ENABLED\s*===\s*["']false["']/);
   const appDeclaration = page.search(/const\s+app\s*=\s*<ChachaIsland\s*\/>;/);
-  const disabledReturn = page.search(/if\s*\(!authGateRequired\)\s*return\s+app\s*;/);
+  const disabledReturn = page.search(/if\s*\(\s*process\.env\.AUTH_GATE_ENABLED\s*===\s*["']false["']\s*\)\s*return\s+app\s*;/);
   const authGateRender = page.search(/return\s*<AuthGate/);
   assert.ok(appDeclaration >= 0, "街区应用主体应在关闭登录闸门时直接渲染");
-  assert.ok(disabledReturn > appDeclaration && authGateRender > disabledReturn, "闸门关闭时必须直接渲染应用，不能先挂载 AuthGate");
+  assert.ok(disabledReturn > appDeclaration && authGateRender > disabledReturn, "显式关闭闸门时必须直接渲染应用，否则默认挂载 AuthGate");
+});
+
+test("登录门禁请求显式携带同站 Cookie，主理人页先经过登录门禁再读驾驶舱", async () => {
+  const [authGate, adminPage] = await Promise.all([
+    source("src/components/auth-gate.tsx"),
+    source("src/app/admin/page.tsx"),
+  ]);
+  const requestJsonStart = authGate.indexOf("async function requestJson");
+  const requestJsonEnd = authGate.indexOf("function normalizeSession", requestJsonStart);
+  const requestJsonBlock = authGate.slice(requestJsonStart, requestJsonEnd);
+  assert.match(requestJsonBlock, /credentials:\s*["']same-origin["']/);
+  assert.match(adminPage, /import\s+\{\s*AuthGate\s*\}\s+from\s+["']@\/components\/auth-gate["']/);
+  assert.match(adminPage, /return\s+<AuthGate\s+required>\s*<AdminDashboard\s*\/>\s*<\/AuthGate>/);
 });
 
 test("身份迁移提供显示昵称、不可变公开猹号、完成时间和六种动物约束", async () => {

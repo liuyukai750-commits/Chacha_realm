@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import type { AdminOverview } from "@/contracts/admin";
 import styles from "./admin-dashboard.module.css";
@@ -14,7 +14,7 @@ type DashboardState =
 
 type Metric = {
   label: string;
-  value: number;
+  value: number | string;
   note: string;
   tone?: "coral" | "lime";
 };
@@ -158,14 +158,17 @@ export function isOverviewEmpty(overview: AdminOverview) {
     overview.users.registrations.total === 0 &&
     overview.engagement.publishedMelons.total === 0 &&
     overview.engagement.effectiveReads.total === 0 &&
-    overview.economy.fieldPlants.active === 0 &&
-    overview.moderation.pendingReviewCases === 0 &&
     overview.cities.every((city) => city.publishedMelons === 0 && city.effectiveReads === 0)
   );
 }
 
 function formatCount(value: number) {
   return numberFormatter.format(value);
+}
+
+function formatRate(numerator: number, denominator: number) {
+  if (denominator === 0) return "—";
+  return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 }).format((numerator / denominator) * 100)}%`;
 }
 
 function formatGeneratedAt(value: string) {
@@ -213,7 +216,7 @@ function LedgerSection({
               <strong>{metric.label}</strong>
               <span>{metric.note}</span>
             </dt>
-            <dd>{formatCount(metric.value)}</dd>
+            <dd>{typeof metric.value === "number" ? formatCount(metric.value) : metric.value}</dd>
           </div>
         ))}
       </dl>
@@ -359,75 +362,64 @@ export function AdminDashboard() {
 }
 
 function DashboardReady({ overview, onReload }: { overview: AdminOverview; onReload: () => void }) {
-  const dailyPulse =
-    overview.engagement.publishedMelons.today +
-    overview.engagement.effectiveReads.today +
-    overview.engagement.comments.today +
-    overview.engagement.likes.today;
   const cityPeak = Math.max(1, ...overview.cities.map((city) => city.publishedMelons));
   const empty = isOverviewEmpty(overview);
 
-  const sections = useMemo(
-    () => [
-      {
-        eyebrow: "街坊",
-        title: "居民底账",
-        icon: (
-          <svg viewBox="0 0 24 24"><path d="M7.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-4 2.2-6 5.5-6s5.5 2 5.5 6m1.5-6c3.3 0 5.5 2 5.5 6" /></svg>
-        ),
-        metrics: [
-          { label: "全部居民", value: overview.users.registrations.total, note: "累计完成注册" },
-          { label: "今日新来", value: overview.users.registrations.today, note: "今天新增居民", tone: "lime" as const },
-          { label: "今日活跃", value: overview.users.active.today, note: "今天有过活动", tone: "lime" as const },
-          { label: "七日活跃", value: overview.users.active.last7Days, note: "近七日去重活跃" },
-          { label: "三十日活跃", value: overview.users.active.last30Days, note: "近三十日去重活跃" },
-        ],
-      },
-      {
-        eyebrow: "街声",
-        title: "内容与往来",
-        icon: (
-          <svg viewBox="0 0 24 24"><path d="M12 21c5 0 8-3.8 8-9s-3.6-8-8-8-8 2.8-8 8 3 9 8 9Zm0-17c-1 4-1 12 0 17m-7.5-9h15" /></svg>
-        ),
-        metrics: [
-          { label: "已发布瓜", value: overview.engagement.publishedMelons.total, note: `今日 ${formatCount(overview.engagement.publishedMelons.today)}` },
-          { label: "有效吃瓜", value: overview.engagement.effectiveReads.total, note: `今日 ${formatCount(overview.engagement.effectiveReads.today)}`, tone: "lime" as const },
-          { label: "评论", value: overview.engagement.comments.total, note: `今日 ${formatCount(overview.engagement.comments.today)}` },
-          { label: "点赞", value: overview.engagement.likes.total, note: `今日 ${formatCount(overview.engagement.likes.today)}` },
-          { label: "蹲后续", value: overview.engagement.squats.active, note: `今日新增 ${formatCount(overview.engagement.squats.addedToday)}` },
-        ],
-      },
-      {
-        eyebrow: "瓜田",
-        title: "种籽与收成",
-        icon: (
-          <svg viewBox="0 0 24 24"><path d="M12 21V9m0 5c-4 0-7-2-7-6 4 0 7 2 7 6Zm0-5c0-3 2.2-5 6-5 0 3-2.2 5-6 5ZM5 21h14" /></svg>
-        ),
-        metrics: [
-          { label: "小籽余额", value: overview.economy.balances.smallSeeds, note: `今日挣得 ${formatCount(overview.economy.earned.smallSeeds.today)}` },
-          { label: "真籽余额", value: overview.economy.balances.trueSeeds, note: `今日挣得 ${formatCount(overview.economy.earned.trueSeeds.today)}`, tone: "lime" as const },
-          { label: "今日种真籽", value: overview.economy.trueSeedsPlanted.today, note: `累计 ${formatCount(overview.economy.trueSeedsPlanted.total)}` },
-          { label: "生长中", value: overview.economy.fieldPlants.active, note: `今日新种 ${formatCount(overview.economy.fieldPlants.planted.today)}` },
-          { label: "今日收瓜", value: overview.economy.fieldHarvests.plants.today, note: `${formatCount(overview.economy.fieldHarvests.batches.today)} 批` },
-        ],
-      },
-      {
-        eyebrow: "街规",
-        title: "治理水位",
-        icon: (
-          <svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5c0 4.8 2.9 8.1 7.5 10 4.6-1.9 7.5-5.2 7.5-10V6L12 3Zm-3 9 2 2 4-5" /></svg>
-        ),
-        metrics: [
-          { label: "待复核", value: overview.moderation.pendingReviewCases, note: "当前待处理项目", tone: "coral" as const },
-          { label: "暂缓瓜", value: overview.moderation.heldMelons, note: "尚未通过复核", tone: "coral" as const },
-          { label: "暂缓评论", value: overview.moderation.heldComments, note: "尚未通过复核", tone: "coral" as const },
-          { label: "举报", value: overview.moderation.reports.total, note: `今日 ${formatCount(overview.moderation.reports.today)}` },
-          { label: "已停用居民", value: overview.moderation.bannedProfiles, note: `今日处置 ${formatCount(overview.moderation.banActions.today)}` },
-        ],
-      },
-    ],
-    [overview],
-  );
+  const sections = [
+    {
+      eyebrow: "增长",
+      title: "账号增长",
+      icon: (
+        <svg viewBox="0 0 24 24"><path d="M7.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-4 2.2-6 5.5-6s5.5 2 5.5 6m1.5-6c3.3 0 5.5 2 5.5 6" /></svg>
+      ),
+      metrics: [
+        { label: "累计注册", value: overview.users.registrations.total, note: "已完成注册并生成猹号" },
+        { label: "今日注册", value: overview.users.registrations.today, note: "今天新增猹号", tone: "lime" as const },
+        { label: "今日活跃", value: overview.users.active.today, note: "今天有过街区行为的去重账号", tone: "lime" as const },
+        { label: "七日活跃", value: overview.users.active.last7Days, note: "近七日去重活跃账号" },
+        { label: "三十日活跃", value: overview.users.active.last30Days, note: "近三十日去重活跃账号" },
+      ],
+    },
+    {
+      eyebrow: "转化",
+      title: "真实用户使用率",
+      icon: (
+        <svg viewBox="0 0 24 24"><path d="M12 21c5 0 8-3.8 8-9s-3.6-8-8-8-8 2.8-8 8 3 9 8 9Zm0-17c-1 4-1 12 0 17m-7.5-9h15" /></svg>
+      ),
+      metrics: [
+        {
+          label: "今日活跃率",
+          value: formatRate(overview.users.active.today, overview.users.registrations.total),
+          note: `${formatCount(overview.users.active.today)} / ${formatCount(overview.users.registrations.total)} 个真实账号今日活跃`,
+          tone: "lime" as const,
+        },
+        {
+          label: "七日活跃覆盖",
+          value: formatRate(overview.users.active.last7Days, overview.users.registrations.total),
+          note: `${formatCount(overview.users.active.last7Days)} / ${formatCount(overview.users.registrations.total)} 个真实账号近七日活跃`,
+        },
+        {
+          label: "三十日活跃覆盖",
+          value: formatRate(overview.users.active.last30Days, overview.users.registrations.total),
+          note: `${formatCount(overview.users.active.last30Days)} / ${formatCount(overview.users.registrations.total)} 个真实账号近三十日活跃`,
+        },
+      ],
+    },
+    {
+      eyebrow: "使用",
+      title: "今日使用情况",
+      icon: (
+        <svg viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m6 14v-7m5 7V3" /></svg>
+      ),
+      metrics: [
+        { label: "今日发瓜", value: overview.engagement.publishedMelons.today, note: `累计 ${formatCount(overview.engagement.publishedMelons.total)}` },
+        { label: "今日有效吃瓜", value: overview.engagement.effectiveReads.today, note: `累计 ${formatCount(overview.engagement.effectiveReads.total)}`, tone: "lime" as const },
+        { label: "今日评论", value: overview.engagement.comments.today, note: `累计 ${formatCount(overview.engagement.comments.total)}` },
+        { label: "今日点赞", value: overview.engagement.likes.today, note: `累计 ${formatCount(overview.engagement.likes.total)}` },
+        { label: "今日蹲后续", value: overview.engagement.squats.addedToday, note: `当前蹲守 ${formatCount(overview.engagement.squats.active)}` },
+      ],
+    },
+  ];
 
   if (empty) {
     return (
@@ -450,13 +442,13 @@ function DashboardReady({ overview, onReload }: { overview: AdminOverview; onRel
       <main className={styles.dashboardMain}>
         <section className={styles.pulseBand} aria-labelledby="today-pulse-title">
           <div className={styles.pulseCopy}>
-            <p>今日城市脉搏</p>
-            <h1 id="today-pulse-title">街上有动静</h1>
-            <span>发瓜、吃瓜、评论与点赞合计</span>
+            <p>今日账号增长</p>
+            <h1 id="today-pulse-title">今日新猹</h1>
+            <span>今天完成注册并生成猹号</span>
           </div>
           <div className={styles.pulseNumber}>
-            <strong>{formatCount(dailyPulse)}</strong>
-            <span>次往来</span>
+            <strong>{formatCount(overview.users.registrations.today)}</strong>
+            <span>个账号</span>
           </div>
           <div className={styles.pulseTrack} aria-hidden="true">
             {Array.from({ length: 12 }, (_, index) => <i key={index} />)}

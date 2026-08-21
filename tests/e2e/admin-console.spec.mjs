@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { installAuthApi, permanentProfile } from "./fixtures/auth-api.mjs";
 
 const cityIds = ["changsha", "beijing", "shanghai", "guangzhou", "shenzhen"];
 
@@ -61,19 +62,30 @@ async function mockOverview(page, response) {
 }
 
 test.describe("主理人驾驶舱聚合只读界面", () => {
+  test.beforeEach(async ({ page }) => {
+    await installAuthApi(page, {
+      session: {
+        authenticated: true,
+        anonymous: false,
+        needsProfile: false,
+        profile: { ...permanentProfile, identityBadge: "steward" },
+      },
+    });
+  });
+
   test("未登录、无权限、服务失败和空账本都有明确反馈", async ({ page }) => {
     for (const state of [
       { status: 401, name: "请先登录主理人账号" },
       { status: 403, name: "这个猹号没有驾驶舱权限" },
       { status: 500, name: "城市汇总读取失败" },
     ]) {
-      await page.unrouteAll({ behavior: "wait" });
+      await page.unroute("**/api/admin/overview").catch(() => {});
       await mockOverview(page, { status: state.status, body: { error: { code: "test" } } });
       await page.goto("/admin", { waitUntil: "domcontentloaded" });
       await expect(page.getByRole("heading", { name: state.name })).toBeVisible();
     }
 
-    await page.unrouteAll({ behavior: "wait" });
+    await page.unroute("**/api/admin/overview").catch(() => {});
     await mockOverview(page, overviewFixture({ empty: true }));
     await page.goto("/admin", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "城市账本还没有记录" })).toBeVisible();
@@ -94,7 +106,13 @@ test.describe("主理人驾驶舱聚合只读界面", () => {
     await page.goto("/admin", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "汇总街区脉搏…" })).toBeVisible();
     release();
-    await expect(page.getByRole("heading", { name: "街上有动静" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "今日新猹" })).toBeVisible();
+    await expect(page.getByText("今日注册", { exact: true })).toBeVisible();
+    await expect(page.getByText("今日活跃", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "真实用户使用率" })).toBeVisible();
+    await expect(page.getByText("今日活跃率", { exact: true })).toBeVisible();
+    await expect(page.getByText("七日活跃覆盖", { exact: true })).toBeVisible();
+    await expect(page.getByText("三十日活跃覆盖", { exact: true })).toBeVisible();
 
     for (const city of ["长沙", "北京", "上海", "广州", "深圳"]) {
       await expect(page.getByText(city, { exact: true })).toBeVisible();
@@ -106,12 +124,14 @@ test.describe("主理人驾驶舱聚合只读界面", () => {
     expect(text).not.toContain("28.2282");
     expect(text).not.toContain("112.9388");
     expect(text).not.toContain("这是某个瓜的正文");
+    expect(text).not.toContain("种籽与收成");
+    expect(text).not.toContain("治理水位");
   });
 
   test("375/430/桌面视口无横向溢出且刷新目标至少 44px", async ({ page }) => {
     await mockOverview(page, overviewFixture());
     await page.goto("/admin", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "街上有动静" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "今日新猹" })).toBeVisible();
 
     const layout = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,

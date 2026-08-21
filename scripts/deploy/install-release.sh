@@ -26,7 +26,7 @@ cd "$(dirname "$artifact")"
 sha256sum --check "$(basename "$artifact").sha256"
 
 # Reject absolute paths and parent traversal before extraction.
-if tar -tzf "$artifact" | awk '/^\// || (^|\/)\.\.($|\/)/ { bad=1 } END { exit bad ? 0 : 1 }'; then
+if tar -tzf "$artifact" | awk '$0 ~ /^\// || $0 ~ /(^|\/)\.\.($|\/)/ { bad=1 } END { exit bad ? 0 : 1 }'; then
   echo "Archive contains an unsafe path." >&2
   exit 2
 fi
@@ -51,7 +51,7 @@ systemctl restart chacha-street
 
 healthy=0
 for _ in $(seq 1 20); do
-  if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3000/ >/dev/null; then
+  if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3000/api/health/ready >/dev/null; then
     healthy=1
     break
   fi

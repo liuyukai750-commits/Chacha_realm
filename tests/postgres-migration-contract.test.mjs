@@ -13,7 +13,7 @@ import {
 
 const digest = "a".repeat(64);
 const manifest = () => ({
-  version: 1,
+  version: 2,
   tables: MIGRATED_TABLES.map((table) => ({ table, count: table === "profiles" ? 2 : 0, digest })),
 });
 
@@ -71,6 +71,9 @@ test("manifest SQL is read-only, complete and emits SHA-256 digests", () => {
   assert.match(sql, /begin transaction read only/i);
   assert.match(sql, /rollback;/i);
   assert.match(sql, /'sha256'/i);
+  assert.match(sql, /extensions\.digest\(/i);
+  assert.match(sql, /'timestamptz'::regtype/i);
+  assert.match(sql, /at time zone 'UTC'/i);
   assert.match(sql, /as "table"/i);
   for (const table of MIGRATED_TABLES) assert.match(sql, new RegExp(`public\\.${table}\\b`));
   assert.doesNotMatch(sql, /\b(insert|update|delete|truncate|drop)\b/i);
@@ -101,4 +104,38 @@ test("password identity wins after an in-place phone account upgrade", async () 
   assert.doesNotMatch(sql, /when u\.raw_app_meta_data ->> 'chacha_auth_kind' = 'password'/i);
   assert.match(sql, /exists \(select 1 from public\.account_login_credentials/i);
   assert.match(sql, /exists \(select 1 from public\.local_auth_credentials/i);
+});
+
+test("server-only PostgreSQL role has explicit RLS policies bounded by grants", async () => {
+  const sql = await readFile(
+    new URL("../deploy/postgres/standard-postgres-target.sql", import.meta.url),
+    "utf8",
+  );
+  for (const table of [
+    "profiles",
+    "account_login_credentials",
+    "account_recovery_credentials",
+    "local_auth_credentials",
+    "local_auth_sessions",
+    "local_auth_security_events",
+  ]) {
+    assert.match(sql, new RegExp(`create policy chacha_app_${table} on public\\.${table}`, "i"));
+  }
+  assert.doesNotMatch(sql, /grant\s+chacha_app\s+to\s+(anon|authenticated)/i);
+});
+
+test("standard PostgreSQL removes Supabase JWT guards from every server-only RPC", async () => {
+  const sql = await readFile(
+    new URL("../deploy/postgres/standard-postgres-target.sql", import.meta.url),
+    "utf8",
+  );
+  const compatibilityBlock = sql.slice(
+    sql.indexOf("legacy_jwt_guard constant text"),
+    sql.indexOf("revoke all on function public.create_melon_v3"),
+  );
+
+  assert.match(compatibilityBlock, /public\.create_melon_v4\([^']+\)/i);
+  assert.match(compatibilityBlock, /public\.get_admin_overview\(\)/i);
+  assert.match(compatibilityBlock, /regexp_replace\(definition, legacy_jwt_guard, '', 'i'\)/i);
+  assert.match(sql, /grant execute on function public\.get_admin_overview\(\) to chacha_app/i);
 });

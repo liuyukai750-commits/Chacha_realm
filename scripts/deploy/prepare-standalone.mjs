@@ -45,6 +45,7 @@ if (!commit || !/^[0-9a-f]{40}$/i.test(commit)) {
 const manifest = {
   application: "chacha-street",
   commit,
+  dirty: process.env.CHACHA_RELEASE_DIRTY === "true",
   createdAt: new Date().toISOString(),
   runtime: process.version,
   format: "next-standalone-v1",

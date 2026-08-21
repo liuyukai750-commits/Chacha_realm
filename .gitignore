@@ -19,9 +19,11 @@
 
 # production
 /build
+/artifacts/
 
 # misc
 .DS_Store
+/.codex-temp/
 *.pem
 
 # debug

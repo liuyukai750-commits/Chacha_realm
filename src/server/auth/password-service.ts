@@ -8,6 +8,8 @@ import type {
   PasswordAccountProvisionResult,
 } from "@/contracts";
 import { ApiProblem, unavailable } from "@/server/api";
+import { getBackendProvider } from "@/server/backend/provider";
+import { localPasswordService } from "@/server/auth/local-password-service";
 import {
   accountIdentityDigest,
   recoverySecretDigest,
@@ -15,7 +17,7 @@ import {
 } from "@/server/auth/security";
 import { passwordAuthRepository } from "@/server/auth/password-repository";
 import { getSupabaseAdminConfig, getSupabaseConfig } from "@/server/supabase/config";
-import { rpc } from "@/server/supabase/http";
+import { actorRpc } from "@/server/supabase/http";
 import {
   type AuthSessionResponse,
   getOptionalSession,
@@ -205,6 +207,21 @@ export async function registerPasswordAccount(input: {
   }
   await reserveAttempt(input.request, existing?.userId ?? "new-account", "register");
 
+  if (getBackendProvider() === "postgres") {
+    const recovery = generateRecoveryCode();
+    const session = await localPasswordService.register({
+      password: input.password,
+      animal: input.animal,
+      displayName: input.displayName,
+      recoveryCode: recovery.normalized,
+    });
+    return {
+      session,
+      recoveryCode: recovery.display,
+      existingDataPreserved: false,
+    };
+  }
+
   let userId = existing?.userId;
   let loginEmail: string | undefined;
   let createdUser = false;
@@ -222,10 +239,10 @@ export async function registerPasswordAccount(input: {
     await updatePasswordIdentity(userId, loginEmail, input.password);
     await passwordAuthRepository.saveLoginCredential(userId, loginEmail);
     const session = await signIn(loginEmail, input.password);
-    await rpc("complete_current_profile", {
+    await actorRpc("complete_profile_for_actor", userId, {
       p_display_name: input.displayName,
       p_animal: input.animal,
-    }, session.access_token);
+    });
     const recovery = generateRecoveryCode();
     await setRecovery(userId, target.publicId, recovery.normalized);
     await saveAuthSession(session);
@@ -249,6 +266,11 @@ export async function loginPasswordAccount(input: {
 }): Promise<{ session: AnonymousSession }> {
   await verifyCaptcha(input.captchaToken, input.request);
   await reserveAttempt(input.request, input.publicId, "login");
+  if (getBackendProvider() === "postgres") {
+    return {
+      session: await localPasswordService.login(input.publicId, input.password),
+    };
+  }
   const target = await passwordAuthRepository.findTargetByPublicId(input.publicId);
   if (!target) throw new ApiProblem(401, "invalid_credentials", "猹号或密码不正确。" );
   if (target.accountStatus !== "active") throw new ApiProblem(403, "account_banned", "该账号已被暂停使用。" );
@@ -268,6 +290,18 @@ export async function recoverPasswordAccount(input: {
   await verifyCaptcha(input.captchaToken, input.request);
   await reserveAttempt(input.request, input.publicId, "recover");
   const nextRecovery = generateRecoveryCode();
+  if (getBackendProvider() === "postgres") {
+    return {
+      session: await localPasswordService.recover({
+        publicId: input.publicId,
+        currentRecoveryDigest: recoverySecretDigest(input.publicId, input.recoveryCode),
+        nextRecoveryDigest: recoverySecretDigest(input.publicId, nextRecovery.normalized),
+        newPassword: input.newPassword,
+      }),
+      recoveryCode: nextRecovery.display,
+      existingDataPreserved: true,
+    };
+  }
   const rotated = await passwordAuthRepository.rotateRecoverySecret({
     p_public_id: input.publicId,
     p_current_digest: recoverySecretDigest(input.publicId, input.recoveryCode),
@@ -318,6 +352,22 @@ export async function upgradeLegacyAccountToPassword(input: {
   await reserveAttempt(input.request, existing.userId, "register");
   const loginEmail = generateInternalEmail();
   const recovery = generateRecoveryCode();
+
+  if (getBackendProvider() === "postgres") {
+    return {
+      session: {
+        ...await localPasswordService.upgrade({
+          userId: existing.userId,
+          publicId: target.publicId,
+          password: input.password,
+          recoveryCode: recovery.normalized,
+        }),
+        authKind: "password",
+      },
+      recoveryCode: recovery.display,
+      existingDataPreserved: true,
+    };
+  }
 
   // `account_login_credentials` is the completion marker consumed by
   // get_current_profile(). Keep it as the final durable write so every failure

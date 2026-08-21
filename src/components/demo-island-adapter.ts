@@ -55,7 +55,7 @@ export interface IslandAdapter {
   react(id: string, reaction: ReactionType, active: boolean): Promise<ReactionResult>;
   comments(id: string, presenceToken?: string): Promise<MelonCommentsPage>;
   verifyZonePresence(request: VerifyZonePresenceRequest): Promise<ZonePresenceResult>;
-  comment(id: string, content: string, presenceToken: string): Promise<MelonComment>;
+  comment(id: string, content: string, presenceToken?: string): Promise<MelonComment>;
   field(): Promise<FieldView>;
   fieldByAlias(alias: string): Promise<FieldView>;
   plant(request: PlantFieldRequest): Promise<PlantFieldResult>;
@@ -70,7 +70,9 @@ const changshaSpots = [
   { id: "spot-cs-03", cityId: "changsha" as const, districtId: "yuelu", name: "岳麓书院" },
 ];
 
-const configuredDemoSpots = publicSpots.map(toPublicSpotSummary);
+const configuredDemoSpots = publicSpots
+  .filter((spot) => spot.verification === "verified" && spot.seekSafety.status === "allowed")
+  .map(toPublicSpotSummary);
 
 const otherCities: Array<[CityId, string]> = [
   ["beijing", "北京"],
@@ -375,9 +377,10 @@ export const demoIslandAdapter: IslandAdapter = {
     }));
   },
   async comment(id, content, presenceToken) {
-    const presence = presenceTokens.get(presenceToken);
-    if (!presence || presence.expiresAt <= Date.now()) throw new Error("现场凭证已过期。草稿还在，重新感应后可以继续发送。");
-    const comment: MelonComment = { id: `demo-comment-${Date.now()}`, melonId: id, alias: session.alias, content, createdAt: new Date().toISOString() };
+    const isOwner = details[id]?.alias === session.alias;
+    const presence = presenceToken ? presenceTokens.get(presenceToken) : undefined;
+    if (!isOwner && (!presence || presence.expiresAt <= Date.now())) throw new Error("现场凭证已过期。草稿还在，重新感应后可以继续发送。");
+    const comment: MelonComment = { id: `demo-comment-${Date.now()}`, melonId: id, alias: session.alias, isOwner, content, createdAt: new Date().toISOString() };
     commentStore[id] = [...(commentStore[id] ?? []), comment];
     return delay(copy(comment));
   },

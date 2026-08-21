@@ -39,9 +39,9 @@ export function BurySheetV1({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
-  const selectedSpot = spots.find((spot) => spot.id === spotId);
+  const selectedSpot = spots.find((spot) => spot.id === spotId) ?? spots[0];
   const missingItems = [
-    buryMode === "public_spot" && !spotId ? "请选择公共地点" : "",
+    buryMode === "public_spot" && !selectedSpot ? "请选择当前城市的公共地点" : "",
     title.trim().length < 4 ? "标题至少 4 个字" : "",
     content.trim().length < 20 ? "故事至少 20 个字" : "",
   ].filter(Boolean);
@@ -50,14 +50,14 @@ export function BurySheetV1({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    if (buryMode === "public_spot" && !spotId) return setError("请选择公共地点。");
+    if (buryMode === "public_spot" && !selectedSpot) return setError("请选择当前城市仍然开放的公共地点。");
     if (title.trim().length < 4) return setError("标题至少写 4 个字。");
     if (content.trim().length < 20) return setError("故事至少写 20 个字。");
     setBusy(true);
     try {
       await onCreate(buryMode === "nearby_area"
         ? { operationId, burialKind: "nearby_area", topic, title: title.trim(), content: content.trim(), revealMode: "open" }
-        : { operationId, burialKind: "public_spot", spotId, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
+        : { operationId, burialKind: "public_spot", spotId: selectedSpot!.id, topic, title: title.trim(), content: content.trim(), revealMode: "open" });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "这次没有成功，请稍后再试。");
       window.requestAnimationFrame(() => {
@@ -99,9 +99,9 @@ export function BurySheetV1({
               <legend>公共地点</legend>
               {spots.length ? spots.map((spot) => {
                 const scene = getSpotScene(spot);
-                return <button type="button" key={spot.id} className={buryMode === "public_spot" && spot.id === spotId ? "selected" : ""} aria-label={scene.displayName} aria-pressed={buryMode === "public_spot" && spot.id === spotId} onClick={() => { setBuryMode("public_spot"); setSpotId(spot.id); setError(null); }}>
+                return <button type="button" key={spot.id} className={buryMode === "public_spot" && spot.id === selectedSpot?.id ? "selected" : ""} aria-label={scene.displayName} aria-pressed={buryMode === "public_spot" && spot.id === selectedSpot?.id} onClick={() => { setBuryMode("public_spot"); setSpotId(spot.id); setError(null); }}>
                   <span><strong>{scene.displayName}</strong><small>{scene.sceneLabel} · 非导航地图</small></span>
-                  {buryMode === "public_spot" && spot.id === spotId && <CheckIcon />}
+                  {buryMode === "public_spot" && spot.id === selectedSpot?.id && <CheckIcon />}
                 </button>;
               }) : <div className="spot-empty" role="status"><LocationIcon /><strong>这座城还没有可埋瓜的公共地点</strong><span>请先切换城市；这里不会出现无反馈空选择。</span></div>}
             </fieldset>

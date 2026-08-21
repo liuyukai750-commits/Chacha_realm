@@ -9,8 +9,9 @@ test("瓜主的瓜卡片是可操作入口并打开独立管理视图", () => {
   assert.match(component, /className="field-melon-card"/);
   assert.match(component, /onClick=\{\(\) => void onOpen\(melon\)\}/);
   assert.match(component, /<OwnerMelonReader[\s\S]*opened=\{opened\}/);
-  assert.match(component, /瓜主管理视图/);
+  assert.match(component, /function OwnerMelonReader[\s\S]*title="我的瓜详情"/);
   assert.match(component, /吃瓜猹的评论/);
+  assert.match(component, /作为作者留一条公开回复/);
 });
 
 test("孵化和复核中的瓜只显示瓜主原文，不提前请求公开评论", () => {

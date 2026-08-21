@@ -90,7 +90,7 @@ test("三类列表统一显示头像、昵称、方括号标题和时间戳", as
   expect(basketTimes).toEqual([...basketTimes].sort((left, right) => Date.parse(right) - Date.parse(left)));
   await expect(basketRows.first().getByRole("heading", { name: `[${melon.title}]`, exact: true })).toBeVisible();
 
-  await basketRows.first().getByRole("button", { name: "添加蹲瓜", exact: true }).click();
+  await basketRows.first().getByRole("button", { name: "添加蹲后续", exact: true }).click();
   await page.getByRole("button", { name: /听瓜，蹲瓜架/ }).click();
   const shelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
   await expect(shelf.locator(".squat-shelf-avatar img")).toHaveCount(1);
@@ -148,7 +148,7 @@ test("附近瓜篮、我的瓜和蹲瓜架都先即时打开详情壳层", async
   await page.getByRole("button", { name: /听瓜，蹲瓜架/ }).click();
   const emptyShelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
   await emptyShelf.getByRole("button", { name: "关闭" }).click();
-  await page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "添加蹲瓜", exact: true }).click();
+  await page.getByRole("article", { name: melon.title, exact: true }).getByRole("button", { name: "添加蹲后续", exact: true }).click();
   await page.getByRole("button", { name: /听瓜，蹲瓜架/ }).click();
   const shelf = page.getByRole("dialog", { name: "我的蹲瓜架" });
   await shelf.locator(".squat-shelf-main").filter({ hasText: melon.title }).click();

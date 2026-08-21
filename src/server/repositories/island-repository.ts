@@ -37,7 +37,7 @@ import { isInsidePublicSpotScene } from "@/server/security/discovery-scene";
 import { distanceMeters, toDistanceBand } from "@/server/security/location";
 import { resolveSupportedCityForBurial } from "@/server/security/location-city";
 import { resolveVisitorLocation } from "@/features/discovery/location";
-import { rpc, selectRows, serviceRpc } from "@/server/supabase/http";
+import { actorRpc, rpc, selectRows, serviceRpc } from "@/server/supabase/http";
 
 interface PublicSpotRow {
   id: string;
@@ -94,12 +94,20 @@ async function fetchCities(): Promise<CitySummary[]> {
   return rpc<CitySummary[]>("get_city_catalog", {});
 }
 
-async function activePublicSpot(spotId: string): Promise<PublicSpotRow | null> {
-  const rows = await selectRows<PublicSpotRow[]>(
-    "public_spots",
-    `select=id,city_id,district_id,name,latitude,longitude&id=eq.${encodeURIComponent(spotId)}&active=eq.true&limit=1`,
-  );
-  return rows[0] ?? null;
+async function activePublicSpot(spotId: string): Promise<Pick<PublicSpotRow, "id" | "city_id" | "district_id" | "name"> | null> {
+  const catalog = await getCities();
+  for (const city of catalog) {
+    const spot = city.spots.find((candidate) => candidate.id === spotId);
+    if (spot) {
+      return {
+        id: spot.id,
+        city_id: spot.cityId,
+        district_id: spot.districtId,
+        name: spot.name,
+      };
+    }
+  }
+  return null;
 }
 
 const getCachedCities = unstable_cache(fetchCities, ["chacha-city-catalog-v1"], {
@@ -251,12 +259,14 @@ export function setSquat(melonId: string, active: boolean, actorId: string): Pro
   return serviceRpc("set_melon_squat", { p_actor_id: actorId, p_melon_id: melonId, p_active: active });
 }
 
-export function getSquatShelf(accessToken: string): Promise<SquatShelf> {
-  return rpc<SquatShelf>("get_squat_shelf", {}, accessToken);
+export function getSquatShelf(actorId: string): Promise<SquatShelf> {
+  return actorRpc<SquatShelf>("get_squat_shelf_for_actor", actorId);
 }
 
-export function markSquatAlertSeen(melonId: string, accessToken: string): Promise<{ seen: true }> {
-  return rpc<{ seen: true }>("mark_squat_alert_seen", { p_melon_id: melonId }, accessToken);
+export function markSquatAlertSeen(melonId: string, actorId: string): Promise<{ seen: true }> {
+  return actorRpc<{ seen: true }>("mark_squat_alert_seen_for_actor", actorId, {
+    p_melon_id: melonId,
+  });
 }
 
 export function setReaction(melonId: string, reaction: ReactionType, active: boolean, actorId: string): Promise<ReactionResult> {
@@ -352,10 +362,12 @@ export async function addComment(
   return result.comment;
 }
 
-export function getField(alias: null, accessToken: string): Promise<OwnFieldView>;
-export function getField(alias: string, accessToken: string): Promise<PublicFieldView>;
-export async function getField(alias: string | null, accessToken: string): Promise<FieldView> {
-  const field = await rpc<FieldView | null>("get_field_view", { p_alias: alias }, accessToken);
+export function getField(alias: null, actorId: string): Promise<OwnFieldView>;
+export function getField(alias: string, actorId: string): Promise<PublicFieldView>;
+export async function getField(alias: string | null, actorId: string): Promise<FieldView> {
+  const field = await actorRpc<FieldView | null>("get_field_view_for_actor", actorId, {
+    p_alias: alias,
+  });
   if (!field) throw new ApiProblem(404, "not_found", "没有找到这片瓜田。 ");
   return field;
 }
@@ -363,28 +375,28 @@ export async function getField(alias: string | null, accessToken: string): Promi
 export function plantField(
   plotIndex: FieldPlotIndex,
   operationId: string,
-  accessToken: string,
+  actorId: string,
 ): Promise<PlantFieldResult> {
-  return rpc<PlantFieldResult>(
-    "plant_field_melon",
+  return actorRpc<PlantFieldResult>(
+    "plant_field_melon_for_actor",
+    actorId,
     { p_plot_index: plotIndex, p_operation_id: operationId },
-    accessToken,
   );
 }
 
-export function harvestField(accessToken: string): Promise<HarvestFieldResult> {
-  return rpc<HarvestFieldResult>("harvest_field", {}, accessToken);
+export function harvestField(actorId: string): Promise<HarvestFieldResult> {
+  return actorRpc<HarvestFieldResult>("harvest_field_for_actor", actorId);
 }
 
-export function createReport(input: CreateReportRequest, accessToken: string): Promise<{ accepted: true }> {
-  return rpc(
-    "create_content_report",
+export function createReport(input: CreateReportRequest, actorId: string): Promise<{ accepted: true }> {
+  return actorRpc(
+    "create_content_report_for_actor",
+    actorId,
     {
       p_target_type: input.targetType,
       p_target_id: input.targetId,
       p_reason: input.reason,
       p_details: input.details ?? null,
     },
-    accessToken,
   );
 }

@@ -68,9 +68,29 @@ export async function readJson(request: Request, maxBytes = 16_384): Promise<unk
   }
 }
 
+function firstForwardedValue(value: string | null): string | undefined {
+  return value?.split(",", 1)[0]?.trim() || undefined;
+}
+
+function forwardedRequestOrigin(request: Request): string | undefined {
+  const protocol = firstForwardedValue(request.headers.get("x-forwarded-proto"));
+  const host = firstForwardedValue(request.headers.get("x-forwarded-host"));
+  if ((protocol !== "http" && protocol !== "https") || !host) return undefined;
+
+  try {
+    const forwardedUrl = new URL(`${protocol}://${host}`);
+    if (forwardedUrl.username || forwardedUrl.password || forwardedUrl.pathname !== "/") return undefined;
+    return forwardedUrl.origin;
+  } catch {
+    return undefined;
+  }
+}
+
 export function requireSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
+  const requestOrigin = new URL(request.url).origin;
+  const forwardedOrigin = forwardedRequestOrigin(request);
+  if (origin && origin !== requestOrigin && origin !== forwardedOrigin) {
     throw new ApiProblem(403, "cross_origin_denied", "跨站写入请求已拒绝。 ");
   }
 }

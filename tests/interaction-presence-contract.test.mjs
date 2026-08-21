@@ -21,6 +21,6 @@ test("现场评论凭证绑定瓜，并由服务端按固定锚点的一公里�
   assert.match(presenceRoute, /target\.withinOneKm/);
   assert.doesNotMatch(presenceRoute, /nearbyCellIdForLocation|requireSafeSeek/);
   assert.doesNotMatch(presenceRoute, /latitude[^\n]*log|longitude[^\n]*log/i);
-  assert.match(commentsRoute, /requirePresenceCredential\(presenceToken, session\.userId, \{ spotId: id \}\)/);
+  assert.match(commentsRoute, /if \(!policy\.isOwner\)[\s\S]*requirePresenceCredential\(presenceToken, session\.userId, \{ spotId: id \}\)/);
   assert.match(migration, /get_melon_presence_target/);
 });

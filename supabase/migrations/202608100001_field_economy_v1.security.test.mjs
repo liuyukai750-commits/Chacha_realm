@@ -21,14 +21,14 @@ test("定位与五秒阅读边界只能经 Next 服务端进入 privileged RPC",
   assert.match(sql, /grant execute on function public\.complete_melon_read\(uuid, uuid\) to service_role/i);
   assert.match(functionBody("create_melon"), /p_actor_id uuid[\s\S]*service_role_required[\s\S]*account_status = 'active'/i);
   assert.match(functionBody("complete_melon_read"), /p_actor_id uuid[\s\S]*service_role_required[\s\S]*account_status = 'active'/i);
-  assert.match(repository, /serviceRpc<Omit<CreateMelonResult, "cityId">>\(\s*"create_melon_v3"[\s\S]*p_actor_id: actorId/i);
+  assert.match(repository, /serviceRpc<Omit<CreateMelonResult, "cityId">>\(\s*"create_melon_v4"[\s\S]*p_actor_id: actorId/i);
   assert.match(repository, /p_city_id: cityId/i);
   assert.match(repository, /p_reveal_mode: "open"/i);
   assert.match(functionBody("create_melon"), /reveal_mode\)[\s\S]*values \([\s\S]*'open'\)/i);
   assert.match(repository, /serviceRpc<CompleteReadResult>\(\s*"complete_melon_read"[\s\S]*p_actor_id: actorId/i);
-  assert.match(repository, /nearbyBurial = input\.burialKind === "nearby_area"[\s\S]*"create_melon_v3"[\s\S]*p_latitude: nearbyBurial \? input\.location!\.latitude : null/i);
+  assert.match(repository, /nearbyBurial = input\.burialKind === "nearby_area"[\s\S]*"create_melon_v4"[\s\S]*p_latitude: nearbyBurial \? input\.location!\.latitude : null/i);
   assert.doesNotMatch(repository, /requireSafeSeek\(input\.spotId, input\.location\)/i);
-  assert.match(melonRoute, /kind === "nearby_area"[\s\S]*validateLocationProof\(body\.location\)[\s\S]*burialKind: "public_spot"[\s\S]*createMelon\(input, session\.userId\)/i);
+  assert.match(melonRoute, /validateLocationProof\(body\.location\)[\s\S]*kind === "nearby_area"[\s\S]*burialKind: "public_spot"[\s\S]*createMelon\(input, session\.userId\)/i);
   assert.match(completeRoute, /verifyReadToken\(readToken, session\.userId, id\)[\s\S]*completeRead\(id, session\.userId\)/i);
 });
 

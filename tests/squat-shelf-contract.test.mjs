@@ -27,10 +27,10 @@ test("站内提醒 API 使用动态 GET，已读操作要求同源和活动会�
   ]);
   assert.match(listRoute, /export const dynamic = "force-dynamic"/);
   assert.match(listRoute, /requireSession\(\)/);
-  assert.match(listRoute, /getSquatShelf\(session\.accessToken\)/);
+  assert.match(listRoute, /getSquatShelf\(session\.userId\)/);
   assert.match(seenRoute, /requireSameOrigin\(request\)/);
   assert.match(seenRoute, /requireActiveSession\(\)/);
-  assert.match(seenRoute, /markSquatAlertSeen\(id, session\.accessToken\)/);
+  assert.match(seenRoute, /markSquatAlertSeen\(id, session\.userId\)/);
 });
 
 test("前端契约包含蹲瓜架、未读数量和成熟直达动作", async () => {
